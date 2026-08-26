@@ -1,4 +1,4 @@
-# Mind Note UI 设计规范
+# X Note UI 设计规范
 
 > 文档版本：v0.3
 >
@@ -6,11 +6,11 @@
 >
 > 视觉基准：Apple Notes
 >
-> 关联文档：[Mind Note 功能清单与页面组成](./Mind%20Note%20功能清单与页面组成.md)
+> 关联文档：[X Note 功能清单与页面组成](./X%20Note%20功能清单与页面组成.md)
 
 ## 1. 目标与原则
 
-Mind Note 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向，在 Android 与平板形态中保持一致的组件语义和交互反馈。
+X Note 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向，在 Android 与平板形态中保持一致的组件语义和交互反馈。
 
 所有新页面和重构页面必须遵守以下原则：
 
@@ -24,9 +24,9 @@ Mind Note 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方
 
 ## 2. 平台与技术边界
 
-`ScrollEdgeEffectStyle` 是 SwiftUI 中用于定义滚动视图边缘模糊过渡的类型，`scrollEdgeEffectStyle(_:for:)` 用于配置指定边缘。Mind Note 当前是 Android/Jetpack Compose 应用，因此本文中的 `ScrollEdgeEffectStyle` 表示项目级视觉规范，不表示 Android 代码直接调用 SwiftUI API。
+`ScrollEdgeEffectStyle` 是 SwiftUI 中用于定义滚动视图边缘模糊过渡的类型，`scrollEdgeEffectStyle(_:for:)` 用于配置指定边缘。X Note 当前是 Android/Jetpack Compose 应用，因此本文中的 `ScrollEdgeEffectStyle` 表示项目级视觉规范，不表示 Android 代码直接调用 SwiftUI API。
 
-Android 实现统一封装为 `MindNoteScrollEdgeEffect`，由 `MindNotePageScaffold` 接入。它至少包含以下能力：
+Android 实现统一封装为 `XNoteScrollEdgeEffect`，由 `XNotePageScaffold` 接入。它至少包含以下能力：
 
 - 根据滚动状态分别控制顶部和底部边缘效果。
 - 默认提供 `soft`，需要强化固定控件边界时提供 `hard`。
@@ -36,20 +36,20 @@ Android 实现统一封装为 `MindNoteScrollEdgeEffect`，由 `MindNotePageScaf
 
 SwiftUI 语义与 Compose 项目语义的映射如下：
 
-| 规范语义 | SwiftUI 参照 | Mind Note Android 实现 |
-|---|---|---|
-| 柔和滚动边缘 | `ScrollEdgeEffectStyle.soft` | `MindNoteScrollEdgeStyle.Soft` |
-| 清晰滚动边界 | `ScrollEdgeEffectStyle.hard` | `MindNoteScrollEdgeStyle.Hard` |
-| 指定生效边缘 | `scrollEdgeEffectStyle(_:for:)` | `MindNoteScrollEdgeEffect(edges, style)` |
-| 页面统一接入 | View hierarchy modifier | `MindNotePageScaffold` 内置效果层 |
-| 玻璃按钮 | `.buttonStyle(.glass)` | `MindNoteLiquidGlassButton` |
-| 自定义玻璃形状 | `glassEffect(_:in:)` | AndroidLiquidGlass 的项目级 Shape 封装 |
+| 规范语义       | SwiftUI 参照                    | X Note Android 实现                 |
+| -------------- | ------------------------------- | -------------------------------------- |
+| 柔和滚动边缘   | `ScrollEdgeEffectStyle.soft`    | `XNoteScrollEdgeStyle.Soft`            |
+| 清晰滚动边界   | `ScrollEdgeEffectStyle.hard`    | `XNoteScrollEdgeStyle.Hard`            |
+| 指定生效边缘   | `scrollEdgeEffectStyle(_:for:)` | `XNoteScrollEdgeEffect(edges, style)`  |
+| 页面统一接入   | View hierarchy modifier         | `XNotePageScaffold` 内置效果层         |
+| 玻璃按钮       | `.buttonStyle(.glass)`          | `XNoteLiquidGlassButton`               |
+| 自定义玻璃形状 | `glassEffect(_:in:)`            | AndroidLiquidGlass 的项目级 Shape 封装 |
 
 ## 3. 页面骨架与 Scroll Edge
 
 ### 3.1 统一页面骨架
 
-所有一级和二级页面必须以 `MindNotePageScaffold` 为根容器，由它统一处理：
+所有一级和二级页面必须以 `XNotePageScaffold` 为根容器，由它统一处理：
 
 - 系统状态栏、导航栏和安全区域。
 - 页面背景和明暗主题。
@@ -74,7 +74,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 4.1 标准结构
 
-所有二级页面使用 `MindNoteHeader`，结构固定为：
+所有二级页面使用 `XNoteHeader`，结构固定为：
 
 ```text
 ┌──────────────────────────────────────────┐
@@ -91,13 +91,13 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 4.2 尺寸与间距
 
-| 项目 | 手机 | 平板 |
-|---|---:|---:|
-| Header 内容高度 | 44 dp | 44 dp |
-| Header 水平安全边距 | 16 dp | 24 dp |
-| 圆形按钮 | 44 × 44 dp | 44 × 44 dp |
-| SVG 图标视觉尺寸 | 20 × 20 dp | 20 × 20 dp |
-| 标题与两侧最小间距 | 12 dp | 16 dp |
+| 项目                |       手机 |       平板 |
+| ------------------- | ---------: | ---------: |
+| Header 内容高度     |      44 dp |      44 dp |
+| Header 水平安全边距 |      16 dp |      24 dp |
+| 圆形按钮            | 44 × 44 dp | 44 × 44 dp |
+| SVG 图标视觉尺寸    | 20 × 20 dp | 20 × 20 dp |
+| 标题与两侧最小间距  |      12 dp |      16 dp |
 
 所有按钮的最小可点击区域为 44 × 44 dp。SVG 使用 `currentColor` 语义，由组件根据普通、按下、禁用和危险状态提供前景色；业务页面不得维护不同版本的返回图标。
 
@@ -109,28 +109,28 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 4.4 页面标题与右侧功能
 
-| 页面 | Header 标题 | 右侧主要功能 |
-|---|---|---|
-| 笔记本详情 | 当前笔记本名称 | 更多 |
-| 润色 Diff | 润色结果 | 无或帮助 |
-| 阅读模式 | 阅读模式 | 目录、编辑 |
-| 图片编辑与抠图 | 图片编辑 | 完成 |
-| 画板 | 画板 | 完成 |
-| 导出预览 | 导出预览 | 分享 |
-| Agent 对话 | 当前会话标题 | 更多 |
-| 笔记范围选择 | 笔记范围 | 完成 |
-| 工具调用详情 | 工具调用详情 | 重试或取消，按状态显示 |
-| 搜索页 | 搜索 | 清空，仅存在历史记录时显示 |
-| 统计 | 统计 | 无 |
-| 回收站 | 回收站 | 选择、更多 |
-| 贴纸库 | 贴纸库 | 添加 |
-| 模型与服务商 | 模型与服务商 | 添加 |
-| Agent 权限 | Agent 权限 | 无 |
-| Skill 管理 | Skill 管理 | 安装 |
-| MCP 管理 | MCP 管理 | 添加 |
-| Linux 环境 | Linux 环境 | 更多 |
-| 存储与隐私 | 存储与隐私 | 无 |
-| 外观与辅助功能 | 外观与辅助功能 | 无 |
+| 页面           | Header 标题    | 右侧主要功能               |
+| -------------- | -------------- | -------------------------- |
+| 笔记本详情     | 当前笔记本名称 | 更多                       |
+| 润色 Diff      | 润色结果       | 无或帮助                   |
+| 阅读模式       | 阅读模式       | 目录、编辑                 |
+| 图片编辑与抠图 | 图片编辑       | 完成                       |
+| 画板           | 画板           | 完成                       |
+| 导出预览       | 导出预览       | 分享                       |
+| Agent 对话     | 当前会话标题   | 更多                       |
+| 笔记范围选择   | 笔记范围       | 完成                       |
+| 工具调用详情   | 工具调用详情   | 重试或取消，按状态显示     |
+| 搜索页         | 搜索           | 清空，仅存在历史记录时显示 |
+| 统计           | 统计           | 无                         |
+| 回收站         | 回收站         | 选择、更多                 |
+| 贴纸库         | 贴纸库         | 添加                       |
+| 模型与服务商   | 模型与服务商   | 添加                       |
+| Agent 权限     | Agent 权限     | 无                         |
+| Skill 管理     | Skill 管理     | 安装                       |
+| MCP 管理       | MCP 管理       | 添加                       |
+| Linux 环境     | Linux 环境     | 更多                       |
+| 存储与隐私     | 存储与隐私     | 无                         |
+| 外观与辅助功能 | 外观与辅助功能 | 无                         |
 
 危险操作不直接作为 Header 的常驻主按钮；永久删除、清空、重置等操作放入更多菜单或确认弹窗。
 
@@ -138,7 +138,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 5.1 使用范围
 
-所有独立按钮统一使用 `MindNoteLiquidGlassButton` 系列，包括：
+所有独立按钮统一使用 `XNoteLiquidGlassButton` 系列，包括：
 
 - Header 图标按钮。
 - 底部导航与侧边导航按钮。
@@ -150,12 +150,12 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 5.2 按钮类型
 
-| 类型 | 形状 | 典型用途 |
-|---|---|---|
-| `Icon` | 圆形 | 返回、更多、搜索、关闭 |
-| `Capsule` | 胶囊 | 完成、保存、筛选、模式切换 |
-| `Rect` | 连续圆角矩形 | 弹窗主操作、较长文字操作 |
-| `Floating` | 圆形或胶囊 | 新建笔记、发送、编辑 |
+| 类型       | 形状         | 典型用途                   |
+| ---------- | ------------ | -------------------------- |
+| `Icon`     | 圆形         | 返回、更多、搜索、关闭     |
+| `Capsule`  | 胶囊         | 完成、保存、筛选、模式切换 |
+| `Rect`     | 连续圆角矩形 | 弹窗主操作、较长文字操作   |
+| `Floating` | 圆形或胶囊   | 新建笔记、发送、编辑       |
 
 所有类型共享同一套材质、交互状态、无障碍语义和性能降级逻辑，不允许页面复制模糊、描边、阴影或按压动画。
 
@@ -174,7 +174,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 6.1 全局规则
 
-所有由 Mind Note 绘制且包含圆角的界面元素，统一使用 `cornerSmoothing = 0.60` 的连续平滑曲线，包括：
+所有由 X Note 绘制且包含圆角的界面元素，统一使用 `cornerSmoothing = 0.60` 的连续平滑曲线，包括：
 
 - Liquid Glass 按钮、卡片和工具栏。
 - Header、底部导航、侧边导航和浮动操作区的容器。
@@ -182,11 +182,11 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 输入框、搜索框、筛选器、列表分组和状态容器。
 - 图片、贴纸、预览区域及其选中、裁剪和焦点轮廓。
 
-60% 是 Mind Note 的设计令牌，用于统一模拟 iOS 风格的连续圆角；它不是 Apple 对所有系统圆角公开规定的固定数值。SwiftUI 参照语义为 `RoundedRectangle(cornerRadius: radius, style: .continuous)`，Android 侧必须通过项目公共 Shape 实现等效曲线。
+60% 是 X Note 的设计令牌，用于统一模拟 iOS 风格的连续圆角；它不是 Apple 对所有系统圆角公开规定的固定数值。SwiftUI 参照语义为 `RoundedRectangle(cornerRadius: radius, style: .continuous)`，Android 侧必须通过项目公共 Shape 实现等效曲线。
 
 ### 6.2 组件与实现约束
 
-- Android 统一使用 `MindNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。
+- Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。
 - 禁止业务页面直接使用普通 `RoundedCornerShape`、局部 Bézier Path 或各自实现的 superellipse。
 - 背景填充、内容裁剪、描边、阴影、Liquid Glass 背景采样、按压反馈和焦点轮廓必须复用同一个 Shape Path，不能出现边缘错位。
 - 圆角半径由组件尺寸令牌决定；调整半径时仍保持 60% 平滑度，禁止通过改变平滑度模拟不同层级。
@@ -204,23 +204,23 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 7.1 组件目录
 
-| 公共组件 | 职责 | 禁止行为 |
-|---|---|---|
-| `MindNotePageScaffold` | 页面骨架、安全区域、Header、Scroll Edge、Toast Host | 承载业务数据请求 |
-| `MindNoteHeader` | 二级页面返回、标题和右侧操作 | 页面自定义高度或返回图标 |
-| `MindNoteLiquidGlassButton` | 所有独立按钮及交互状态 | 页面私有玻璃参数 |
-| `MindNoteDialog` | 阻断式确认、危险操作、关键说明 | 承载长表单或多级导航 |
-| `MindNoteDrawer` | 长内容、选择器、辅助工作流 | 替代简单确认弹窗 |
-| `MindNoteToastHost` | 短时、非阻断反馈 | 承载需要用户决策的信息 |
-| `MindNotePopup` | 锚定提示、预览和轻量操作 | 承载破坏性确认 |
-| `MindNoteDropdownMenu` | 与锚点相关的离散操作列表 | 展示复杂表单或无限层级 |
-| `MindNoteBackgroundPicker` | 默认背景与单篇笔记专属背景的选择、预览和继承状态 | 绕过页面状态直接持久化业务数据 |
-| `MindNoteNoteSurface` | 在编辑、预览、阅读和导出中渲染同一笔记背景与内容画布 | 绘制应用 Header 或工具栏 |
-| `MindNoteLoadingState` | 页面、区域和按钮加载态 | 隐藏可恢复错误 |
-| `MindNoteEmptyState` | 空数据说明与下一步操作 | 使用无操作价值的装饰图 |
-| `MindNoteErrorState` | 错误原因、重试和恢复入口 | 只显示错误码 |
+| 公共组件                 | 职责                                                 | 禁止行为                       |
+| ------------------------ | ---------------------------------------------------- | ------------------------------ |
+| `XNotePageScaffold`      | 页面骨架、安全区域、Header、Scroll Edge、Toast Host  | 承载业务数据请求               |
+| `XNoteHeader`            | 二级页面返回、标题和右侧操作                         | 页面自定义高度或返回图标       |
+| `XNoteLiquidGlassButton` | 所有独立按钮及交互状态                               | 页面私有玻璃参数               |
+| `XNoteDialog`            | 阻断式确认、危险操作、关键说明                       | 承载长表单或多级导航           |
+| `XNoteDrawer`            | 长内容、选择器、辅助工作流                           | 替代简单确认弹窗               |
+| `XNoteToastHost`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
+| `XNotePopup`             | 锚定提示、预览和轻量操作                             | 承载破坏性确认                 |
+| `XNoteDropdownMenu`      | 与锚点相关的离散操作列表                             | 展示复杂表单或无限层级         |
+| `XNoteBackgroundPicker`  | 默认背景与单篇笔记专属背景的选择、预览和继承状态     | 绕过页面状态直接持久化业务数据 |
+| `XNoteNoteSurface`       | 在编辑、预览、阅读和导出中渲染同一笔记背景与内容画布 | 绘制应用 Header 或工具栏       |
+| `XNoteLoadingState`      | 页面、区域和按钮加载态                               | 隐藏可恢复错误                 |
+| `XNoteEmptyState`        | 空数据说明与下一步操作                               | 使用无操作价值的装饰图         |
+| `XNoteErrorState`        | 错误原因、重试和恢复入口                             | 只显示错误码                   |
 
-所有包含圆角的公共组件必须使用 `MindNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
+所有包含圆角的公共组件必须使用 `XNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
 
 ### 7.2 复用规则
 
@@ -233,14 +233,14 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 7.3 浮层选型
 
-| 场景 | 使用组件 |
-|---|---|
-| 删除、转换、覆盖等必须确认的操作 | `MindNoteDialog` |
-| 手机端长选择流程、图片来源、筛选与表单 | `MindNoteDrawer` 底部形态 |
-| 平板端辅助面板或长选择流程 | `MindNoteDrawer` 侧边或锚定形态 |
-| 保存成功、已恢复、网络中断等短反馈 | `MindNoteToastHost` |
-| 针对某个控件的说明或轻量预览 | `MindNotePopup` |
-| 排序、更多、单组选项等锚定操作 | `MindNoteDropdownMenu` |
+| 场景                                   | 使用组件                     |
+| -------------------------------------- | ---------------------------- |
+| 删除、转换、覆盖等必须确认的操作       | `XNoteDialog`                |
+| 手机端长选择流程、图片来源、筛选与表单 | `XNoteDrawer` 底部形态       |
+| 平板端辅助面板或长选择流程             | `XNoteDrawer` 侧边或锚定形态 |
+| 保存成功、已恢复、网络中断等短反馈     | `XNoteToastHost`             |
+| 针对某个控件的说明或轻量预览           | `XNotePopup`                 |
+| 排序、更多、单组选项等锚定操作         | `XNoteDropdownMenu`          |
 
 同一时刻只显示一个模态浮层。后显示的非模态 Toast 可以排队，但不能遮挡 Header 返回按钮、主要操作或系统导航区域。
 
@@ -256,10 +256,10 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 ### 8.2 笔记背景
 
-- 笔记正文统一由 `MindNoteNoteSurface` 承载，在普通笔记编辑、Markdown 编辑与预览、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
+- 笔记正文统一由 `XNoteNoteSurface` 承载，在普通笔记编辑、Markdown 编辑与预览、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
 - 背景只覆盖笔记内容画布，不延伸到 Header、底部工具栏、导航栏、Dialog、Drawer、Toast、Popup 或 DropdownMenu。
-- 编辑页的更多菜单提供“笔记背景”入口。手机使用 `MindNoteDrawer` 底部形态，平板使用锚定面板或受限宽度 Drawer。
-- `MindNoteBackgroundPicker` 必须展示背景缩略图、选中状态、实时预览、“使用默认背景”选项，以及明确的影响范围说明。
+- 编辑页的更多菜单提供“笔记背景”入口。手机使用 `XNoteDrawer` 底部形态，平板使用锚定面板或受限宽度 Drawer。
+- `XNoteBackgroundPicker` 必须展示背景缩略图、选中状态、实时预览、“使用默认背景”选项，以及明确的影响范围说明。
 - 编辑页背景选择器的影响范围文案固定为“仅当前笔记”；设置页中的默认背景选择器复用同一组件，影响范围文案为“所有未设置专属背景的笔记”。
 - 背景缩略图、选中轮廓和预览卡片统一使用 60% 平滑圆角。
 - 背景变化不能降低正文可读性；文本、光标、选择区、Diff 标记和图片控制柄根据背景明暗使用语义前景色或必要的对比遮罩。
@@ -310,11 +310,11 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 每个页面交付前至少验证：
 
-- 页面由 `MindNotePageScaffold` 承载，并接入所需顶部与底部 Scroll Edge。
+- 页面由 `XNotePageScaffold` 承载，并接入所需顶部与底部 Scroll Edge。
 - 二级页面使用统一 Header、圆形 Liquid Glass 返回按钮和唯一的 SVG 返回图标。
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
-- 页面中的独立按钮全部来自 `MindNoteLiquidGlassButton` 系列。
+- 页面中的独立按钮全部来自 `XNoteLiquidGlassButton` 系列。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 编辑页可通过公共背景选择器修改当前单篇笔记背景，设置页可修改默认背景，并准确展示各自影响范围。
 - 继承默认背景与设置专属背景的笔记均按优先级显示正确背景；移动笔记所属的笔记本不会改变背景。
