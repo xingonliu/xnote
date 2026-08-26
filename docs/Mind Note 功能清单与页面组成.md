@@ -1,8 +1,12 @@
 # Mind Note 功能清单与页面组成
 
-> 文档版本：v0.1  
-> 产品平台：Android 手机、Android 平板  
+> 文档版本：v0.2
+>
+> 产品平台：Android 手机、Android 平板
+>
 > 文档状态：功能与页面结构草案
+>
+> 配套规范：[Mind Note UI 设计规范](./Mind%20Note%20UI%20设计规范.md)
 
 ## 1. 产品定位
 
@@ -804,4 +808,3 @@ Mind Note
 - 本地 stdio MCP。
 - 可执行脚本型 Skill。
 - 更细粒度的工具授权。
-
