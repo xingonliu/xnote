@@ -9,6 +9,7 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - Kotlin/Compose Compiler 2.3.21、Compose BOM 2026.08.00。
 - AndroidLiquidGlass `io.github.kyant0:backdrop:1.0.6` 与 Shapes `1.2.1` 均固定版本。
 - Liquid Glass 没有低版本或低性能替代材质；Android 13 是完整透镜效果的最低系统边界。
+- 界面矢量图标统一来自 Lucide `1.34.0`，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
 
 ## 本地运行
 

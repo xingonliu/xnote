@@ -68,7 +68,7 @@ fun NotesHomeScreen(
                     verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_notes),
+                        painter = painterResource(R.drawable.ic_lucide_notebook_pen),
                         contentDescription = null,
                         tint = XNoteAccentYellow,
                         modifier = Modifier.size(44.dp),
@@ -102,7 +102,7 @@ fun NotesHomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_add),
+                                painter = painterResource(R.drawable.ic_lucide_plus),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(20.dp),

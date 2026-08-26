@@ -72,7 +72,7 @@ fun XNoteHeader(
                     .size(XNoteMinimumTouchTarget),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_arrow_back),
+                    painter = painterResource(R.drawable.ic_lucide_arrow_left),
                     contentDescription = stringResource(R.string.action_back),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp),
@@ -106,7 +106,7 @@ fun XNoteHeader(
                     .size(XNoteMinimumTouchTarget),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_search),
+                    painter = painterResource(R.drawable.ic_lucide_search),
                     contentDescription = stringResource(R.string.action_search),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp),

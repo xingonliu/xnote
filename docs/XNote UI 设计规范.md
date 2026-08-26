@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.4
+> 文档版本：v0.5
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -134,9 +134,58 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 危险操作不直接作为 Header 的常驻主按钮；永久删除、清空、重置等操作放入更多菜单或确认弹窗。
 
-## 5. Liquid Glass 按钮
+## 5. Lucide 图标系统
 
-### 5.1 使用范围
+### 5.1 来源与版本
+
+- 应用界面中的 SVG 图标统一选自 [Lucide Icons](https://lucide.dev/icons/)，当前资产基线为 `lucide-static 1.34.0`。
+- Android 工程将 Lucide 官方 SVG 转换为等价的 `VectorDrawable`，不引入运行时图标依赖；转换时必须保留官方路径、视口和描边语义。
+- 新增或替换图标时，先从 Lucide 图标目录选择语义最接近的图标，并在资源文件头记录 Lucide 名称、版本、许可证和原始页面链接。
+- 禁止混用 Material Icons、自绘轮廓、Emoji、字体符号或其他第三方图标。Lucide 暂无合适图标时，应先补充或调整本规范，不得在业务页面创建私有替代图标。
+- Lucide 的许可证全文统一保存在仓库根目录的 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
+
+### 5.2 几何与样式
+
+| 项目 | 统一值 |
+| ---- | ------ |
+| 原始视口 | 24 × 24 |
+| 默认描边 | 2，随图标整体等比缩放 |
+| 线端 | `round` |
+| 转角 | `round` |
+| 默认填充 | `none`；仅当 Lucide 原图明确包含填充时例外 |
+| Header 与普通按钮 | 20 × 20 dp |
+| 一级导航 | 22 × 22 dp |
+| 空状态主图标 | 44 × 44 dp |
+| 最小触控区域 | 44 × 44 dp |
+
+- 业务代码通过 Compose `Icon.tint` 提供前景色，对应 Lucide SVG 的 `currentColor` 语义；不得为普通、按下、选中或禁用状态复制不同颜色的矢量资源。
+- 不得拉伸、压扁、旋转、增删路径或单独改变某条路径的粗细。尺寸变化必须保持 24 × 24 视口的原始比例。
+- 返回、前进等方向性图标按交互语义启用 RTL 自动镜像；无方向性的图标不得镜像。
+- 图标外部的 Liquid Glass 容器、状态底色和应用启动背景不属于图标轮廓，可以使用 XNote 设计令牌；容器内的图标轮廓仍必须来自 Lucide。
+
+### 5.3 资源命名与当前映射
+
+Android 资源以 `ic_lucide_<官方名称>` 命名，将 Lucide 名称中的连字符转换为下划线。系统要求固定名称的启动资源可保留 `ic_launcher`，但文件头必须标明实际使用的 Lucide 图标。
+
+| XNote 资源 | Lucide 名称 | 用途 |
+| ---------- | ----------- | ---- |
+| `ic_lucide_notebook_pen` | `notebook-pen` | 笔记导航、笔记空状态 |
+| `ic_lucide_sparkles` | `sparkles` | Agent 导航 |
+| `ic_lucide_user_round` | `user-round` | 个人中心导航 |
+| `ic_lucide_search` | `search` | 搜索操作 |
+| `ic_lucide_arrow_left` | `arrow-left` | 返回操作 |
+| `ic_lucide_plus` | `plus` | 新建操作 |
+| `ic_launcher` | `notebook-pen` | 应用图标与启动页图形 |
+
+### 5.4 无障碍
+
+- 独立图标按钮必须提供本地化、可朗读的 `contentDescription`。
+- 图标与可见文字共同表达同一操作时，图标使用 `contentDescription = null`，由父级按钮或文字提供唯一语义，避免屏幕阅读器重复朗读。
+- 选中、禁用、危险和加载状态不能只靠图标颜色表达；同时提供容器状态、文字或无障碍状态描述。
+
+## 6. Liquid Glass 按钮
+
+### 6.1 使用范围
 
 所有独立按钮统一使用 `XNoteLiquidGlassButton` 系列，包括：
 
@@ -148,7 +197,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立的图标操作仍使用玻璃按钮。
 
-### 5.2 按钮类型
+### 6.2 按钮类型
 
 | 类型       | 形状         | 典型用途                   |
 | ---------- | ------------ | -------------------------- |
@@ -159,7 +208,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 所有类型共享同一套材质、交互状态和无障碍语义，不允许页面复制模糊、描边、阴影或按压动画。
 
-### 5.3 视觉与状态
+### 6.3 视觉与状态
 
 - 默认材质使用透明采样、柔和高光和低对比描边，前景文字与图标保持清晰。
 - 主操作使用 `accentNoteYellow` Tint；普通操作使用中性 Tint；危险操作使用 `destructive` 前景色与轻量危险 Tint。
@@ -169,9 +218,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 加载状态保持按钮尺寸不变，防止布局位移；重复提交操作必须锁定。
 - “减少动画”开启时取消形变和弹性动画，仅保留即时的颜色或透明度反馈。
 
-## 6. 60% 平滑圆角
+## 7. 60% 平滑圆角
 
-### 6.1 全局规则
+### 7.1 全局规则
 
 所有由 XNote 绘制且包含圆角的界面元素，统一使用 `cornerSmoothing = 0.60` 的连续平滑曲线，包括：
 
@@ -183,7 +232,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 60% 是 XNote 的设计令牌，用于统一模拟 iOS 风格的连续圆角；它不是 Apple 对所有系统圆角公开规定的固定数值。SwiftUI 参照语义为 `RoundedRectangle(cornerRadius: radius, style: .continuous)`，Android 侧必须通过项目公共 Shape 实现等效曲线。
 
-### 6.2 组件与实现约束
+### 7.2 组件与实现约束
 
 - Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。
 - 禁止业务页面直接使用普通 `RoundedCornerShape`、局部 Bézier Path 或各自实现的 superellipse。
@@ -192,15 +241,15 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - Shape 计算结果应按尺寸与半径缓存，避免列表滚动和玻璃动画期间重复生成路径。
 - Figma 或其他设计稿交付时，所有非圆形圆角将 Corner smoothing 设置为 60%；导出矢量资产时保留连续曲线路径。
 
-### 6.3 适用边界
+### 7.3 适用边界
 
 - 正圆按钮使用统一 `Circle`，胶囊按钮使用统一 `Capsule`；两者由几何形状本身确定，不再套用数值平滑度。
 - Android 系统权限窗口、系统分享、输入法和其他非应用绘制界面不受本规范控制。
 - 用户提供的图片、贴纸和画笔内容不改变原始轮廓；只有应用为其添加圆角容器时才应用 60% 平滑圆角。
 
-## 7. 公共组件
+## 8. 公共组件
 
-### 7.1 组件目录
+### 8.1 组件目录
 
 | 公共组件                 | 职责                                                 | 禁止行为                       |
 | ------------------------ | ---------------------------------------------------- | ------------------------------ |
@@ -220,7 +269,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 所有包含圆角的公共组件必须使用 `XNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
 
-### 7.2 复用规则
+### 8.2 复用规则
 
 - 公共组件只接收展示数据、状态和回调；导航、数据请求与业务判断由页面层负责。
 - 状态由调用方提升并保持单向数据流，组件不得在内部复制业务状态。
@@ -229,7 +278,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 所有组件必须提供无障碍名称、角色、状态和必要的操作提示。
 - 公共组件变更必须同时验证手机、平板、浅色、深色、字体放大和“减少动画”。
 
-### 7.3 浮层选型
+### 8.3 浮层选型
 
 | 场景                                   | 使用组件                     |
 | -------------------------------------- | ---------------------------- |
@@ -242,9 +291,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 同一时刻只显示一个模态浮层。后显示的非模态 Toast 可以排队，但不能遮挡 Header 返回按钮、主要操作或系统导航区域。
 
-## 8. Apple Notes 视觉一致性
+## 9. Apple Notes 视觉一致性
 
-### 8.1 色彩与材质
+### 9.1 色彩与材质
 
 - 使用温和的浅色纸张背景与低亮度深色背景，正文保持最高对比度。
 - `accentNoteYellow` 是笔记相关主强调色，用于主操作、选中态和关键图标，不大面积铺满页面。
@@ -252,7 +301,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 玻璃材质主要用于固定、浮动和可交互控件，正文承载区优先保持稳定、平整和易读。
 - 浅色、深色与高对比度模式均使用语义色，不在业务页面写死颜色。
 
-### 8.2 笔记背景
+### 9.2 笔记背景
 
 - 笔记正文统一由 `XNoteNoteSurface` 承载，在普通笔记编辑、Markdown 编辑与预览、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
 - 背景只覆盖笔记内容画布，不延伸到 Header、底部工具栏、导航栏、Dialog、Drawer、Toast、Popup 或 DropdownMenu。
@@ -264,14 +313,14 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 背景加载期间保持内容可编辑；加载失败时显示默认背景和非阻断提示。
 - 导出预览必须准确展示最终文件中的背景，且不能包含任何编辑控件或 Liquid Glass Overlay。
 
-### 8.3 排版
+### 9.3 排版
 
 - 使用系统字体和动态字号，不引入与系统气质冲突的装饰字体。
 - 页面标题、笔记标题、分组标题、正文、辅助信息和时间信息使用统一文本令牌。
 - 笔记正文优先保证舒适行高；统计数值和列表摘要不能挤压主要标题。
 - 字号放大时允许 Header 标题省略、按钮文字收敛为图标，但主要功能不能消失。
 
-### 8.4 布局与动效
+### 9.4 布局与动效
 
 - 手机页面水平边距默认 16 dp，平板默认 24 dp；阅读和编辑内容可以设置最大内容宽度并居中。
 - 页面分组使用留白优先于重阴影，圆角只用于明确的容器或交互区域，并统一使用 60% 平滑圆角。
@@ -279,23 +328,23 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 内容滚动时 Header 保持稳定，Scroll Edge 负责表达固定层与内容层的关系。
 - 支持系统返回手势、预测性返回、键盘避让和横竖屏切换。
 
-## 9. 页面适配
+## 10. 页面适配
 
-### 9.1 手机
+### 10.1 手机
 
 - 二级页面使用单栏结构和顶部 Header。
 - 长选择、图片来源和筛选优先使用底部抽屉。
 - 底部导航、编辑工具区和输入区均触发底部 Scroll Edge。
 - 浮动按钮不得遮挡列表最后一项，页面 Scaffold 负责补足底部内容间距。
 
-### 9.2 平板
+### 10.2 平板
 
 - 一级导航转换为左侧导航栏，内容区可使用双栏或多栏。
 - 每一栏的独立滚动容器分别判断边缘效果，但同一视觉层只渲染一次，避免重复模糊。
 - 详情栏仍使用统一 Header；左侧返回按钮在当前布局确实存在可返回层级时显示，否则保留等宽布局空间。
 - 短菜单和选择器优先锚定显示，长流程使用侧边抽屉或受限宽度面板。
 
-## 10. 无障碍与性能
+## 11. 无障碍与性能
 
 - 所有图标按钮必须提供可朗读名称，不能只依赖图标外观表达含义。
 - 文字和关键图标的对比度不得因玻璃背景变化而失效；必要时增加动态遮罩或切换高对比材质。
@@ -304,12 +353,13 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 动画、模糊与背景采样不能阻塞滚动；组件需要控制采样区域、叠层数量和动画范围以满足性能预算。
 - 玻璃 Overlay 与被采样内容分层，禁止将玻璃组件录入自身背景造成递归采样。
 
-## 11. 验收清单
+## 12. 验收清单
 
 每个页面交付前至少验证：
 
 - 页面由 `XNotePageScaffold` 承载，并接入所需顶部与底部 Scroll Edge。
 - 二级页面使用统一 Header、圆形 Liquid Glass 返回按钮和唯一的 SVG 返回图标。
+- 所有界面矢量图标均能追溯到当前固定版本的 Lucide 官方资源，文件命名、24 × 24 视口、2 单位圆端描边和颜色语义符合图标规范。
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
 - 页面中的独立按钮全部来自 `XNoteLiquidGlassButton` 系列。
@@ -322,7 +372,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 浅色、深色、平板、横屏、字体放大和减少动画状态均可用。
 - 页面视觉接近 Apple Notes 的内容层级和克制风格，同时保留 Android 返回、无障碍和窗口适配能力。
 
-## 12. 技术参考
+## 13. 技术参考
 
 - [Apple SwiftUI：ScrollEdgeEffectStyle](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle)
 - [Apple SwiftUI：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
@@ -330,3 +380,6 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)
 - [Android Developers：Compose menus](https://developer.android.com/develop/ui/compose/components/menu)
+- [Lucide Icons：图标目录](https://lucide.dev/icons/)
+- [Lucide Guide：图标基础](https://lucide.dev/guide/basics)
+- [Lucide：ISC License](https://lucide.dev/license)
