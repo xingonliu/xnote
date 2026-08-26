@@ -42,8 +42,10 @@ fun XNotePageScaffold(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .layerBackdrop(backdrop),
-            content = content,
         )
+        // Keep backdrop capture separate from consumers. A drawBackdrop child
+        // must not be inside the layerBackdrop subtree it samples.
+        content()
         overlay()
     }
 }

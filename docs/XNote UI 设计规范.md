@@ -185,6 +185,8 @@ Android 资源以 `ic_lucide_<官方名称>` 命名，将 Lucide 名称中的连
 
 ## 6. Liquid Glass 按钮
 
+Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的玻璃控件必须作为捕获层的同级节点绘制，不能嵌套在 `layerBackdrop` 子树中，否则 Android HWUI 可能形成循环渲染并导致 `RenderThread` 原生崩溃。
+
 ### 6.1 使用范围
 
 所有独立按钮统一使用 `XNoteLiquidGlassButton` 系列，包括：
