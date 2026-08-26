@@ -1,6 +1,6 @@
 # Mind Note UI 设计规范
 
-> 文档版本：v0.1
+> 文档版本：v0.2
 >
 > 适用平台：Android 手机、Android 平板
 >
@@ -19,7 +19,8 @@ Mind Note 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方
 3. 所有页面统一接入 `ScrollEdgeEffectStyle` 视觉规范；页面内容可滚动时，固定 Header、底部工具区与滚动内容之间必须有连续的边缘过渡。
 4. 二级页面统一使用公共 Header；除笔记编辑页外，Header 中间显示当前页面标题。
 5. 弹窗、抽屉、Toast、Popup、下拉菜单、按钮等通用交互只能通过公共组件提供，业务页面不得复制实现。
-6. 优先使用系统字体、系统手势、动态字号、无障碍语义和平台返回行为；视觉接近 Apple Notes 不等于破坏 Android 的基础交互习惯。
+6. 所有由应用绘制的非圆形圆角统一使用接近 iOS 连续曲线的 60% 平滑圆角，不得混用普通四分之一圆圆角。
+7. 优先使用系统字体、系统手势、动态字号、无障碍语义和平台返回行为；视觉接近 Apple Notes 不等于破坏 Android 的基础交互习惯。
 
 ## 2. 平台与技术边界
 
@@ -169,9 +170,39 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - “减少动画”开启时取消形变和弹性动画，仅保留即时的颜色或透明度反馈。
 - 完整 Liquid Glass 不可用时，回退到统一的半透明填充、细描边和最小阴影，不改变组件尺寸与交互语义。
 
-## 6. 公共组件
+## 6. 60% 平滑圆角
 
-### 6.1 组件目录
+### 6.1 全局规则
+
+所有由 Mind Note 绘制且包含圆角的界面元素，统一使用 `cornerSmoothing = 0.60` 的连续平滑曲线，包括：
+
+- Liquid Glass 按钮、卡片和工具栏。
+- Header、底部导航、侧边导航和浮动操作区的容器。
+- Dialog、Drawer、Toast、Popup 和 DropdownMenu。
+- 输入框、搜索框、筛选器、列表分组和状态容器。
+- 图片、贴纸、预览区域及其选中、裁剪和焦点轮廓。
+
+60% 是 Mind Note 的设计令牌，用于统一模拟 iOS 风格的连续圆角；它不是 Apple 对所有系统圆角公开规定的固定数值。SwiftUI 参照语义为 `RoundedRectangle(cornerRadius: radius, style: .continuous)`，Android 侧必须通过项目公共 Shape 实现等效曲线。
+
+### 6.2 组件与实现约束
+
+- Android 统一使用 `MindNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。
+- 禁止业务页面直接使用普通 `RoundedCornerShape`、局部 Bézier Path 或各自实现的 superellipse。
+- 背景填充、内容裁剪、描边、阴影、Liquid Glass 背景采样、按压反馈和焦点轮廓必须复用同一个 Shape Path，不能出现边缘错位。
+- 圆角半径由组件尺寸令牌决定；调整半径时仍保持 60% 平滑度，禁止通过改变平滑度模拟不同层级。
+- Shape 计算结果应按尺寸与半径缓存，避免列表滚动和玻璃动画期间重复生成路径。
+- Figma 或其他设计稿交付时，所有非圆形圆角将 Corner smoothing 设置为 60%；导出矢量资产时保留连续曲线路径。
+
+### 6.3 适用边界
+
+- 正圆按钮使用统一 `Circle`，胶囊按钮使用统一 `Capsule`；两者由几何形状本身确定，不再套用数值平滑度。
+- Android 系统权限窗口、系统分享、输入法和其他非应用绘制界面不受本规范控制。
+- 用户提供的图片、贴纸和画笔内容不改变原始轮廓；只有应用为其添加圆角容器时才应用 60% 平滑圆角。
+- 性能降级只允许降低模糊、折射、阴影和动画质量，不能把连续圆角降级为普通圆角。
+
+## 7. 公共组件
+
+### 7.1 组件目录
 
 | 公共组件 | 职责 | 禁止行为 |
 |---|---|---|
@@ -187,7 +218,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 | `MindNoteEmptyState` | 空数据说明与下一步操作 | 使用无操作价值的装饰图 |
 | `MindNoteErrorState` | 错误原因、重试和恢复入口 | 只显示错误码 |
 
-### 6.2 复用规则
+所有包含圆角的公共组件必须使用 `MindNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
+
+### 7.2 复用规则
 
 - 公共组件只接收展示数据、状态和回调；导航、数据请求与业务判断由页面层负责。
 - 状态由调用方提升并保持单向数据流，组件不得在内部复制业务状态。
@@ -196,7 +229,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 所有组件必须提供无障碍名称、角色、状态和必要的操作提示。
 - 公共组件变更必须同时验证手机、平板、浅色、深色、字体放大和“减少动画”。
 
-### 6.3 浮层选型
+### 7.3 浮层选型
 
 | 场景 | 使用组件 |
 |---|---|
@@ -209,9 +242,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 同一时刻只显示一个模态浮层。后显示的非模态 Toast 可以排队，但不能遮挡 Header 返回按钮、主要操作或系统导航区域。
 
-## 7. Apple Notes 视觉一致性
+## 8. Apple Notes 视觉一致性
 
-### 7.1 色彩与材质
+### 8.1 色彩与材质
 
 - 使用温和的浅色纸张背景与低亮度深色背景，正文保持最高对比度。
 - `accentNoteYellow` 是笔记相关主强调色，用于主操作、选中态和关键图标，不大面积铺满页面。
@@ -219,38 +252,38 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 玻璃材质主要用于固定、浮动和可交互控件，正文承载区优先保持稳定、平整和易读。
 - 浅色、深色、高对比度与降低透明度模式均使用语义色，不在业务页面写死颜色。
 
-### 7.2 排版
+### 8.2 排版
 
 - 使用系统字体和动态字号，不引入与系统气质冲突的装饰字体。
 - 页面标题、笔记标题、分组标题、正文、辅助信息和时间信息使用统一文本令牌。
 - 笔记正文优先保证舒适行高；统计数值和列表摘要不能挤压主要标题。
 - 字号放大时允许 Header 标题省略、按钮文字收敛为图标，但主要功能不能消失。
 
-### 7.3 布局与动效
+### 8.3 布局与动效
 
 - 手机页面水平边距默认 16 dp，平板默认 24 dp；阅读和编辑内容可以设置最大内容宽度并居中。
-- 页面分组使用留白优先于重阴影，圆角只用于明确的容器或交互区域。
+- 页面分组使用留白优先于重阴影，圆角只用于明确的容器或交互区域，并统一使用 60% 平滑圆角。
 - 页面切换、抽屉、Popup 与按钮反馈使用短而克制的动画，避免持续漂浮、强烈弹跳或大范围折射。
 - 内容滚动时 Header 保持稳定，Scroll Edge 负责表达固定层与内容层的关系。
 - 支持系统返回手势、预测性返回、键盘避让和横竖屏切换。
 
-## 8. 页面适配
+## 9. 页面适配
 
-### 8.1 手机
+### 9.1 手机
 
 - 二级页面使用单栏结构和顶部 Header。
 - 长选择、图片来源和筛选优先使用底部抽屉。
 - 底部导航、编辑工具区和输入区均触发底部 Scroll Edge。
 - 浮动按钮不得遮挡列表最后一项，页面 Scaffold 负责补足底部内容间距。
 
-### 8.2 平板
+### 9.2 平板
 
 - 一级导航转换为左侧导航栏，内容区可使用双栏或多栏。
 - 每一栏的独立滚动容器分别判断边缘效果，但同一视觉层只渲染一次，避免重复模糊。
 - 详情栏仍使用统一 Header；左侧返回按钮在当前布局确实存在可返回层级时显示，否则保留等宽布局空间。
 - 短菜单和选择器优先锚定显示，长流程使用侧边抽屉或受限宽度面板。
 
-## 9. 无障碍与性能
+## 10. 无障碍与性能
 
 - 所有图标按钮必须提供可朗读名称，不能只依赖图标外观表达含义。
 - 文字和关键图标的对比度不得因玻璃背景变化而失效；必要时增加动态遮罩或切换高对比材质。
@@ -259,7 +292,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 动画、模糊与背景采样不能阻塞滚动；低性能设备自动使用静态材质降级。
 - 玻璃 Overlay 与被采样内容分层，禁止将玻璃组件录入自身背景造成递归采样。
 
-## 10. 验收清单
+## 11. 验收清单
 
 每个页面交付前至少验证：
 
@@ -269,13 +302,16 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 编辑页的笔记标题位于正文，不与 Header 重复。
 - 页面中的独立按钮全部来自 `MindNoteLiquidGlassButton` 系列。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
+- 所有应用自绘圆角均来自公共 Shape，平滑度固定为 60%；不存在普通圆角与连续圆角混用。
+- 填充、裁剪、描边、阴影、玻璃采样、按压反馈和焦点轮廓的圆角路径完全重合。
 - 浅色、深色、平板、横屏、字体放大、减少动画和 Liquid Glass 降级状态均可用。
 - 页面视觉接近 Apple Notes 的内容层级和克制风格，同时保留 Android 返回、无障碍和窗口适配能力。
 
-## 11. 技术参考
+## 12. 技术参考
 
 - [Apple SwiftUI：ScrollEdgeEffectStyle](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle)
 - [Apple SwiftUI：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
+- [Apple SwiftUI：RoundedRectangle continuous corner style](https://developer.apple.com/documentation/swiftui/roundedrectangle/init%28cornerradius%3Astyle%3A%29)
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)
 - [Android Developers：Compose menus](https://developer.android.com/develop/ui/compose/components/menu)
