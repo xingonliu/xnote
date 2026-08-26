@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">XNote</string>
+    <string name="navigation_notes">笔记</string>
+    <string name="navigation_agent">Agent</string>
+    <string name="navigation_profile">我的</string>
+    <string name="action_search">搜索</string>
+    <string name="action_back">返回</string>
+    <string name="action_create_note">新建笔记</string>
+    <string name="notes_title">XNote</string>
+    <string name="notes_scope_all">全部笔记</string>
+    <string name="notes_empty_title">还没有笔记</string>
+    <string name="notes_empty_description">写下第一条想法，之后可以在这里整理、搜索和阅读。</string>
+    <string name="search_title">搜索</string>
+    <string name="search_placeholder_title">搜索即将接入本地笔记库</string>
+    <string name="search_placeholder_description">工程基线已预留全屏搜索入口；索引与高亮将在笔记数据层完成后接入。</string>
+    <string name="agent_title">Agent</string>
+    <string name="agent_placeholder_title">Agent 工作区已预留</string>
+    <string name="agent_placeholder_description">对话、权限和笔记工具属于第二交付阶段。</string>
+    <string name="profile_title">我的</string>
+    <string name="profile_placeholder_title">设置中心已预留</string>
+    <string name="profile_placeholder_description">统计、回收站、外观和扩展环境将按交付阶段接入。</string>
+</resources>
