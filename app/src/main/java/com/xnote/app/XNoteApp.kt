@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
-import com.xnote.app.design.XNoteAccentYellow
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePageScaffold
@@ -295,7 +294,7 @@ private fun XNoteNavigationRailItem(
         modifier = modifier.semantics {
             this.selected = selected
         },
-        tint = if (selected) XNoteAccentYellow else Color.Unspecified,
+        tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
         height = 72.dp,
         contentPadding = PaddingValues(0.dp),
         role = Role.Tab,

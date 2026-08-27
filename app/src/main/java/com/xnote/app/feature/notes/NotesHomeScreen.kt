@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.design.XNoteAccentYellow
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNoteSpacingLarge
 import com.xnote.app.design.XNoteSpacingMedium
@@ -69,7 +68,7 @@ fun NotesHomeScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_lucide_notebook_pen),
                         contentDescription = null,
-                        tint = XNoteAccentYellow,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(44.dp),
                     )
                     Text(
@@ -88,7 +87,7 @@ fun NotesHomeScreen(
                         onClick = onCreateNote,
                         backdrop = backdrop,
                         enabled = createEnabled,
-                        tint = XNoteAccentYellow,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = XNoteSpacingSmall),
                     ) {
                         Row(

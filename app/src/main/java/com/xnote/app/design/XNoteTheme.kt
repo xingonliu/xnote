@@ -10,8 +10,8 @@ import androidx.compose.ui.graphics.Color
 // -- Constants
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF8A6400),
-    onPrimary = Color(0xFFFFFFFF),
+    primary = XNoteLightPrimaryColor,
+    onPrimary = Color(0xFF2D1B00),
     primaryContainer = Color(0xFFFFE08A),
     onPrimaryContainer = Color(0xFF2C2100),
     secondary = Color(0xFF625B4D),
@@ -27,7 +27,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFFFFD45A),
+    primary = XNoteDarkPrimaryColor,
     onPrimary = Color(0xFF463700),
     primaryContainer = Color(0xFF645000),
     onPrimaryContainer = Color(0xFFFFE08A),

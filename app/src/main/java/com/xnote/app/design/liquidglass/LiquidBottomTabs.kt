@@ -3,14 +3,16 @@ package com.xnote.app.design.liquidglass
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -27,10 +29,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
@@ -56,6 +61,12 @@ import kotlin.math.sign
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
 
+// -- Constants
+
+private val BottomTabsInset = 4.dp
+private val BottomTabsHeight = 64.dp
+private val BottomTabHeight = 56.dp
+
 // -- Composables
 
 @Composable
@@ -67,8 +78,9 @@ fun LiquidBottomTabs(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
-    val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
+    val colorScheme = MaterialTheme.colorScheme
+    val isLightTheme = colorScheme.background.luminance() > 0.5f
+    val accentColor = colorScheme.primary
     val containerColor = if (isLightTheme) {
         Color(0xFFFAFAFA).copy(0.4f)
     } else {
@@ -81,9 +93,11 @@ fun LiquidBottomTabs(
         contentAlignment = Alignment.CenterStart,
     ) {
         val density = LocalDensity.current
+        val tabInset = with(density) { BottomTabsInset.toPx() }
         val tabWidth = with(density) {
-            (constraints.maxWidth.toFloat() - 8.dp.toPx()) / tabsCount
+            (constraints.maxWidth.toFloat() - tabInset * 2f) / tabsCount
         }
+        val tabWidthDp = with(density) { tabWidth.toDp() }
         val offsetAnimation = remember { Animatable(0f) }
         val panelOffset by remember(density) {
             derivedStateOf {
@@ -151,9 +165,12 @@ fun LiquidBottomTabs(
                 position = { size, _ ->
                     Offset(
                         x = if (isLtr) {
-                            (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
+                            tabInset +
+                                (dampedDragAnimation.value + 0.5f) * tabWidth +
+                                panelOffset
                         } else {
                             size.width -
+                                tabInset -
                                 (dampedDragAnimation.value + 0.5f) * tabWidth +
                                 panelOffset
                         },
@@ -175,6 +192,7 @@ fun LiquidBottomTabs(
                         lens(24.dp.toPx(), 24.dp.toPx())
                     },
                     layerBlock = {
+                        transformOrigin = TransformOrigin.Center
                         val progress = dampedDragAnimation.pressProgress
                         val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
                         scaleX = scale
@@ -183,9 +201,9 @@ fun LiquidBottomTabs(
                     onDrawSurface = { drawRect(containerColor) },
                 )
                 .then(interactiveHighlight.modifier)
-                .height(64.dp)
+                .height(BottomTabsHeight)
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(BottomTabsInset),
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
@@ -221,9 +239,9 @@ fun LiquidBottomTabs(
                         onDrawSurface = { drawRect(containerColor) },
                     )
                     .then(interactiveHighlight.modifier)
-                    .height(56.dp)
+                    .height(BottomTabHeight)
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = BottomTabsInset)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
                 verticalAlignment = Alignment.CenterVertically,
                 content = content,
@@ -232,15 +250,16 @@ fun LiquidBottomTabs(
 
         Box(
             modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .graphicsLayer {
-                    translationX = if (isLtr) {
-                        dampedDragAnimation.value * tabWidth + panelOffset
+                .offset {
+                    val indicatorX = if (isLtr) {
+                        tabInset + dampedDragAnimation.value * tabWidth + panelOffset
                     } else {
-                        size.width -
+                        constraints.maxWidth -
+                            tabInset -
                             (dampedDragAnimation.value + 1f) * tabWidth +
                             panelOffset
                     }
+                    IntOffset(indicatorX.fastRoundToInt(), 0)
                 }
                 .then(interactiveHighlight.gestureModifier)
                 .then(dampedDragAnimation.modifier)
@@ -271,6 +290,7 @@ fun LiquidBottomTabs(
                         )
                     },
                     layerBlock = {
+                        transformOrigin = TransformOrigin.Center
                         scaleX = dampedDragAnimation.scaleX
                         scaleY = dampedDragAnimation.scaleY
                         val velocity = dampedDragAnimation.velocity / 10f
@@ -290,8 +310,8 @@ fun LiquidBottomTabs(
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     },
                 )
-                .height(56.dp)
-                .fillMaxWidth(1f / tabsCount),
+                .height(BottomTabHeight)
+                .width(tabWidthDp),
         )
     }
 }

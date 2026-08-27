@@ -5,7 +5,8 @@ import androidx.compose.ui.unit.dp
 
 // -- Constants
 
-val XNoteAccentYellow = Color(0xFFFFD45A)
+val XNoteLightPrimaryColor = Color(0xFFE09F3E)
+val XNoteDarkPrimaryColor = Color(0xFFFFD60A)
 
 val XNoteHeaderHeight = 44.dp
 val XNoteMinimumTouchTarget = 44.dp

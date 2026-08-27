@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.7
+> 文档版本：v0.8
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -219,8 +219,14 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ### 6.3 视觉与状态
 
+| 主题语义 | 浅色模式 | 深色模式 |
+| -------- | -------- | -------- |
+| `primary` / 主强调色 | `#E09F3E` | `#FFD60A` |
+
+- 所有需要主强调色的组件通过 `MaterialTheme.colorScheme.primary` 读取当前主题值，不得在业务页面或组件内部另写近似色。
+- `LiquidBottomTabs` 的选中图标与选中文字统一使用当前主题主色；未选中图标与文字继续使用中性前景色，保持导航层级清晰。
 - 默认材质使用透明采样、柔和高光和低对比描边，前景文字与图标保持清晰。
-- 主操作使用 `accentNoteYellow` Tint；普通操作使用中性 Tint；危险操作使用 `destructive` 前景色与轻量危险 Tint。
+- 主操作使用当前主题 `primary` Tint；普通操作使用中性 Tint；危险操作使用 `destructive` 前景色与轻量危险 Tint。
 - 按下时缩放与高光变化必须轻微，不能造成按钮位置跳动。
 - 选中状态通过 Tint、前景色和图标状态共同表达，不能只依赖颜色。
 - 禁用状态必须降低前景与材质强调，同时保持文字可读，并彻底阻止点击。
@@ -308,7 +314,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 ### 9.1 色彩与材质
 
 - 使用温和的浅色纸张背景与低亮度深色背景，正文保持最高对比度。
-- `accentNoteYellow` 是笔记相关主强调色，用于主操作、选中态和关键图标，不大面积铺满页面。
+- 当前主题 `primary` 是笔记相关主强调色：浅色模式固定为 `#E09F3E`，深色模式固定为 `#FFD60A`；用于主操作、选中态和关键图标，不大面积铺满页面。
 - 分隔线、次级文字和卡片边界保持低对比；依靠留白与分组建立层级。
 - 玻璃材质主要用于固定、浮动和可交互控件，正文承载区优先保持稳定、平整和易读。
 - 浅色、深色与高对比度模式均使用语义色，不在业务页面写死颜色。
@@ -376,6 +382,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 编辑页的笔记标题位于正文，不与 Header 重复。
 - 手机一级导航直接来自 `LiquidBottomTabs` / `LiquidBottomTab`，不存在自写 tabbar 样式或选中滑块。
 - Bottom Tabs 在静止、按压放大和拖拽状态下，选中胶囊均以当前 tab 中心为锚点，不向任一侧产生非交互预期的偏移。
+- Bottom Tabs 的选中图标和文字在浅色模式使用 `#E09F3E`，在深色模式使用 `#FFD60A`，且不存在组件私有强调色。
 - 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 普通笔记编辑页的格式工具栏来自 `XNoteRichTextToolbar`，不存在页面私有格式栏。
