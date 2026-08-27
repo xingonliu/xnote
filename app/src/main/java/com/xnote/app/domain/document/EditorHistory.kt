@@ -45,3 +45,41 @@ class EditorHistory(
         return next
     }
 }
+
+class MarkdownEditorHistory(
+    private val limit: Int = 50,
+) {
+    private val undoStack = ArrayDeque<String>()
+    private val redoStack = ArrayDeque<String>()
+    private var coalesceKey: String? = null
+
+    val canUndo: Boolean
+        get() = undoStack.isNotEmpty()
+
+    val canRedo: Boolean
+        get() = redoStack.isNotEmpty()
+
+    fun capture(value: String, key: String? = null) {
+        if (key != null && key == coalesceKey) return
+        coalesceKey = key
+        undoStack.addLast(value)
+        while (undoStack.size > limit) {
+            undoStack.removeFirst()
+        }
+        redoStack.clear()
+    }
+
+    fun undo(current: String): String? {
+        val previous = undoStack.removeLastOrNull() ?: return null
+        redoStack.addLast(current)
+        coalesceKey = null
+        return previous
+    }
+
+    fun redo(current: String): String? {
+        val next = redoStack.removeLastOrNull() ?: return null
+        undoStack.addLast(current)
+        coalesceKey = null
+        return next
+    }
+}

@@ -42,6 +42,16 @@ class EditorHistoryTest {
     }
 }
 
+class MarkdownEditorHistoryTest {
+    @Test
+    fun undoAndRedoRestoreMarkdownSource() {
+        val history = MarkdownEditorHistory()
+        history.capture("# 原文")
+        assertEquals("# 原文", history.undo("# 新文"))
+        assertEquals("# 新文", history.redo("# 原文"))
+    }
+}
+
 // -- Fixtures
 
 private fun snapshot(title: String, blockId: String): EditorSnapshot = EditorSnapshot(

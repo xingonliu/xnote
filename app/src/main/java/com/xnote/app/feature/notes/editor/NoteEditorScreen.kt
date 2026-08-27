@@ -92,6 +92,16 @@ fun NoteEditorScreen(
         return
     }
 
+    if (session.isMarkdown) {
+        MarkdownNoteScreen(
+            session = session,
+            contentPadding = contentPadding,
+            scrollState = scrollState,
+            modifier = modifier,
+        )
+        return
+    }
+
     val labels = session.document.numberedLabels()
     Column(
         modifier = modifier
@@ -113,28 +123,15 @@ fun NoteEditorScreen(
                 onValueChange = session::updateTitle,
                 readOnly = false,
             )
-            if (session.isMarkdown) {
-                Text(
-                    text = stringResource(R.string.editor_markdown_readonly),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            session.document.visibleBlocks().forEachIndexed { index, block ->
+                EditorBlock(
+                    block = block,
+                    session = session,
+                    numberedLabel = labels[block.id],
+                    isFirstTextBlock = index == 0 || session.document.visibleBlocks()
+                        .take(index)
+                        .none { it is TextBlock },
                 )
-                Text(
-                    text = session.note?.markdownText.orEmpty(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            } else {
-                session.document.visibleBlocks().forEachIndexed { index, block ->
-                    EditorBlock(
-                        block = block,
-                        session = session,
-                        numberedLabel = labels[block.id],
-                        isFirstTextBlock = index == 0 || session.document.visibleBlocks()
-                            .take(index)
-                            .none { it is TextBlock },
-                    )
-                }
             }
             Spacer(modifier = Modifier.height(24.dp))
         }

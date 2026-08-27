@@ -10,6 +10,7 @@ import com.xnote.app.data.db.toEntity
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.domain.document.emptyNoteDocument
 import com.xnote.app.domain.document.referencedAttachmentIds
+import com.xnote.app.domain.markdown.richNoteMarkdown
 import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.EpochClock
@@ -22,6 +23,7 @@ import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.domain.model.RevisionReason
 import com.xnote.app.domain.model.newNoteId
 import com.xnote.app.domain.rules.RecycleBinPolicy
+import com.xnote.app.domain.rules.conversionBlockers
 import com.xnote.app.domain.rules.notebookIdAfterRestore
 import com.xnote.app.domain.rules.patchesForDeletedNotebook
 import com.xnote.app.domain.text.FtsIndexText
@@ -184,23 +186,62 @@ class NoteLibrary(
     }
 
     suspend fun saveNote(note: Note): Note {
-        val existing = notes.get(note.id)?.toDomain()
-            ?: error("Note not found: ${note.id}")
-        val saved = note.copy(
-            createdAtEpochMs = existing.createdAtEpochMs,
-            deletedAtEpochMs = existing.deletedAtEpochMs,
-            originalNotebookName = existing.originalNotebookName,
-            updatedAtEpochMs = clock.nowMs(),
-        ).withDerivedText()
-        write {
+        return write {
+            val existing = notes.get(note.id)?.toDomain()
+                ?: error("Note not found: ${note.id}")
+            require(note.kind == existing.kind) {
+                "Note kind can only change through a dedicated conversion"
+            }
+            require(note.hasValidContent()) {
+                "Rich notes require a document and Markdown notes require Markdown text"
+            }
+            val saved = note.copy(
+                createdAtEpochMs = existing.createdAtEpochMs,
+                deletedAtEpochMs = existing.deletedAtEpochMs,
+                originalNotebookName = existing.originalNotebookName,
+                updatedAtEpochMs = clock.nowMs(),
+            ).withDerivedText()
             notes.upsert(saved.toEntity())
             if (saved.isTrashed) {
                 noteFts.deleteByNoteId(saved.id)
             } else {
                 indexForSearch(saved)
             }
+            saved
         }
-        return saved
+    }
+
+    suspend fun convertToMarkdown(noteId: String): Note {
+        return write {
+            val existing = notes.get(noteId)?.toDomain()
+                ?: error("Note not found: $noteId")
+            check(!existing.isTrashed) { "Trashed notes cannot be converted" }
+            val blockers = conversionBlockers(existing)
+            check(blockers.isEmpty()) {
+                "Note cannot be converted to Markdown: ${blockers.joinToString()}"
+            }
+            val now = clock.nowMs()
+            val revision = NoteRevision(
+                id = newNoteId(),
+                noteId = existing.id,
+                reason = RevisionReason.ConvertToMarkdown,
+                kind = existing.kind,
+                title = existing.title,
+                document = existing.document,
+                markdownText = existing.markdownText,
+                createdAtEpochMs = now,
+            )
+            val converted = existing.copy(
+                kind = NoteKind.Markdown,
+                document = null,
+                markdownText = richNoteMarkdown(existing.title, checkNotNull(existing.document)),
+                updatedAtEpochMs = now,
+            ).withDerivedText()
+            revisions.upsert(revision.toEntity())
+            notes.upsert(converted.toEntity())
+            indexForSearch(converted)
+            converted
+        }
     }
 
     suspend fun moveNotes(ids: Collection<String>, notebookId: String?) {
@@ -304,6 +345,10 @@ class NoteLibrary(
         return revision
     }
 
+    suspend fun getNoteRevisions(noteId: String): List<NoteRevision> {
+        return revisions.getByNote(noteId).map { it.toDomain() }
+    }
+
     suspend fun searchNoteIds(query: String): List<String> {
         val matchQuery = FtsIndexText.matchQuery(query) ?: return emptyList()
         return noteFts.searchNoteIds(matchQuery)
@@ -398,6 +443,11 @@ private fun Note.withDerivedText(): Note {
         latinWordCount = stats.latinWordCount,
         summary = summarizePlainText(extractPlainText(this)),
     )
+}
+
+private fun Note.hasValidContent(): Boolean = when (kind) {
+    NoteKind.Rich -> document != null && markdownText == null
+    NoteKind.Markdown -> document == null && markdownText != null
 }
 
 private fun noteComparator(sort: NoteListSort): Comparator<Note> = when (sort) {

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
@@ -19,6 +20,10 @@ import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.domain.model.SystemEpochClock
+import com.xnote.app.domain.document.InlineRun
+import com.xnote.app.domain.document.NoteDocument
+import com.xnote.app.domain.document.TextBlock
+import com.xnote.app.domain.model.NoteKind
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -154,5 +159,56 @@ class NotesFlowTest {
         composeRule.onNodeWithTag("xnote-editor-title").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-body").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("撤销").assertIsDisplayed()
+    }
+
+    @Test
+    fun convertToMarkdownEditsPreviewsAndReturnsToEditing() {
+        var noteId = ""
+        runTest {
+            val created = library.createRichNote(null)
+            noteId = library.saveNote(
+                created.copy(
+                    title = "转换测试",
+                    document = NoteDocument(
+                        blocks = listOf(
+                            TextBlock(id = "body", inlines = listOf(InlineRun("预览正文"))),
+                        ),
+                    ),
+                ),
+            ).id
+        }
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("转换测试").performClick()
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("转换为 Markdown").performClick()
+        composeRule.onNodeWithText("永久转换").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-markdown-editor").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-markdown-editor").assertIsDisplayed()
+        runTest {
+            assertEquals("# 转换测试\n\n预览正文", library.getNote(noteId)?.markdownText)
+        }
+        composeRule.onNodeWithTag("xnote-markdown-editor")
+            .performTextReplacement("# 编辑后标题\n\n编辑后的正文")
+        composeRule.onNodeWithTag("xnote-markdown-done").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-markdown-preview").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("编辑后的正文").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("编辑 Markdown").performClick()
+        composeRule.onNodeWithTag("xnote-markdown-editor").assertIsDisplayed()
+
+        runTest {
+            assertEquals(NoteKind.Markdown, library.getNote(noteId)?.kind)
+            assertEquals("编辑后标题", library.getNote(noteId)?.title)
+            assertEquals("# 编辑后标题\n\n编辑后的正文", library.getNote(noteId)?.markdownText)
+            assertEquals(1, library.getNoteRevisions(noteId).size)
+        }
     }
 }

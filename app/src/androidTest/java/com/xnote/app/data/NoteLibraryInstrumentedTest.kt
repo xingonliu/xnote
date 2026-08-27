@@ -13,6 +13,7 @@ import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.NoteKind
+import com.xnote.app.domain.model.RevisionReason
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -190,6 +191,66 @@ class NoteLibraryInstrumentedTest {
         val saved = library.getNote(note.id)
         assertEquals(destination.id, saved?.notebookId)
         assertEquals("移动后继续编辑", saved?.title)
+    }
+
+    @Test
+    fun markdownConversionStoresRevisionAndPersistsMarkdownEdits() = runTest {
+        val created = library.createRichNote(null)
+        library.saveNote(
+            created.copy(
+                title = "转换标题",
+                document = NoteDocument(
+                    blocks = listOf(
+                        TextBlock(id = "body", inlines = listOf(InlineRun("转换正文"))),
+                    ),
+                ),
+            ),
+        )
+        val session = NoteEditorSession(library, created.id, this)
+
+        session.load()
+        assertTrue(session.convertToMarkdown())
+        assertEquals(NoteKind.Markdown, session.note?.kind)
+        assertEquals("# 转换标题\n\n转换正文", session.markdownText)
+        val revision = library.getNoteRevisions(created.id).single()
+        assertEquals(RevisionReason.ConvertToMarkdown, revision.reason)
+        assertEquals(NoteKind.Rich, revision.kind)
+        assertEquals("转换正文", (revision.document?.blocks?.single() as TextBlock).inlines.single().text)
+
+        session.updateMarkdownText("# 新标题\n\n新正文")
+        assertTrue(session.saveMarkdownAndPreview())
+        val saved = library.getNote(created.id)
+        assertEquals("新标题", saved?.title)
+        assertEquals("# 新标题\n\n新正文", saved?.markdownText)
+        assertNull(saved?.document)
+        assertEquals("新正文", saved?.summary)
+        assertEquals(1, library.getNoteRevisions(created.id).size)
+    }
+
+    @Test
+    fun renamingNotebookKeepsAssignedNotes() = runTest {
+        val notebook = library.createNotebook("原名称")
+        val note = library.createRichNote(notebook.id)
+
+        library.renameNotebook(notebook.id, "新名称")
+
+        assertEquals(notebook.id, library.getNote(note.id)?.notebookId)
+    }
+
+    @Test
+    fun blockedMarkdownConversionDoesNotWriteARevision() = runTest {
+        val created = library.createRichNote(null)
+        val withImage = library.saveNote(
+            created.copy(
+                document = NoteDocument(
+                    blocks = listOf(ImageBlock(id = "image", attachmentId = "missing")),
+                ),
+            ),
+        )
+
+        assertTrue(runCatching { library.convertToMarkdown(withImage.id) }.isFailure)
+        assertEquals(NoteKind.Rich, library.getNote(withImage.id)?.kind)
+        assertTrue(library.getNoteRevisions(withImage.id).isEmpty())
     }
 
     @Test

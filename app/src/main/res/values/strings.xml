@@ -57,7 +57,16 @@
     <string name="editor_save_failed">未能保存笔记</string>
     <string name="editor_missing_title">无法打开笔记</string>
     <string name="editor_missing_description">这篇笔记不存在或已进入回收站。</string>
-    <string name="editor_markdown_readonly">这篇 Markdown 笔记目前只能查看原文。</string>
+    <string name="editor_markdown_placeholder">输入 Markdown 原文</string>
+    <string name="editor_markdown_empty">这篇 Markdown 笔记还是空的。</string>
+    <string name="editor_markdown_edit">编辑 Markdown</string>
+    <string name="editor_markdown_done">保存并预览</string>
+    <string name="editor_convert_markdown">转换为 Markdown</string>
+    <string name="editor_convert_markdown_title">转换为 Markdown</string>
+    <string name="editor_convert_markdown_message">转换前会保存当前普通笔记的历史版本。转换完成后将立即进入 Markdown 编辑，且不能恢复为普通笔记。</string>
+    <string name="editor_convert_markdown_confirm">永久转换</string>
+    <string name="editor_convert_markdown_blocked">请先移除图片、贴纸或画笔内容，再转换为 Markdown。</string>
+    <string name="editor_convert_markdown_failed">未能转换为 Markdown，请稍后重试。</string>
     <string name="editor_unsupported_block">此块仅保存内容，当前不能在文字编辑中修改。</string>
     <string name="editor_link_title">链接</string>
     <string name="editor_link_placeholder">https://</string>

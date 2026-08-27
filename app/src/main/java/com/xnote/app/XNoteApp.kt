@@ -83,6 +83,7 @@ import com.xnote.app.feature.notes.NotebookDetailScreen
 import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
 import com.xnote.app.feature.notes.decodeNotesScope
 import com.xnote.app.feature.notes.encodeNotesScope
+import com.xnote.app.feature.notes.editor.MarkdownEditorMode
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.notebookStatsFrom
@@ -214,12 +215,16 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
         val showsPrimaryChrome = navigationState.showsPrimaryChrome
         val showsShellHeader = navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome
         val isEditor = navigationState.notesRoute is NotesRoute.Editor
+        val showsEditorToolbar = isEditor && (
+            editorSession?.isMarkdown != true ||
+                editorSession.markdownMode == MarkdownEditorMode.Editing
+        )
         val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
         val bottomOverlayHeight = when {
-            isEditor -> XNoteEditorToolbarHeight
+            showsEditorToolbar -> XNoteEditorToolbarHeight
             showsBottomNavigation -> XNoteBottomNavigationHeight
             else -> 0.dp
         }
@@ -248,12 +253,12 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
             else -> listState
         }
         val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
-        val scrollEdges = if (showsBottomNavigation || isEditor) {
+        val scrollEdges = if (showsBottomNavigation || showsEditorToolbar) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
         }
-        val bottomScrollEdgeStyle = if (isEditor) {
+        val bottomScrollEdgeStyle = if (showsEditorToolbar) {
             com.xnote.app.design.XNoteScrollEdgeStyle.Hard
         } else {
             com.xnote.app.design.XNoteScrollEdgeStyle.Soft
@@ -351,6 +356,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                         backdrop = backdrop,
                         isTablet = isTablet,
                         editorSession = editorSession,
+                        toastHostState = toastHostState,
                         onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
                         onCreateNote = ::createNote,
                         onPop = ::popNotes,

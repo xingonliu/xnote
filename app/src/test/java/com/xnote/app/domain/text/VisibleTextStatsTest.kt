@@ -72,6 +72,13 @@ class VisibleTextStatsTest {
     }
 
     @Test
+    fun markdownKeepsEscapedSyntaxAsVisibleText() {
+        val markdown = "# 标题\n\n字面 \\* 星号与 A\\|B"
+
+        assertEquals("\n字面 * 星号与 A|B", MarkdownVisibleText.extract(markdown))
+    }
+
+    @Test
     fun whitespaceIsNotCountedAsCharacters() {
         assertEquals(0, visibleTextStats(" \n\t").characterCount)
         assertEquals(2, visibleTextStats("你好").characterCount)

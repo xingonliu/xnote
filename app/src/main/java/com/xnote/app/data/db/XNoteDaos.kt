@@ -2,8 +2,8 @@ package com.xnote.app.data.db
 
 import androidx.room3.Dao
 import androidx.room3.Insert
-import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
+import androidx.room3.Upsert
 import kotlinx.coroutines.flow.Flow
 
 // -- Type Definitions
@@ -19,10 +19,10 @@ interface NotebookDao {
     @Query("SELECT id FROM notebooks")
     suspend fun getAllIds(): List<String>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(entity: NotebookEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(entities: List<NotebookEntity>)
 
     @Query("DELETE FROM notebooks WHERE id = :id")
@@ -66,10 +66,10 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deletedAtEpochMs IS NOT NULL")
     suspend fun getTrashed(): List<NoteEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(entity: NoteEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(entities: List<NoteEntity>)
 
     @Query("DELETE FROM notes WHERE id IN (:ids)")
@@ -115,7 +115,7 @@ interface NoteFtsDao {
 
 @Dao
 interface NoteRevisionDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(entity: NoteRevisionEntity)
 
     @Query("SELECT * FROM note_revisions WHERE noteId = :noteId ORDER BY createdAtEpochMs DESC")
@@ -136,7 +136,7 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments")
     suspend fun getAll(): List<AttachmentEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsert(entity: AttachmentEntity)
 
     @Query("DELETE FROM attachments WHERE id IN (:ids)")
