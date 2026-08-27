@@ -64,4 +64,17 @@ class XNoteNavigationStateTest {
         assertEquals(stack, decodeNotesStack(encodeNotesStack(stack)))
         assertTrue(decodeNotesStack("").isEmpty())
     }
+
+    @Test
+    fun recycleBinIsASecondaryProfilePage() {
+        val opened = XNoteNavigationState().openRecycleBin()
+
+        assertEquals(AppDestination.Profile, opened.destination)
+        assertTrue(opened.isRecycleBinOpen)
+        assertFalse(opened.showsPrimaryChrome)
+
+        val closed = opened.closeRecycleBin()
+        assertFalse(closed.isRecycleBinOpen)
+        assertEquals(AppDestination.Profile, closed.destination)
+    }
 }

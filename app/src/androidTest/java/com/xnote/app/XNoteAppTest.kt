@@ -82,7 +82,7 @@ class XNoteAppTest {
 
         composeRule.onNodeWithText("我的").performClick()
 
-        composeRule.onNodeWithText("设置中心已预留").assertIsDisplayed()
+        composeRule.onNodeWithText("回收站").assertIsDisplayed()
         composeRule.onNode(isSelected() and hasText("我的")).assertIsSelected()
     }
 
@@ -95,7 +95,7 @@ class XNoteAppTest {
         }
 
         composeRule.onNodeWithContentDescription("搜索").performClick()
-        composeRule.onNodeWithText("搜索即将接入本地笔记库").assertIsDisplayed()
+        composeRule.onNodeWithText("搜索笔记").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("返回").performClick()
         composeRule.onNodeWithText("全部笔记").assertIsDisplayed()
     }
@@ -117,5 +117,27 @@ class XNoteAppTest {
         }
 
         composeRule.onNodeWithTag("xnote-navigation-rail").assertIsDisplayed()
+    }
+
+    @Test
+    fun wideWindowKeepsTheNavigationRailWhileSearchExpandsInTheListPane() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val currentDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = 1f,
+                        fontScale = currentDensity.fontScale,
+                    ),
+                ) {
+                    XNoteApp(noteLibrary = library)
+                }
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("搜索").performClick()
+
+        composeRule.onNodeWithTag("xnote-navigation-rail").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-search-field").assertIsDisplayed()
     }
 }

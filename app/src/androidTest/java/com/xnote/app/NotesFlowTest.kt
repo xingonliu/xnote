@@ -211,4 +211,88 @@ class NotesFlowTest {
             assertEquals(1, library.getNoteRevisions(noteId).size)
         }
     }
+
+    @Test
+    fun searchFindsChineseBodyTextAndOpensTheNote() = runTest {
+        val note = library.createRichNote(null)
+        library.saveNote(
+            note.copy(
+                title = "发布安排",
+                document = NoteDocument(
+                    blocks = listOf(
+                        TextBlock(id = "body", inlines = listOf(InlineRun("我的笔记本记录了发布计划"))),
+                    ),
+                ),
+            ),
+        )
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("搜索").performClick()
+        composeRule.onNodeWithTag("xnote-search-field").performTextInput("笔记本")
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("发布安排").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("我的笔记本记录了发布计划", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("发布安排").performClick()
+        composeRule.onNodeWithTag("xnote-editor-title").assertIsDisplayed()
+    }
+
+    @Test
+    fun recycleBinMultiSelectRestoresNotes() = runTest {
+        val notebook = library.createNotebook("恢复目标")
+        val first = library.createRichNote(notebook.id)
+        val second = library.createRichNote(notebook.id)
+        library.saveNote(first.copy(title = "待恢复一"))
+        library.saveNote(second.copy(title = "待恢复二"))
+        library.trashNotes(listOf(first.id, second.id))
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("我的").performClick()
+        composeRule.onNodeWithText("回收站").performClick()
+        composeRule.onNodeWithContentDescription("选择笔记").performClick()
+        composeRule.onNodeWithText("待恢复一").performClick()
+        composeRule.onNodeWithText("待恢复二").performClick()
+        composeRule.onNodeWithText("恢复").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("回收站是空的").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(notebook.id, library.getNote(first.id)?.notebookId)
+        assertEquals(notebook.id, library.getNote(second.id)?.notebookId)
+    }
+
+    @Test
+    fun recycleBinPermanentlyDeletesOneNoteAndCanClearTheRest() = runTest {
+        val first = library.saveNote(library.createRichNote(null).copy(title = "永久删除目标"))
+        val second = library.saveNote(library.createRichNote(null).copy(title = "清空目标"))
+        library.trashNotes(listOf(first.id, second.id))
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("我的").performClick()
+        composeRule.onNodeWithText("回收站").performClick()
+        composeRule.onAllNodesWithText("永久删除")[0].performClick()
+        composeRule.onNodeWithText("删除").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("永久删除目标").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("清空回收站").performClick()
+        composeRule.onNodeWithText("清空").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("回收站是空的").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertNull(library.getNote(first.id))
+        assertNull(library.getNote(second.id))
+    }
 }

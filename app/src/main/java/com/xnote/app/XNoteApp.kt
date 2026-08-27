@@ -71,8 +71,11 @@ import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.data.search.EmptySearchHistoryRepository
+import com.xnote.app.data.search.SearchHistoryRepository
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
+import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.notes.NotesChrome
@@ -88,12 +91,19 @@ import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.notebookStatsFrom
 import com.xnote.app.feature.notes.unfiledStatsFrom
+import com.xnote.app.feature.profile.ProfileScreen
+import com.xnote.app.feature.recycle.RecycleBinChrome
+import com.xnote.app.feature.recycle.RecycleBinScreen
+import com.xnote.app.feature.recycle.RecycleBinUiState
+import com.xnote.app.feature.recycle.XNoteRecycleSelectionHeight
+import com.xnote.app.feature.search.SearchScreen
 import com.xnote.app.navigation.AppDestination
 import com.xnote.app.navigation.NotesRoute
 import com.xnote.app.navigation.XNoteNavigationState
 import com.xnote.app.navigation.decodeNotesStack
 import com.xnote.app.navigation.encodeNotesStack
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // -- Constants
 
@@ -102,18 +112,31 @@ private val TabletBreakpoint = 600.dp
 // -- Composables
 
 @Composable
-fun XNoteApp(noteLibrary: NoteLibrary) {
+fun XNoteApp(
+    noteLibrary: NoteLibrary,
+    searchHistory: SearchHistoryRepository = EmptySearchHistoryRepository,
+) {
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
+    var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
     var notesStackEncoded by rememberSaveable { mutableStateOf("") }
     var scopeEncoded by rememberSaveable { mutableStateOf("all") }
     var homeSortName by rememberSaveable { mutableStateOf(NoteListSort.UpdatedAt.name) }
     var notebookSortName by rememberSaveable { mutableStateOf(NoteListSort.Manual.name) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchNotebookId by rememberSaveable { mutableStateOf<String?>(null) }
     val uiState = remember { NotesUiState() }
-    val navigationState = remember(destinationName, isSearchOpen, notesStackEncoded) {
+    val recycleBinUiState = remember { RecycleBinUiState() }
+    val navigationState = remember(
+        destinationName,
+        isSearchOpen,
+        isRecycleBinOpen,
+        notesStackEncoded,
+    ) {
         XNoteNavigationState(
             destination = AppDestination.valueOf(destinationName),
             isSearchOpen = isSearchOpen,
+            isRecycleBinOpen = isRecycleBinOpen,
             notesStack = decodeNotesStack(notesStackEncoded),
         )
     }
@@ -125,6 +148,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
     val agentListState = rememberLazyListState()
     val profileListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
+    val recycleBinListState = rememberLazyListState()
     val appScope = rememberCoroutineScope()
     val interactionSettings = LocalXNoteInteractionSettings.current
     val editorNoteId = (navigationState.notesRoute as? NotesRoute.Editor)?.noteId
@@ -133,6 +157,9 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
     }
     var notebooks by remember { mutableStateOf<List<Notebook>>(emptyList()) }
     var activeNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
+    var trashedNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<NoteSearchResult>>(emptyList()) }
+    var recentQueries by remember { mutableStateOf<List<String>>(emptyList()) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(scopeEncoded, homeSortName, notebookSortName) {
@@ -146,6 +173,33 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
     LaunchedEffect(noteLibrary) {
         launch { noteLibrary.observeNotebooks().collect { notebooks = it } }
         launch { noteLibrary.observeActiveNotes().collect { activeNotes = it } }
+        launch { noteLibrary.observeTrashedNotes().collect { trashedNotes = it } }
+    }
+    LaunchedEffect(searchHistory) {
+        searchHistory.recentQueries.collect { recentQueries = it }
+    }
+    LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes) {
+        if (!navigationState.isSearchOpen || searchQuery.isBlank()) {
+            searchResults = emptyList()
+            return@LaunchedEffect
+        }
+        delay(120)
+        searchResults = noteLibrary.searchNotes(searchQuery, searchNotebookId)
+    }
+    LaunchedEffect(notebooks, searchNotebookId) {
+        if (searchNotebookId != null && notebooks.none { it.id == searchNotebookId }) {
+            searchNotebookId = null
+        }
+    }
+    LaunchedEffect(trashedNotes.map(Note::id)) {
+        val currentIds = trashedNotes.mapTo(mutableSetOf(), Note::id)
+        recycleBinUiState.selectedIds = recycleBinUiState.selectedIds.intersect(currentIds)
+        recycleBinUiState.pendingPermanentDeleteIds =
+            recycleBinUiState.pendingPermanentDeleteIds.intersect(currentIds)
+        if (trashedNotes.isEmpty()) {
+            recycleBinUiState.finishSelection()
+            recycleBinUiState.moreVisible = false
+        }
     }
     DisposableEffect(lifecycleOwner, editorSession) {
         val observer = LifecycleEventObserver { _, event ->
@@ -160,6 +214,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
     fun updateNavigationState(newState: XNoteNavigationState) {
         destinationName = newState.destination.name
         isSearchOpen = newState.isSearchOpen
+        isRecycleBinOpen = newState.isRecycleBinOpen
         notesStackEncoded = encodeNotesStack(newState.notesStack)
     }
 
@@ -168,6 +223,13 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
             val note = noteLibrary.createRichNote(notebookId)
             updateNavigationState(navigationState.openEditor(note.id))
         }
+    }
+
+    fun recordSearch(query: String) {
+        val normalized = query.trim()
+        if (normalized.isEmpty()) return
+        searchQuery = normalized
+        appScope.launch { searchHistory.record(normalized) }
     }
 
     fun popNotes() {
@@ -198,33 +260,44 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
         }
     }
 
-    BackHandler(enabled = uiState.selectedIds.isNotEmpty()) {
-        uiState.selectedIds = emptySet()
-    }
-    val canGoBack = navigationState.isSearchOpen || navigationState.notesRoute !is NotesRoute.Home
+    val canGoBack = uiState.selectedIds.isNotEmpty() ||
+        recycleBinUiState.selectionMode ||
+        navigationState.isSearchOpen ||
+        navigationState.isRecycleBinOpen ||
+        navigationState.notesRoute !is NotesRoute.Home
     BackHandler(enabled = canGoBack) {
-        if (navigationState.isSearchOpen) {
-            updateNavigationState(navigationState.closeSearch())
-        } else {
-            popNotes()
+        when {
+            recycleBinUiState.selectionMode -> recycleBinUiState.finishSelection()
+            uiState.selectedIds.isNotEmpty() -> uiState.selectedIds = emptySet()
+            navigationState.isSearchOpen -> updateNavigationState(navigationState.closeSearch())
+            navigationState.isRecycleBinOpen -> {
+                recycleBinUiState.finishSelection()
+                updateNavigationState(navigationState.closeRecycleBin())
+            }
+            else -> popNotes()
         }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= TabletBreakpoint
-        val showsPrimaryChrome = navigationState.showsPrimaryChrome
-        val showsShellHeader = navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome
+        val showsPrimaryChrome = navigationState.showsPrimaryChrome ||
+            (isTablet && navigationState.isSearchOpen)
+        val showsShellHeader = !navigationState.isRecycleBinOpen &&
+            (navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome)
         val isEditor = navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor && (
             editorSession?.isMarkdown != true ||
                 editorSession.markdownMode == MarkdownEditorMode.Editing
         )
         val showsBottomNavigation = !isTablet && showsPrimaryChrome
+        val showsRecycleSelection = navigationState.isRecycleBinOpen &&
+            recycleBinUiState.selectionMode
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
         val bottomOverlayHeight = when {
             showsEditorToolbar -> XNoteEditorToolbarHeight
+            showsRecycleSelection -> XNoteRecycleSelectionHeight
             showsBottomNavigation -> XNoteBottomNavigationHeight
             else -> 0.dp
         }
@@ -238,10 +311,10 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
             end = if (isTablet) 24.dp else XNoteSpacingMedium,
             bottom = navigationBarHeight + bottomOverlayHeight + XNoteSpacingMedium,
         )
-        val listState = if (navigationState.isSearchOpen) {
-            searchListState
-        } else {
-            when (navigationState.destination) {
+        val listState = when {
+            navigationState.isSearchOpen -> searchListState
+            navigationState.isRecycleBinOpen -> recycleBinListState
+            else -> when (navigationState.destination) {
                 AppDestination.Notes -> notesListState
                 AppDestination.Agent -> agentListState
                 AppDestination.Profile -> profileListState
@@ -253,7 +326,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
             else -> listState
         }
         val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
-        val scrollEdges = if (showsBottomNavigation || showsEditorToolbar) {
+        val scrollEdges = if (showsBottomNavigation || showsEditorToolbar || showsRecycleSelection) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
@@ -283,8 +356,21 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                     notebookListState = notebookListState,
                     editorScrollState = editorScrollState,
                     editorSession = editorSession,
+                    searchQuery = searchQuery,
+                    searchNotebookId = searchNotebookId,
+                    searchResults = searchResults,
+                    recentQueries = recentQueries,
+                    trashedNotes = trashedNotes,
+                    recycleBinUiState = recycleBinUiState,
+                    toastHostState = toastHostState,
                     onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
                     onCreateNote = ::createNote,
+                    onSearchQueryChange = { searchQuery = it },
+                    onSearch = ::recordSearch,
+                    onSearchNotebookSelected = { searchNotebookId = it },
+                    onOpenRecycleBin = {
+                        updateNavigationState(navigationState.openRecycleBin())
+                    },
                 )
             },
             overlay = {
@@ -302,7 +388,17 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                             null
                         },
                         actions = if (navigationState.isSearchOpen) {
-                            emptyList()
+                            if (recentQueries.isEmpty()) {
+                                emptyList()
+                            } else {
+                                listOf(
+                                    XNoteHeaderAction(
+                                        iconRes = R.drawable.ic_lucide_trash_2,
+                                        contentDescription = stringResource(R.string.search_clear_history),
+                                        onClick = { appScope.launch { searchHistory.clear() } },
+                                    ),
+                                )
+                            }
                         } else {
                             listOf(
                                 XNoteHeaderAction(
@@ -319,7 +415,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                     )
                 }
 
-                if (showsPrimaryChrome && !navigationState.isSearchOpen) {
+                if (showsPrimaryChrome) {
                     if (isTablet) {
                         XNoteNavigationRail(
                             currentDestination = navigationState.destination,
@@ -343,6 +439,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                 }
 
                 if (!navigationState.isSearchOpen &&
+                    !navigationState.isRecycleBinOpen &&
                     navigationState.destination == AppDestination.Notes
                 ) {
                     NotesChrome(
@@ -362,6 +459,21 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                         onPop = ::popNotes,
                     )
                 }
+
+                if (navigationState.isRecycleBinOpen) {
+                    RecycleBinChrome(
+                        notes = trashedNotes,
+                        ui = recycleBinUiState,
+                        library = noteLibrary,
+                        backdrop = backdrop,
+                        isTablet = isTablet,
+                        toastHostState = toastHostState,
+                        onBack = {
+                            recycleBinUiState.finishSelection()
+                            updateNavigationState(navigationState.closeRecycleBin())
+                        },
+                    )
+                }
             },
         )
     }
@@ -379,18 +491,67 @@ private fun DestinationContent(
     notebookListState: LazyListState,
     editorScrollState: ScrollState,
     editorSession: NoteEditorSession?,
+    searchQuery: String,
+    searchNotebookId: String?,
+    searchResults: List<NoteSearchResult>,
+    recentQueries: List<String>,
+    trashedNotes: List<Note>,
+    recycleBinUiState: RecycleBinUiState,
+    toastHostState: androidx.compose.material3.SnackbarHostState,
     onOpenNote: (String) -> Unit,
     onCreateNote: (String?) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onSearch: (String) -> Unit,
+    onSearchNotebookSelected: (String?) -> Unit,
+    onOpenRecycleBin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (navigationState.isSearchOpen) {
-        PlaceholderScreen(
-            titleRes = R.string.search_placeholder_title,
-            descriptionRes = R.string.search_placeholder_description,
-            iconRes = R.drawable.ic_lucide_search,
+    if (navigationState.isRecycleBinOpen) {
+        val scope = rememberCoroutineScope()
+        val restoredMessage = stringResource(R.string.recycle_bin_restored)
+        RecycleBinScreen(
+            notes = trashedNotes,
+            notebooks = notebooks,
+            selectedIds = recycleBinUiState.selectedIds,
+            selectionMode = recycleBinUiState.selectionMode,
             backdrop = backdrop,
             contentPadding = contentPadding,
             listState = listState,
+            onToggleSelection = { id ->
+                recycleBinUiState.selectedIds = recycleBinUiState.selectedIds.toggle(id)
+            },
+            onEnterSelection = { id ->
+                recycleBinUiState.selectionMode = true
+                recycleBinUiState.selectedIds = setOf(id)
+            },
+            onRestore = { id ->
+                scope.launch {
+                    noteLibrary.restoreNotes(listOf(id))
+                    toastHostState.showSnackbar(restoredMessage)
+                }
+            },
+            onPermanentlyDelete = { id ->
+                recycleBinUiState.pendingPermanentDeleteIds = setOf(id)
+            },
+            modifier = modifier,
+        )
+        return
+    }
+
+    if (navigationState.isSearchOpen) {
+        SearchScreen(
+            query = searchQuery,
+            selectedNotebookId = searchNotebookId,
+            results = searchResults,
+            recentQueries = recentQueries,
+            notebooks = notebooks,
+            backdrop = backdrop,
+            contentPadding = contentPadding,
+            listState = listState,
+            onQueryChange = onSearchQueryChange,
+            onSearch = onSearch,
+            onNotebookSelected = onSearchNotebookSelected,
+            onOpenNote = onOpenNote,
             modifier = modifier,
         )
         return
@@ -460,13 +621,11 @@ private fun DestinationContent(
             modifier = modifier,
         )
 
-        AppDestination.Profile -> PlaceholderScreen(
-            titleRes = R.string.profile_placeholder_title,
-            descriptionRes = R.string.profile_placeholder_description,
-            iconRes = R.drawable.ic_lucide_user_round,
-            backdrop = backdrop,
+        AppDestination.Profile -> ProfileScreen(
+            trashCount = trashedNotes.size,
             contentPadding = contentPadding,
             listState = listState,
+            onOpenRecycleBin = onOpenRecycleBin,
             modifier = modifier,
         )
     }

@@ -1,6 +1,6 @@
 # XNote
 
-XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层、S3 笔记本及普通文字笔记与 S4 Markdown 单向转换，提供可继续开发的应用外壳、统一页面骨架、公共浮层、状态组件、Room 笔记库、完整富文本编辑闭环，以及 Markdown 编辑和预览；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
+XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层、S3 笔记本及普通文字笔记、S4 Markdown 单向转换与 S5 回收站和搜索，提供统一页面骨架、公共浮层、状态组件、Room 笔记库、完整富文本编辑闭环、Markdown 编辑预览，以及可恢复删除和本地全文检索；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
 
 ## 当前基线
 
@@ -18,6 +18,8 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - 笔记首页、笔记本详情与普通笔记编辑页已接通本地笔记库：可创建笔记本、从编辑页 Header 选择归属、编写完整富文本（含表格与标题折叠）、自动保存，并将笔记移入回收站。
 - 普通笔记可在移除媒体块后永久转换为 Markdown；转换事务会先保存历史版本，再按块顺序映射标题、行内样式、清单、引用、代码和 GitHub 风格表格。
 - Markdown 笔记以首行一级标题同步列表标题，支持原文编辑、会话内撤销重做、右下角确认保存、结构化预览和从预览返回编辑；不提供转回普通笔记的入口。
+- 全屏手机搜索与平板列表栏搜索复用 FTS5：支持标题/正文、笔记本筛选、原文片段高亮、最近搜索持久化与清空，连续中文子串可命中且回收站内容始终排除。
+- “我的”已提供回收站入口；回收站展示删除时间、剩余天数和原笔记本，可恢复、永久删除、清空及多选，并在启动补扫或后台任务中清理满 30 天的笔记和未引用附件。
 
 ## 本地运行
 
@@ -47,15 +49,18 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 
 ```text
 app/src/main/java/com/xnote/app
-├─ data                # Room 笔记库、附件文件、DataStore 设置、回收站清理
-├─ domain              # 笔记文档 JSON、领域规则、纯文本/FTS 抽取
+├─ data                # Room 笔记库、附件文件、DataStore 设置/搜索历史、回收站清理
+├─ domain              # 笔记文档 JSON、领域规则、纯文本/FTS/匹配片段抽取
 ├─ design              # 主题、令牌、Shape 与库中没有的项目级玻璃适配
 │  ├─ liquidglass      # 固定版本的 AndroidLiquidGlass 官方 catalog 组件
 │  └─ 公共页面骨架、Header、Scroll Edge、浮层、状态与富文本工具栏
 ├─ feature/notes       # 笔记首页、笔记本详情、普通笔记编辑器与 Markdown 编辑/预览
+├─ feature/search      # 手机全屏与平板列表栏搜索
+├─ feature/recycle     # 回收站列表、批量操作与危险操作确认
+├─ feature/profile     # “我的”中已实现功能的真实入口
 ├─ navigation          # 一级目的地与导航状态
 ├─ MainActivity.kt     # Android 入口
 └─ XNoteApp.kt         # 手机/平板应用外壳
 ```
 
-S4 已完成 Markdown 与单向转换。下一切片从 S5 回收站与搜索开始，并持续复用现有公共组件与 `NoteLibrary`。
+S5 已完成回收站与搜索。下一切片从 S6 笔记背景开始，并持续复用现有公共组件与 `NoteLibrary`。

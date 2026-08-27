@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +29,7 @@ fun XNoteTextField(
     singleLine: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     imeAction: ImeAction = ImeAction.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     val foreground = MaterialTheme.colorScheme.onSurface
     BasicTextField(
@@ -48,6 +50,7 @@ fun XNoteTextField(
             capitalization = KeyboardCapitalization.Sentences,
             imeAction = imeAction,
         ),
+        keyboardActions = keyboardActions,
         decorationBox = { inner ->
             Box {
                 if (value.isEmpty()) {

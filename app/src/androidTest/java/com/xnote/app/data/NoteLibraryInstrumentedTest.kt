@@ -89,6 +89,33 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
+    fun searchReturnsOriginalSnippetFiltersNotebookAndExcludesTrash() = runTest {
+        val includedNotebook = library.createNotebook("工作")
+        val otherNotebook = library.createNotebook("生活")
+        val included = library.createRichNote(includedNotebook.id)
+        library.saveNote(
+            included.copy(
+                title = "会议安排",
+                document = NoteDocument(
+                    blocks = listOf(
+                        TextBlock(id = "included", inlines = listOf(InlineRun("我的笔记本记录了发布计划"))),
+                    ),
+                ),
+            ),
+        )
+        val filtered = library.createRichNote(otherNotebook.id)
+        library.saveNote(filtered.copy(title = "另一本笔记本"))
+        val trashed = library.createRichNote(includedNotebook.id)
+        library.saveNote(trashed.copy(title = "回收站笔记本"))
+        library.trashNotes(listOf(trashed.id))
+
+        val results = library.searchNotes("笔记本", includedNotebook.id)
+
+        assertEquals(listOf(included.id), results.map { it.note.id })
+        assertTrue(results.single().matchedText.contains("我的笔记本"))
+    }
+
+    @Test
     fun deleteNotebookMovesNotesToTrashAndRestoreUnfilesThem() = runTest {
         val notebook = library.createNotebook("临时本")
         val note = library.createRichNote(notebook.id)
@@ -142,6 +169,38 @@ class NoteLibraryInstrumentedTest {
         assertNull(library.getNote(created.id))
         assertNull(library.getAttachment(attachment.id))
         assertFalse(library.attachmentFile(attachment).exists())
+    }
+
+    @Test
+    fun permanentDeleteKeepsAttachmentReferencedOutsideNotes() = runTest {
+        var externallyReferencedId = ""
+        val protectedLibrary = NoteLibrary(
+            database = database,
+            files = AttachmentFileStore(filesRoot),
+            clock = clock,
+            additionallyReferencedAttachmentIds = { setOf(externallyReferencedId) },
+        )
+        val attachment = protectedLibrary.putAttachment(
+            kind = AttachmentKind.UserBackground,
+            mimeType = "image/png",
+            extension = "png",
+            bytes = byteArrayOf(1, 2, 3),
+        )
+        externallyReferencedId = attachment.id
+        val note = protectedLibrary.createRichNote(null)
+        protectedLibrary.saveNote(
+            note.copy(
+                document = NoteDocument(
+                    blocks = listOf(ImageBlock(id = "image", attachmentId = attachment.id)),
+                ),
+            ),
+        )
+        protectedLibrary.trashNotes(listOf(note.id))
+
+        protectedLibrary.permanentlyDeleteNotes(listOf(note.id))
+
+        assertNotNull(protectedLibrary.getAttachment(attachment.id))
+        assertTrue(protectedLibrary.attachmentFile(attachment).exists())
     }
 
     @Test

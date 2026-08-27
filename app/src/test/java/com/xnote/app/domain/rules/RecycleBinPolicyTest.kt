@@ -25,6 +25,13 @@ class RecycleBinPolicyTest {
     }
 
     @Test
+    fun partialDayRoundsUpForUserFacingRetention() {
+        val deletedAt = 1_000_000L
+        val now = deletedAt + TimeUnit.HOURS.toMillis(1)
+        assertEquals(30, RecycleBinPolicy.remainingDays(deletedAt, now))
+    }
+
+    @Test
     fun expiredAfterThirtyDays() {
         val deletedAt = 1_000_000L
         val now = RecycleBinPolicy.expireAt(deletedAt)

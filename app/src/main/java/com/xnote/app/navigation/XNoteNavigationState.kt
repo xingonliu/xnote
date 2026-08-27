@@ -17,6 +17,7 @@ sealed interface NotesRoute {
 data class XNoteNavigationState(
     val destination: AppDestination = AppDestination.Notes,
     val isSearchOpen: Boolean = false,
+    val isRecycleBinOpen: Boolean = false,
     val notesStack: List<NotesRoute> = emptyList(),
 ) {
     val notesRoute: NotesRoute
@@ -26,26 +27,40 @@ data class XNoteNavigationState(
         get() = destination != AppDestination.Notes || notesRoute is NotesRoute.Home
 
     val showsPrimaryChrome: Boolean
-        get() = !isSearchOpen && showsNotesPrimaryChrome
+        get() = !isSearchOpen && !isRecycleBinOpen && showsNotesPrimaryChrome
 
     fun openDestination(destination: AppDestination) = copy(
         destination = destination,
         isSearchOpen = false,
+        isRecycleBinOpen = false,
     )
 
-    fun openSearch() = copy(isSearchOpen = true)
+    fun openSearch() = copy(
+        isSearchOpen = true,
+        isRecycleBinOpen = false,
+    )
 
     fun closeSearch() = copy(isSearchOpen = false)
+
+    fun openRecycleBin() = copy(
+        destination = AppDestination.Profile,
+        isSearchOpen = false,
+        isRecycleBinOpen = true,
+    )
+
+    fun closeRecycleBin() = copy(isRecycleBinOpen = false)
 
     fun openNotebook(notebookId: String) = copy(
         destination = AppDestination.Notes,
         isSearchOpen = false,
+        isRecycleBinOpen = false,
         notesStack = listOf(NotesRoute.Notebook(notebookId)),
     )
 
     fun openEditor(noteId: String) = copy(
         destination = AppDestination.Notes,
         isSearchOpen = false,
+        isRecycleBinOpen = false,
         notesStack = notesStack.filterNot { it is NotesRoute.Editor } + NotesRoute.Editor(noteId),
     )
 

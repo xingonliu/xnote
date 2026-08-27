@@ -5,6 +5,7 @@ import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.recycle.RecycleBinCleanupWorker
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.data.search.SearchHistoryStore
 import com.xnote.app.data.settings.AppSettingsStore
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.SystemEpochClock
@@ -24,17 +25,20 @@ class XNoteContainer(
 
     val database: XNoteDatabase = XNoteDatabase.create(appContext)
     val settings = AppSettingsStore(appContext)
+    val searchHistory = SearchHistoryStore(appContext)
     val noteLibrary = NoteLibrary(
         database = database,
         files = AttachmentFileStore(appContext.filesDir),
         clock = clock,
+        additionallyReferencedAttachmentIds = {
+            settings.current().referencedAttachmentIds()
+        },
     )
 
     fun start() {
         RecycleBinCleanupWorker.enqueue(appContext)
         applicationScope.launch {
-            val extra = settings.current().referencedAttachmentIds()
-            noteLibrary.purgeExpiredTrash(extraReferencedAttachmentIds = extra)
+            noteLibrary.purgeExpiredTrash()
         }
     }
 }

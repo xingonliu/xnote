@@ -13,9 +13,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val library = (application as XNoteApplication).container.noteLibrary
+            val container = (application as XNoteApplication).container
             XNoteTheme {
-                XNoteApp(noteLibrary = library)
+                XNoteApp(
+                    noteLibrary = container.noteLibrary,
+                    searchHistory = container.searchHistory,
+                )
             }
         }
     }

@@ -17,6 +17,7 @@ import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.NoteListSort
+import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.NoteRevision
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
@@ -29,6 +30,8 @@ import com.xnote.app.domain.rules.patchesForDeletedNotebook
 import com.xnote.app.domain.text.FtsIndexText
 import com.xnote.app.domain.text.extractPlainText
 import com.xnote.app.domain.text.summarizePlainText
+import com.xnote.app.domain.text.searchMatchRanges
+import com.xnote.app.domain.text.searchSnippet
 import com.xnote.app.domain.text.visibleTextStats
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -39,6 +42,7 @@ class NoteLibrary(
     private val database: XNoteDatabase,
     private val files: AttachmentFileStore,
     private val clock: EpochClock,
+    private val additionallyReferencedAttachmentIds: suspend () -> Set<String> = { emptySet() },
 ) {
     private val notebooks = database.notebooks()
     private val notes = database.notes()
@@ -306,12 +310,14 @@ class NoteLibrary(
         extraReferencedAttachmentIds: Set<String> = emptySet(),
     ) {
         if (ids.isEmpty()) return
+        val referencedOutsideNotes = extraReferencedAttachmentIds +
+            additionallyReferencedAttachmentIds()
         write {
             val idList = ids.toList()
             revisions.deleteByNoteIds(idList)
             noteFts.deleteByNoteIds(idList)
             notes.deleteByIds(idList)
-            deleteOrphanAttachments(extraReferencedAttachmentIds)
+            deleteOrphanAttachments(referencedOutsideNotes)
         }
     }
 
@@ -352,6 +358,30 @@ class NoteLibrary(
     suspend fun searchNoteIds(query: String): List<String> {
         val matchQuery = FtsIndexText.matchQuery(query) ?: return emptyList()
         return noteFts.searchNoteIds(matchQuery)
+    }
+
+    suspend fun searchNotes(
+        query: String,
+        notebookId: String? = null,
+    ): List<NoteSearchResult> {
+        val ids = searchNoteIds(query)
+        if (ids.isEmpty()) return emptyList()
+        val notesById = notes.getAll(ids).associateBy { it.id }
+        return ids.mapNotNull { id ->
+            val note = notesById[id]?.toDomain() ?: return@mapNotNull null
+            if (note.isTrashed || notebookId != null && note.notebookId != notebookId) {
+                return@mapNotNull null
+            }
+            val body = extractPlainText(note)
+            NoteSearchResult(
+                note = note,
+                matchedText = searchSnippet(body, query),
+            )
+        }.sortedWith(
+            compareByDescending<NoteSearchResult> {
+                searchMatchRanges(it.note.title, query).isNotEmpty()
+            }.thenByDescending { it.note.updatedAtEpochMs },
+        )
     }
 
     suspend fun notebookStats(): Map<String, NotebookStats> {

@@ -18,8 +18,7 @@ class RecycleBinCleanupWorker(
     override suspend fun doWork(): Result {
         val container = (applicationContext as? XNoteApplication)?.container
             ?: return Result.success()
-        val extra = container.settings.current().referencedAttachmentIds()
-        container.noteLibrary.purgeExpiredTrash(extraReferencedAttachmentIds = extra)
+        container.noteLibrary.purgeExpiredTrash()
         return Result.success()
     }
 
@@ -27,11 +26,14 @@ class RecycleBinCleanupWorker(
         const val UniqueName = "xnote-recycle-bin-cleanup"
 
         fun enqueue(context: Context) {
+            // XNoteContainer performs the immediate sweep; the periodic job starts later so it
+            // cannot compete with the first rendered frame on a cold install.
             val request = PeriodicWorkRequestBuilder<RecycleBinCleanupWorker>(1, TimeUnit.DAYS)
+                .setInitialDelay(1, TimeUnit.DAYS)
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 UniqueName,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
         }

@@ -16,7 +16,8 @@ object RecycleBinPolicy {
     fun remainingDays(deletedAtEpochMs: Long, nowMs: Long): Int {
         val remainingMillis = expireAt(deletedAtEpochMs) - nowMs
         if (remainingMillis <= 0L) return 0
-        return (remainingMillis / TimeUnit.DAYS.toMillis(1)).toInt()
+        val dayMillis = TimeUnit.DAYS.toMillis(1)
+        return ((remainingMillis + dayMillis - 1) / dayMillis).toInt()
             .coerceAtLeast(0)
     }
 }
