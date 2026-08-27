@@ -66,8 +66,9 @@ import kotlin.math.sign
 // -- Constants
 
 private val BottomTabsInset = 4.dp
-private val BottomTabsHeight = 64.dp
-private val BottomTabHeight = 56.dp
+private val BottomTabsHeight = 56.dp
+private val BottomTabHeight = 48.dp
+private const val BottomTabPressedScale = 70f / 48f
 
 // -- Composables
 
@@ -143,7 +144,7 @@ fun LiquidBottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScale = 78f / 56f,
+                pressedScale = BottomTabPressedScale,
                 onDragStarted = { position ->
                     gestureValue = tabValueAtPosition(position.x)
                     snapToValue(gestureValue)
@@ -176,11 +177,12 @@ fun LiquidBottomTabs(
                 .collectLatest { index -> currentIndex = index }
         }
         LaunchedEffect(dampedDragAnimation, hasInteractiveMotion) {
-            if (!hasInteractiveMotion) return@LaunchedEffect
             snapshotFlow { currentIndex }
                 .drop(1)
                 .collectLatest { index ->
-                    dampedDragAnimation.animateToValue(index.toFloat())
+                    if (hasInteractiveMotion) {
+                        dampedDragAnimation.animateToValue(index.toFloat())
+                    }
                     onTabSelected(index)
                 }
         }
@@ -222,6 +224,9 @@ fun LiquidBottomTabs(
 
         CompositionLocalProvider(
             LocalLiquidBottomTabScale provides tabContentScale,
+            LocalLiquidBottomTabClick provides { index ->
+                currentIndex = index.fastCoerceIn(0, tabsCount - 1)
+            },
         ) {
             Row(
                 modifier = Modifier

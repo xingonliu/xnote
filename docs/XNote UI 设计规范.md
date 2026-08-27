@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.9
+> 文档版本：v0.10
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -202,6 +202,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - Bottom Tabs 选中胶囊的几何中心必须始终与当前 tab 的图标和文字中心重合；按压放大、拖拽形变和色散不得改变中心锚点或产生累计偏移。
 - Bottom Tabs 按压时，当前选中项的中性基础内容层与主题色内容层必须共享同一中心缩放和位移；不得只变换主题色层而让灰色图标或文字停留在原位。
 - Bottom Tabs 的整条玻璃容器都是滑块手势区；手指在任意 tab 或间隙按下时，滑块立即映射到落点并连续跟手，松手后吸附到最近的 tab。
+- Bottom Tabs 玻璃容器高度固定为 56 dp，选中滑块静止高度固定为 48 dp；调用方保留上下各 8 dp 间距，不得通过取消底部间距伪装成高度降低。
+- 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
@@ -357,7 +359,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 二级页面使用单栏结构和顶部 Header。
 - 长选择、图片来源和筛选优先使用底部抽屉。
 - 底部导航、编辑工具区和输入区均触发底部 Scroll Edge。
-- Bottom Tabs 的玻璃容器底边直接贴合系统导航安全区，仅保留 8 dp 顶部间距，不再叠加额外底部间距。
+- Bottom Tabs 保留上下各 8 dp 外部间距，玻璃容器通过自身 56 dp 高度保持紧凑，不额外改变相对系统导航安全区的位置。
 - 浮动按钮不得遮挡列表最后一项，页面 Scaffold 负责补足底部内容间距。
 
 ### 10.2 平板
@@ -389,6 +391,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - Bottom Tabs 在静止、按压放大和拖拽状态下，选中胶囊均以当前 tab 中心为锚点，不向任一侧产生非交互预期的偏移。
 - Bottom Tabs 按压时，选中项的中性基础图标与文字不会残留在原位置，且另外两个未选中项不会随之缩放。
 - 从 Bottom Tabs 内任意位置按下并横向拖动时，滑块从落点立即跟手，松手后选中最近的 tab；普通点击仍能准确切换目标。
+- 点击另一个 tab 时，滑块先唤起并从当前位置动画移动到目标，页面切换不得绕过或吞掉该滑块反馈。
 - Bottom Tabs 的选中图标和文字在浅色模式使用 `#E09F3E`，在深色模式使用 `#FFD60A`，且不存在组件私有强调色。
 - 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
