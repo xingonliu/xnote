@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.design.LocalXNoteInteractionSettings
@@ -39,6 +40,8 @@ import com.xnote.app.design.XNoteRichTextToolbarState
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.design.rememberXNoteScrollEdgeState
+import com.xnote.app.design.liquidglass.LiquidBottomTab
+import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -274,5 +277,89 @@ class XNoteDesignSystemTest {
         }
         composeRule.onNodeWithTag("scroll-edge-content").performTouchInput { swipeUp() }
         composeRule.waitUntil(5_000) { canScrollBackward }
+    }
+
+    @Test
+    fun bottomTabsSeparateSelectionFromActiveReselection() {
+        var selectedIndex = 0
+        var reselectedIndex = -1
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val backdrop = rememberLayerBackdrop()
+                LiquidBottomTabs(
+                    selectedTabIndex = { selectedIndex },
+                    onTabSelected = { selectedIndex = it },
+                    onTabReselected = { reselectedIndex = it },
+                    backdrop = backdrop,
+                    tabsCount = 2,
+                ) {
+                    LiquidBottomTab(index = 0) { Text("笔记") }
+                    LiquidBottomTab(index = 1) { Text("智能") }
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("笔记").performClick()
+        composeRule.runOnIdle { assertEquals(0, reselectedIndex) }
+
+        composeRule.onNodeWithText("智能").performClick()
+        composeRule.waitUntil(5_000) { selectedIndex == 1 }
+        composeRule.onNodeWithText("智能").performClick()
+        composeRule.runOnIdle { assertEquals(1, reselectedIndex) }
+    }
+
+    @Test
+    fun bottomTabsHandleTouchThroughTheDragSurface() {
+        var selectedIndex = 0
+        var reselectedIndex = -1
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = false) {
+                val backdrop = rememberLayerBackdrop()
+                LiquidBottomTabs(
+                    selectedTabIndex = { selectedIndex },
+                    onTabSelected = { selectedIndex = it },
+                    onTabReselected = { reselectedIndex = it },
+                    backdrop = backdrop,
+                    tabsCount = 3,
+                    modifier = Modifier.testTag("touch-liquid-tabs"),
+                ) {
+                    LiquidBottomTab(index = 0) { Text("笔记") }
+                    LiquidBottomTab(index = 1) { Text("智能") }
+                    LiquidBottomTab(index = 2) { Text("我的") }
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("touch-liquid-tabs").performTouchInput { click() }
+        composeRule.waitUntil(5_000) { selectedIndex == 1 }
+        composeRule.onNodeWithTag("touch-liquid-tabs").performTouchInput { click() }
+        composeRule.runOnIdle { assertEquals(1, reselectedIndex) }
+    }
+
+    @Test
+    fun bottomTabsDragToTheNearestDestination() {
+        var selectedIndex = 0
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = false) {
+                val backdrop = rememberLayerBackdrop()
+                LiquidBottomTabs(
+                    selectedTabIndex = { selectedIndex },
+                    onTabSelected = { selectedIndex = it },
+                    backdrop = backdrop,
+                    tabsCount = 3,
+                    modifier = Modifier.testTag("draggable-liquid-tabs"),
+                ) {
+                    LiquidBottomTab(index = 0) { Text("笔记") }
+                    LiquidBottomTab(index = 1) { Text("智能") }
+                    LiquidBottomTab(index = 2) { Text("我的") }
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("draggable-liquid-tabs").performTouchInput { swipeRight() }
+        composeRule.waitUntil(5_000) { selectedIndex == 2 }
     }
 }

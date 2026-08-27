@@ -60,6 +60,7 @@ import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
 import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteLiquidGlassPanel
+import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteSpacingMedium
@@ -124,6 +125,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
     val profileListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
     val appScope = rememberCoroutineScope()
+    val interactionSettings = LocalXNoteInteractionSettings.current
     val editorNoteId = (navigationState.notesRoute as? NotesRoute.Editor)?.noteId
     val editorSession = remember(editorNoteId, noteLibrary) {
         editorNoteId?.let { NoteEditorSession(noteLibrary, it, appScope) }
@@ -171,6 +173,27 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
         appScope.launch {
             editorSession?.flushSave()
             updateNavigationState(navigationState.popNotes())
+        }
+    }
+
+    fun resetDestination(destination: AppDestination) {
+        if (destination == AppDestination.Notes && navigationState.notesStack.isNotEmpty()) {
+            updateNavigationState(navigationState.copy(notesStack = emptyList()))
+            return
+        }
+
+        val destinationListState = when (destination) {
+            AppDestination.Notes -> notesListState
+            AppDestination.Agent -> agentListState
+            AppDestination.Profile -> profileListState
+        }
+        if (destinationListState.layoutInfo.totalItemsCount == 0) return
+        appScope.launch {
+            if (interactionSettings.reduceMotion) {
+                destinationListState.scrollToItem(0)
+            } else {
+                destinationListState.animateScrollToItem(0)
+            }
         }
     }
 
@@ -307,6 +330,7 @@ fun XNoteApp(noteLibrary: NoteLibrary) {
                             onDestinationSelected = {
                                 updateNavigationState(navigationState.openDestination(it))
                             },
+                            onDestinationReselected = ::resetDestination,
                             backdrop = backdrop,
                             modifier = Modifier.align(Alignment.BottomCenter),
                         )
@@ -448,6 +472,7 @@ private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this -
 private fun XNoteBottomNavigation(
     currentDestination: AppDestination,
     onDestinationSelected: (AppDestination) -> Unit,
+    onDestinationReselected: (AppDestination) -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
@@ -458,6 +483,9 @@ private fun XNoteBottomNavigation(
         selectedTabIndex = selectedIndex,
         onTabSelected = { index ->
             onDestinationSelected(AppDestination.entries[index])
+        },
+        onTabReselected = { index ->
+            onDestinationReselected(AppDestination.entries[index])
         },
         backdrop = backdrop,
         tabsCount = AppDestination.entries.size,
