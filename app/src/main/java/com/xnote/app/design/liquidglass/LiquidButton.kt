@@ -29,6 +29,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
+import com.xnote.app.design.LocalXNoteInteractionSettings
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -55,15 +56,16 @@ fun LiquidButton(
     role: Role = Role.Button,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val interactionSettings = LocalXNoteInteractionSettings.current
     val animationScope = rememberCoroutineScope()
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(animationScope = animationScope)
     }
-    val hasInteractiveMotion = enabled && isInteractive
+    val hasInteractiveMotion = enabled && isInteractive && !interactionSettings.reduceMotion
 
     Row(
         modifier
-            .alpha(if (enabled) 1f else 0.48f)
+            .alpha(if (enabled) 1f else 0.64f)
             .drawBackdrop(
                 backdrop = backdrop,
                 shape = { shape },

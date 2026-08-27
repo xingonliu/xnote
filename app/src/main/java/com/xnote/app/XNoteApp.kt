@@ -16,8 +16,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,15 +42,22 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
 import com.xnote.app.design.XNoteHeader
+import com.xnote.app.design.XNoteHeaderAction
+import com.xnote.app.design.XNoteBottomNavigationHeight
+import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePageScaffold
+import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.rememberXNoteScrollEdgeState
+import com.xnote.app.design.rememberXNoteToastHostState
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -71,6 +83,11 @@ fun XNoteApp() {
         )
     }
     val backdrop = rememberLayerBackdrop()
+    val toastHostState = rememberXNoteToastHostState()
+    val notesListState = rememberLazyListState()
+    val agentListState = rememberLazyListState()
+    val profileListState = rememberLazyListState()
+    val searchListState = rememberLazyListState()
 
     fun updateNavigationState(newState: XNoteNavigationState) {
         destinationName = newState.destination.name
@@ -83,23 +100,49 @@ fun XNoteApp() {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= TabletBreakpoint
+        val showsBottomNavigation = !isTablet && !navigationState.isSearchOpen
+        val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
+            .calculateBottomPadding()
+        val bottomOverlayHeight = if (showsBottomNavigation) {
+            XNoteBottomNavigationHeight
+        } else {
+            0.dp
+        }
         val contentPadding = PaddingValues(
             start = if (isTablet) 112.dp else XNoteSpacingMedium,
-            top = 76.dp,
+            top = statusBarHeight + XNoteHeaderHeight + XNoteSpacingMedium,
             end = if (isTablet) 24.dp else XNoteSpacingMedium,
-            bottom = if (isTablet || navigationState.isSearchOpen) 24.dp else 112.dp,
+            bottom = navigationBarHeight + bottomOverlayHeight + XNoteSpacingMedium,
         )
+        val listState = if (navigationState.isSearchOpen) {
+            searchListState
+        } else {
+            when (navigationState.destination) {
+                AppDestination.Notes -> notesListState
+                AppDestination.Agent -> agentListState
+                AppDestination.Profile -> profileListState
+            }
+        }
+        val scrollEdgeState = rememberXNoteScrollEdgeState(listState)
+        val scrollEdges = if (showsBottomNavigation) {
+            setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
+        } else {
+            setOf(XNoteScrollEdge.Top)
+        }
 
         XNotePageScaffold(
             backdrop = backdrop,
+            scrollEdgeState = scrollEdgeState,
+            scrollEdges = scrollEdges,
+            bottomOverlayHeight = bottomOverlayHeight,
+            toastHostState = toastHostState,
             content = {
                 DestinationContent(
                     navigationState = navigationState,
                     backdrop = backdrop,
                     contentPadding = contentPadding,
-                    modifier = Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-                    ),
+                    listState = listState,
                 )
             },
             overlay = {
@@ -115,11 +158,20 @@ fun XNoteApp() {
                     } else {
                         null
                     },
-                    onSearch = if (navigationState.isSearchOpen) {
-                        null
+                    actions = if (navigationState.isSearchOpen) {
+                        emptyList()
                     } else {
-                        { updateNavigationState(navigationState.openSearch()) }
+                        listOf(
+                            XNoteHeaderAction(
+                                iconRes = R.drawable.ic_lucide_search,
+                                contentDescription = stringResource(R.string.action_search),
+                                onClick = {
+                                    updateNavigationState(navigationState.openSearch())
+                                },
+                            ),
+                        )
                     },
+                    horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
 
@@ -154,14 +206,17 @@ private fun DestinationContent(
     navigationState: XNoteNavigationState,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
     if (navigationState.isSearchOpen) {
         PlaceholderScreen(
             titleRes = R.string.search_placeholder_title,
             descriptionRes = R.string.search_placeholder_description,
+            iconRes = R.drawable.ic_lucide_search,
             backdrop = backdrop,
             contentPadding = contentPadding,
+            listState = listState,
             modifier = modifier,
         )
         return
@@ -171,6 +226,7 @@ private fun DestinationContent(
         AppDestination.Notes -> NotesHomeScreen(
             backdrop = backdrop,
             contentPadding = contentPadding,
+            listState = listState,
             onCreateNote = {},
             createEnabled = false,
             modifier = modifier,
@@ -179,16 +235,20 @@ private fun DestinationContent(
         AppDestination.Agent -> PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
+            iconRes = R.drawable.ic_lucide_sparkles,
             backdrop = backdrop,
             contentPadding = contentPadding,
+            listState = listState,
             modifier = modifier,
         )
 
         AppDestination.Profile -> PlaceholderScreen(
             titleRes = R.string.profile_placeholder_title,
             descriptionRes = R.string.profile_placeholder_description,
+            iconRes = R.drawable.ic_lucide_user_round,
             backdrop = backdrop,
             contentPadding = contentPadding,
+            listState = listState,
             modifier = modifier,
         )
     }
@@ -212,6 +272,7 @@ private fun XNoteBottomNavigation(
         backdrop = backdrop,
         tabsCount = AppDestination.entries.size,
         modifier = modifier
+            .testTag("xnote-bottom-navigation")
             .navigationBarsPadding()
             .padding(horizontal = 36.dp, vertical = XNoteSpacingSmall)
             .fillMaxWidth()
@@ -248,6 +309,7 @@ private fun XNoteNavigationRail(
         backdrop = backdrop,
         shape = Capsule(),
         modifier = modifier
+            .testTag("xnote-navigation-rail")
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical))
             .padding(start = XNoteSpacingMedium, top = 64.dp, bottom = XNoteSpacingMedium)
             .width(72.dp)

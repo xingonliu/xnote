@@ -48,11 +48,18 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun XNoteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    reduceMotion: Boolean? = null,
+    highContrast: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-        typography = XNoteTypography,
-        content = content,
-    )
+    XNoteInteractionSettingsProvider(
+        reduceMotion = reduceMotion,
+        highContrast = highContrast,
+    ) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+            typography = XNoteTypography,
+            content = content,
+        )
+    }
 }

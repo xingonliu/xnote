@@ -1,6 +1,6 @@
 # XNote 开发顺序
 
-> 文档版本：v0.1
+> 文档版本：v0.2
 >
 > 文档状态：按已确认决策执行的开发切片
 >
@@ -20,17 +20,20 @@
 
 ## 2. 当前基线
 
-仓库 `main` 已具备：
+仓库 `main` 已完成 S1，并具备：
 
 - Android 13+ / Jetpack Compose 工程、主题、令牌、60% 平滑圆角。
 - 手机 `LiquidBottomTabs`、官方 `LiquidButton`、项目级 `XNoteLiquidGlassPanel` 与平板 Navigation Rail。
 - 一级目的地外壳：笔记 / Agent / 我的；搜索入口打开占位页。
+- `XNotePageScaffold` 统一系统安全区、页面加载/错误、Toast Host 与顶部/底部 `Soft` / `Hard` Scroll Edge。
+- 标准 `XNoteHeader` 支持返回、居中标题和零至两个右侧操作；笔记首页与占位页复用公共状态组件。
+- 公共 Dialog、Drawer、Toast、Popup、Dropdown，以及加载、空、错误状态和 `XNoteRichTextToolbar` API/视觉。
+- 系统减少动画监听；关闭动画时禁用 Liquid Button、Bottom Tabs、Scroll Edge 与浮层的弹性、形变和过渡。
 - 笔记首页空状态；新建笔记按钮存在但未接通。
 
 尚未开始：
 
 - 本地数据库、领域模型、ViewModel / Repository。
-- `XNoteScrollEdgeEffect`、通用 Header 右侧槽、Dialog / Drawer / Toast / Popup / Dropdown。
 - 任何笔记 CRUD、Markdown、搜索、回收站、阅读、导出、背景资源、Agent。
 
 ## 3. 总顺序
@@ -61,6 +64,8 @@ S1 设计系统补齐
 ## 4. 切片详情
 
 ### S1 设计系统补齐
+
+**状态：** 已完成（2026-08-27）。
 
 **目标：** 后续页面只组公共组件，不再复制玻璃材质、Header 或浮层。
 
@@ -334,4 +339,4 @@ Linux 技术方案在本切片开始前确认。
 4. **S13** Android 上 Linux 沙箱的实现路径。
 5. **P24** 笔记库导入导出的文件格式。
 
-当前不需要再讨论即可开始 S1。
+S1 已完成；当前不需要再讨论即可开始 S2。

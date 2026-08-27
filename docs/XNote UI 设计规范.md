@@ -34,6 +34,8 @@ Android 实现统一封装为 `XNoteScrollEdgeEffect`，由 `XNotePageScaffold` 
 - 不拦截触摸、滚动、选择、拖放或无障碍焦点。
 - 遵守“减少动画”和高对比度设置，同时保留完整 Liquid Glass 材质。
 
+Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与倍率变更监听接入公共交互设置；倍率为 0 时，Scroll Edge 直接切换显隐，Liquid Button 与 Bottom Tabs 停止形变和弹性反馈，公共浮层不执行进入或退出过渡。页面不得各自读取系统动画设置。
+
 SwiftUI 语义与 Compose 项目语义的映射如下：
 
 | 规范语义       | SwiftUI 参照                    | XNote Android 实现                  |
