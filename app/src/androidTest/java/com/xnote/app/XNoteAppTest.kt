@@ -12,9 +12,17 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.xnote.app.data.db.XNoteDatabase
+import com.xnote.app.data.files.AttachmentFileStore
+import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteTheme
+import com.xnote.app.domain.model.SystemEpochClock
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
+import java.io.File
 
 // -- Tests
 
@@ -22,11 +30,26 @@ class XNoteAppTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val database = XNoteDatabase.createInMemory(context)
+    private val filesRoot = File(context.cacheDir, "xnote-app-ui-${System.nanoTime()}")
+    private val library = NoteLibrary(
+        database = database,
+        files = AttachmentFileStore(filesRoot),
+        clock = SystemEpochClock,
+    )
+
+    @After
+    fun tearDown() {
+        database.close()
+        filesRoot.deleteRecursively()
+    }
+
     @Test
     fun appStartsOnNotesHome() {
         composeRule.setContent {
             XNoteTheme {
-                XNoteApp()
+                XNoteApp(noteLibrary = library)
             }
         }
 
@@ -39,7 +62,7 @@ class XNoteAppTest {
     fun bottomTabsNavigateToAgent() {
         composeRule.setContent {
             XNoteTheme {
-                XNoteApp()
+                XNoteApp(noteLibrary = library)
             }
         }
 
@@ -53,7 +76,7 @@ class XNoteAppTest {
     fun searchUsesSecondaryHeaderAndReturns() {
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
-                XNoteApp()
+                XNoteApp(noteLibrary = library)
             }
         }
 
@@ -74,7 +97,7 @@ class XNoteAppTest {
                         fontScale = currentDensity.fontScale,
                     ),
                 ) {
-                    XNoteApp()
+                    XNoteApp(noteLibrary = library)
                 }
             }
         }

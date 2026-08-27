@@ -74,6 +74,31 @@ class NoteLibrary(
         return updated
     }
 
+    suspend fun reorderNotebooks(orderedIds: List<String>) {
+        if (orderedIds.isEmpty()) return
+        write {
+            val updated = orderedIds.mapIndexedNotNull { index, id ->
+                notebooks.get(id)?.toDomain()?.copy(sortIndex = index.toLong())?.toEntity()
+            }
+            if (updated.isNotEmpty()) {
+                notebooks.upsertAll(updated)
+            }
+        }
+    }
+
+    suspend fun reorderNotes(orderedIds: List<String>) {
+        if (orderedIds.isEmpty()) return
+        write {
+            val current = notes.getAll(orderedIds).associateBy { it.id }
+            val updated = orderedIds.mapIndexedNotNull { index, id ->
+                current[id]?.toDomain()?.copy(sortIndex = index.toLong())?.toEntity()
+            }
+            if (updated.isNotEmpty()) {
+                notes.upsertAll(updated)
+            }
+        }
+    }
+
     suspend fun deleteNotebook(id: String) {
         val notebook = notebooks.get(id)?.toDomain() ?: return
         write {
@@ -94,6 +119,10 @@ class NoteLibrary(
             }
             notebooks.deleteById(id)
         }
+    }
+
+    fun observeActiveNotes(): Flow<List<Note>> {
+        return notes.observeActive().map { entities -> entities.map { it.toDomain() } }
     }
 
     fun observeAllActiveNotes(sort: NoteListSort = NoteListSort.UpdatedAt): Flow<List<Note>> {

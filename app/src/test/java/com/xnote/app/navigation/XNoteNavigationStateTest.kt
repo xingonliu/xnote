@@ -40,4 +40,28 @@ class XNoteNavigationStateTest {
         assertEquals(AppDestination.Notes, result.destination)
         assertFalse(result.isSearchOpen)
     }
+
+    @Test
+    fun openingANotebookThenANoteKeepsABackStack() {
+        val state = XNoteNavigationState()
+            .openNotebook("nb-1")
+            .openEditor("note-1")
+
+        assertEquals(NotesRoute.Editor("note-1"), state.notesRoute)
+        assertFalse(state.showsPrimaryChrome)
+
+        val notebook = state.popNotes()
+        assertEquals(NotesRoute.Notebook("nb-1"), notebook.notesRoute)
+        assertEquals(NotesRoute.Home, notebook.popNotes().notesRoute)
+    }
+
+    @Test
+    fun notesStackRoundTripsThroughTheSaveableEncoding() {
+        val stack = listOf(
+            NotesRoute.Notebook("nb-1"),
+            NotesRoute.Editor("note-2"),
+        )
+        assertEquals(stack, decodeNotesStack(encodeNotesStack(stack)))
+        assertTrue(decodeNotesStack("").isEmpty())
+    }
 }

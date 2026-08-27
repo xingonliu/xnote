@@ -180,6 +180,17 @@ Android 资源以 `ic_lucide_<官方名称>` 命名，将 Lucide 名称中的连
 | `ic_lucide_search` | `search` | 搜索操作 |
 | `ic_lucide_arrow_left` | `arrow-left` | 返回操作 |
 | `ic_lucide_plus` | `plus` | 新建操作 |
+| `ic_lucide_ellipsis` | `ellipsis` | 更多菜单 |
+| `ic_lucide_check` | `check` | 选中确认 |
+| `ic_lucide_chevron_down` | `chevron-down` | 展开标题 |
+| `ic_lucide_chevron_right` | `chevron-right` | 打开笔记本、折叠标题 |
+| `ic_lucide_trash_2` | `trash-2` | 删除 |
+| `ic_lucide_undo_2` | `undo-2` | 撤销 |
+| `ic_lucide_redo_2` | `redo-2` | 重做 |
+| `ic_lucide_inbox` | `inbox` | 未归档 |
+| `ic_lucide_grip_vertical` | `grip-vertical` | 手动排序拖动手柄 |
+| `ic_lucide_square` | `square` | 未勾选检查项 |
+| `ic_lucide_square_check` | `square-check` | 已勾选检查项 |
 | `ic_launcher` | `notebook-pen` | 应用图标与启动页图形 |
 
 ### 5.4 无障碍

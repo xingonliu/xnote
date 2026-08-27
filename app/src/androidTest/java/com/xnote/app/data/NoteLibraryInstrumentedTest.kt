@@ -143,6 +143,17 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
+    fun reorderNotesPersistsManualOrder() = runTest {
+        val notebook = library.createNotebook("排序本")
+        val first = library.createRichNote(notebook.id)
+        clock.nowMs = 2_000L
+        val second = library.createRichNote(notebook.id)
+        library.reorderNotes(listOf(second.id, first.id))
+        val ordered = library.observeNotesInNotebook(notebook.id, com.xnote.app.domain.model.NoteListSort.Manual).first()
+        assertEquals(listOf(second.id, first.id), ordered.map { it.id })
+    }
+
+    @Test
     fun emptyNotebookDeleteLeavesNoTrashEntries() = runTest {
         val notebook = library.createNotebook("空本")
         library.deleteNotebook(notebook.id)

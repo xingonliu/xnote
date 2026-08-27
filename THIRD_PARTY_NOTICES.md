@@ -22,7 +22,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 ### Feather Icons MIT License
 
-The following icons used by XNote are derived from the Feather project: `arrow-left`, `plus`, and `search`.
+The following icons used by XNote are derived from the Feather project: `arrow-left`, `plus`, `search`, `check`, `chevron-down`, `chevron-right`, `inbox`, `square`, and `trash-2`.
 
 Copyright (c) 2013-present Cole Bemis
 

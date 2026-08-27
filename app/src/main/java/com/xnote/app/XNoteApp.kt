@@ -23,16 +23,24 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,10 +69,29 @@ import com.xnote.app.design.rememberXNoteToastHostState
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.domain.model.Note
+import com.xnote.app.domain.model.NoteListSort
+import com.xnote.app.domain.model.Notebook
 import com.xnote.app.feature.PlaceholderScreen
+import com.xnote.app.feature.notes.NotesChrome
 import com.xnote.app.feature.notes.NotesHomeScreen
+import com.xnote.app.feature.notes.NotesScope
+import com.xnote.app.feature.notes.NotesUiState
+import com.xnote.app.feature.notes.NotebookDetailScreen
+import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
+import com.xnote.app.feature.notes.decodeNotesScope
+import com.xnote.app.feature.notes.encodeNotesScope
+import com.xnote.app.feature.notes.editor.NoteEditorScreen
+import com.xnote.app.feature.notes.editor.NoteEditorSession
+import com.xnote.app.feature.notes.notebookStatsFrom
+import com.xnote.app.feature.notes.unfiledStatsFrom
 import com.xnote.app.navigation.AppDestination
+import com.xnote.app.navigation.NotesRoute
 import com.xnote.app.navigation.XNoteNavigationState
+import com.xnote.app.navigation.decodeNotesStack
+import com.xnote.app.navigation.encodeNotesStack
+import kotlinx.coroutines.launch
 
 // -- Constants
 
@@ -73,44 +100,112 @@ private val TabletBreakpoint = 600.dp
 // -- Composables
 
 @Composable
-fun XNoteApp() {
+fun XNoteApp(noteLibrary: NoteLibrary) {
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
-    val navigationState = remember(destinationName, isSearchOpen) {
+    var notesStackEncoded by rememberSaveable { mutableStateOf("") }
+    var scopeEncoded by rememberSaveable { mutableStateOf("all") }
+    var homeSortName by rememberSaveable { mutableStateOf(NoteListSort.UpdatedAt.name) }
+    var notebookSortName by rememberSaveable { mutableStateOf(NoteListSort.Manual.name) }
+    val uiState = remember { NotesUiState() }
+    val navigationState = remember(destinationName, isSearchOpen, notesStackEncoded) {
         XNoteNavigationState(
             destination = AppDestination.valueOf(destinationName),
             isSearchOpen = isSearchOpen,
+            notesStack = decodeNotesStack(notesStackEncoded),
         )
     }
     val backdrop = rememberLayerBackdrop()
     val toastHostState = rememberXNoteToastHostState()
     val notesListState = rememberLazyListState()
+    val notebookListState = rememberLazyListState()
+    val editorScrollState = rememberScrollState()
     val agentListState = rememberLazyListState()
     val profileListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
+    val appScope = rememberCoroutineScope()
+    val editorNoteId = (navigationState.notesRoute as? NotesRoute.Editor)?.noteId
+    val editorSession = remember(editorNoteId, noteLibrary) {
+        editorNoteId?.let { NoteEditorSession(noteLibrary, it, appScope) }
+    }
+    var notebooks by remember { mutableStateOf<List<Notebook>>(emptyList()) }
+    var activeNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(scopeEncoded, homeSortName, notebookSortName) {
+        uiState.scope = decodeNotesScope(scopeEncoded)
+        uiState.homeSort = runCatching { NoteListSort.valueOf(homeSortName) }.getOrDefault(NoteListSort.UpdatedAt)
+        uiState.notebookSort = runCatching { NoteListSort.valueOf(notebookSortName) }.getOrDefault(NoteListSort.Manual)
+    }
+    LaunchedEffect(uiState.scope) { scopeEncoded = encodeNotesScope(uiState.scope) }
+    LaunchedEffect(uiState.homeSort) { homeSortName = uiState.homeSort.name }
+    LaunchedEffect(uiState.notebookSort) { notebookSortName = uiState.notebookSort.name }
+    LaunchedEffect(noteLibrary) {
+        launch { noteLibrary.observeNotebooks().collect { notebooks = it } }
+        launch { noteLibrary.observeActiveNotes().collect { activeNotes = it } }
+    }
+    DisposableEffect(lifecycleOwner, editorSession) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                appScope.launch { editorSession?.flushSave() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     fun updateNavigationState(newState: XNoteNavigationState) {
         destinationName = newState.destination.name
         isSearchOpen = newState.isSearchOpen
+        notesStackEncoded = encodeNotesStack(newState.notesStack)
     }
 
-    BackHandler(enabled = navigationState.isSearchOpen) {
-        updateNavigationState(navigationState.closeSearch())
+    fun createNote(notebookId: String?) {
+        appScope.launch {
+            val note = noteLibrary.createRichNote(notebookId)
+            updateNavigationState(navigationState.openEditor(note.id))
+        }
+    }
+
+    fun popNotes() {
+        appScope.launch {
+            editorSession?.flushSave()
+            updateNavigationState(navigationState.popNotes())
+        }
+    }
+
+    BackHandler(enabled = uiState.selectedIds.isNotEmpty()) {
+        uiState.selectedIds = emptySet()
+    }
+    val canGoBack = navigationState.isSearchOpen || navigationState.notesRoute !is NotesRoute.Home
+    BackHandler(enabled = canGoBack) {
+        if (navigationState.isSearchOpen) {
+            updateNavigationState(navigationState.closeSearch())
+        } else {
+            popNotes()
+        }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= TabletBreakpoint
-        val showsBottomNavigation = !isTablet && !navigationState.isSearchOpen
+        val showsPrimaryChrome = navigationState.showsPrimaryChrome
+        val showsShellHeader = navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome
+        val isEditor = navigationState.notesRoute is NotesRoute.Editor
+        val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
-        val bottomOverlayHeight = if (showsBottomNavigation) {
-            XNoteBottomNavigationHeight
-        } else {
-            0.dp
+        val bottomOverlayHeight = when {
+            isEditor -> XNoteEditorToolbarHeight
+            showsBottomNavigation -> XNoteBottomNavigationHeight
+            else -> 0.dp
         }
         val contentPadding = PaddingValues(
-            start = if (isTablet) 112.dp else XNoteSpacingMedium,
+            start = when {
+                isTablet && showsPrimaryChrome -> 112.dp
+                isTablet -> 24.dp
+                else -> XNoteSpacingMedium
+            },
             top = statusBarHeight + XNoteHeaderHeight + XNoteSpacingMedium,
             end = if (isTablet) 24.dp else XNoteSpacingMedium,
             bottom = navigationBarHeight + bottomOverlayHeight + XNoteSpacingMedium,
@@ -124,11 +219,21 @@ fun XNoteApp() {
                 AppDestination.Profile -> profileListState
             }
         }
-        val scrollEdgeState = rememberXNoteScrollEdgeState(listState)
-        val scrollEdges = if (showsBottomNavigation) {
+        val scrollable = when {
+            isEditor -> editorScrollState
+            navigationState.notesRoute is NotesRoute.Notebook -> notebookListState
+            else -> listState
+        }
+        val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
+        val scrollEdges = if (showsBottomNavigation || isEditor) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
+        }
+        val bottomScrollEdgeStyle = if (isEditor) {
+            com.xnote.app.design.XNoteScrollEdgeStyle.Hard
+        } else {
+            com.xnote.app.design.XNoteScrollEdgeStyle.Soft
         }
 
         XNotePageScaffold(
@@ -136,46 +241,57 @@ fun XNoteApp() {
             scrollEdgeState = scrollEdgeState,
             scrollEdges = scrollEdges,
             bottomOverlayHeight = bottomOverlayHeight,
+            bottomScrollEdgeStyle = bottomScrollEdgeStyle,
             toastHostState = toastHostState,
             content = {
                 DestinationContent(
                     navigationState = navigationState,
+                    noteLibrary = noteLibrary,
+                    uiState = uiState,
+                    notebooks = notebooks,
                     backdrop = backdrop,
                     contentPadding = contentPadding,
                     listState = listState,
+                    notebookListState = notebookListState,
+                    editorScrollState = editorScrollState,
+                    editorSession = editorSession,
+                    onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
+                    onCreateNote = ::createNote,
                 )
             },
             overlay = {
-                XNoteHeader(
-                    title = if (navigationState.isSearchOpen) {
-                        stringResource(R.string.search_title)
-                    } else {
-                        stringResource(navigationState.destination.titleRes)
-                    },
-                    backdrop = backdrop,
-                    onBack = if (navigationState.isSearchOpen) {
-                        { updateNavigationState(navigationState.closeSearch()) }
-                    } else {
-                        null
-                    },
-                    actions = if (navigationState.isSearchOpen) {
-                        emptyList()
-                    } else {
-                        listOf(
-                            XNoteHeaderAction(
-                                iconRes = R.drawable.ic_lucide_search,
-                                contentDescription = stringResource(R.string.action_search),
-                                onClick = {
-                                    updateNavigationState(navigationState.openSearch())
-                                },
-                            ),
-                        )
-                    },
-                    horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
+                if (showsShellHeader) {
+                    XNoteHeader(
+                        title = if (navigationState.isSearchOpen) {
+                            stringResource(R.string.search_title)
+                        } else {
+                            stringResource(navigationState.destination.titleRes)
+                        },
+                        backdrop = backdrop,
+                        onBack = if (navigationState.isSearchOpen) {
+                            { updateNavigationState(navigationState.closeSearch()) }
+                        } else {
+                            null
+                        },
+                        actions = if (navigationState.isSearchOpen) {
+                            emptyList()
+                        } else {
+                            listOf(
+                                XNoteHeaderAction(
+                                    iconRes = R.drawable.ic_lucide_search,
+                                    contentDescription = stringResource(R.string.action_search),
+                                    onClick = {
+                                        updateNavigationState(navigationState.openSearch())
+                                    },
+                                ),
+                            )
+                        },
+                        horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
 
-                if (!navigationState.isSearchOpen) {
+                if (showsPrimaryChrome && !navigationState.isSearchOpen) {
                     if (isTablet) {
                         XNoteNavigationRail(
                             currentDestination = navigationState.destination,
@@ -196,6 +312,26 @@ fun XNoteApp() {
                         )
                     }
                 }
+
+                if (!navigationState.isSearchOpen &&
+                    navigationState.destination == AppDestination.Notes
+                ) {
+                    NotesChrome(
+                        route = navigationState.notesRoute,
+                        library = noteLibrary,
+                        ui = uiState,
+                        notebooks = notebooks,
+                        allNotesCount = activeNotes.size,
+                        notebookStats = notebookStatsFrom(activeNotes),
+                        unfiledStats = unfiledStatsFrom(activeNotes),
+                        backdrop = backdrop,
+                        isTablet = isTablet,
+                        editorSession = editorSession,
+                        onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
+                        onCreateNote = ::createNote,
+                        onPop = ::popNotes,
+                    )
+                }
             },
         )
     }
@@ -204,9 +340,17 @@ fun XNoteApp() {
 @Composable
 private fun DestinationContent(
     navigationState: XNoteNavigationState,
+    noteLibrary: NoteLibrary,
+    uiState: NotesUiState,
+    notebooks: List<Notebook>,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     listState: LazyListState,
+    notebookListState: LazyListState,
+    editorScrollState: ScrollState,
+    editorSession: NoteEditorSession?,
+    onOpenNote: (String) -> Unit,
+    onCreateNote: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (navigationState.isSearchOpen) {
@@ -223,14 +367,58 @@ private fun DestinationContent(
     }
 
     when (navigationState.destination) {
-        AppDestination.Notes -> NotesHomeScreen(
-            backdrop = backdrop,
-            contentPadding = contentPadding,
-            listState = listState,
-            onCreateNote = {},
-            createEnabled = false,
-            modifier = modifier,
-        )
+        AppDestination.Notes -> when (val route = navigationState.notesRoute) {
+            NotesRoute.Home -> NotesHomeScreen(
+                library = noteLibrary,
+                backdrop = backdrop,
+                contentPadding = contentPadding,
+                listState = listState,
+                scope = uiState.scope,
+                sort = uiState.homeSort,
+                notebooks = notebooks,
+                selectedIds = uiState.selectedIds,
+                onOpenNote = onOpenNote,
+                onToggleSelect = { id ->
+                    uiState.selectedIds = uiState.selectedIds.toggle(id)
+                },
+                onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
+                onOpenPicker = { uiState.pickerVisible = true },
+                onOpenSort = { uiState.sortMenuVisible = true },
+                onCreateNote = {
+                    val notebookId = when (val scope = uiState.scope) {
+                        NotesScope.All, NotesScope.Unfiled -> null
+                        is NotesScope.Notebook -> scope.id
+                    }
+                    onCreateNote(notebookId)
+                },
+                modifier = modifier,
+            )
+            is NotesRoute.Notebook -> NotebookDetailScreen(
+                library = noteLibrary,
+                notebook = notebooks.firstOrNull { it.id == route.notebookId },
+                backdrop = backdrop,
+                contentPadding = contentPadding,
+                listState = notebookListState,
+                sort = uiState.notebookSort,
+                selectedIds = uiState.selectedIds,
+                onOpenNote = onOpenNote,
+                onToggleSelect = { id ->
+                    uiState.selectedIds = uiState.selectedIds.toggle(id)
+                },
+                onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
+                onOpenSort = { uiState.sortMenuVisible = true },
+                modifier = modifier,
+            )
+            is NotesRoute.Editor -> editorSession?.let { session ->
+                NoteEditorScreen(
+                    session = session,
+                    backdrop = backdrop,
+                    contentPadding = contentPadding,
+                    scrollState = editorScrollState,
+                    modifier = modifier,
+                )
+            }
+        }
 
         AppDestination.Agent -> PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
@@ -253,6 +441,8 @@ private fun DestinationContent(
         )
     }
 }
+
+private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
 
 @Composable
 private fun XNoteBottomNavigation(

@@ -1,6 +1,6 @@
 # XNote
 
-XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统与 S2 本地数据层，提供可继续开发的应用外壳、统一页面骨架、公共浮层、状态组件，以及 Room 笔记库；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
+XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层与 S3 笔记本及普通文字笔记，提供可继续开发的应用外壳、统一页面骨架、公共浮层、状态组件、Room 笔记库，以及笔记本与完整富文本编辑闭环；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
 
 ## 当前基线
 
@@ -15,6 +15,7 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - 界面矢量图标统一来自 Lucide `1.34.0`，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
 - `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host，以及随滚动能力自动显隐的顶部/底部 `Soft` / `Hard` Scroll Edge。
 - `XNoteHeader`、Dialog、Drawer、Toast、Popup、Dropdown、加载/空/错误状态与富文本工具栏均由公共设计系统提供；系统动画倍率为 0 时取消弹性、形变和过渡动画。
+- 笔记首页、笔记本详情与普通笔记编辑页已接通本地笔记库：可创建笔记本、编写完整富文本（含表格与标题折叠）、自动保存，并将笔记移入回收站。
 
 ## 本地运行
 
@@ -43,10 +44,10 @@ app/src/main/java/com/xnote/app
 ├─ design              # 主题、令牌、Shape 与库中没有的项目级玻璃适配
 │  ├─ liquidglass      # 固定版本的 AndroidLiquidGlass 官方 catalog 组件
 │  └─ 公共页面骨架、Header、Scroll Edge、浮层、状态与富文本工具栏
-├─ feature/notes       # 笔记首页的首期界面状态
+├─ feature/notes       # 笔记首页、笔记本详情与普通笔记编辑器
 ├─ navigation          # 一级目的地与导航状态
 ├─ MainActivity.kt     # Android 入口
 └─ XNoteApp.kt         # 手机/平板应用外壳
 ```
 
-S2 不接通笔记 CRUD 界面。下一切片从 S3 笔记本与普通文字笔记开始，并持续复用现有公共组件与 `NoteLibrary`。
+S3 已接通笔记本与普通文字笔记。下一切片从 S4 Markdown 与单向转换开始，并持续复用现有公共组件与 `NoteLibrary`。

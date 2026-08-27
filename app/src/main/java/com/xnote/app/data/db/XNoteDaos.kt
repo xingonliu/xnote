@@ -22,6 +22,9 @@ interface NotebookDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: NotebookEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(entities: List<NotebookEntity>)
+
     @Query("DELETE FROM notebooks WHERE id = :id")
     suspend fun deleteById(id: String)
 }
