@@ -1,16 +1,27 @@
 package com.xnote.app
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.swipeUp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteDialog
@@ -19,13 +30,17 @@ import com.xnote.app.design.XNoteDropdownMenu
 import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
+import com.xnote.app.design.XNoteDarkPrimaryColor
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNotePageState
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
 import com.xnote.app.design.XNoteRichTextToolbarState
+import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteTheme
+import com.xnote.app.design.rememberXNoteScrollEdgeState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -200,5 +215,64 @@ class XNoteDesignSystemTest {
         }
 
         composeRule.onNodeWithText("减少动画已启用").assertIsDisplayed()
+    }
+
+    @Test
+    fun darkThemeUsesTheDocumentedPrimaryColor() {
+        var actualPrimary = Color.Unspecified
+
+        composeRule.setContent {
+            XNoteTheme(darkTheme = true, reduceMotion = true) {
+                val primary = MaterialTheme.colorScheme.primary
+                SideEffect { actualPrimary = primary }
+                Text("深色主题")
+            }
+        }
+
+        composeRule.onNodeWithText("深色主题").assertIsDisplayed()
+        composeRule.runOnIdle {
+            assertEquals(XNoteDarkPrimaryColor, actualPrimary)
+        }
+    }
+
+    @Test
+    fun pageScaffoldTracksBothScrollEdges() {
+        var canScrollBackward = false
+        var canScrollForward = false
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val backdrop = rememberLayerBackdrop()
+                val scrollState = rememberScrollState()
+                val scrollEdgeState = rememberXNoteScrollEdgeState(scrollState)
+                SideEffect {
+                    canScrollBackward = scrollEdgeState.canScrollBackward
+                    canScrollForward = scrollEdgeState.canScrollForward
+                }
+                XNotePageScaffold(
+                    backdrop = backdrop,
+                    scrollEdgeState = scrollEdgeState,
+                    scrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
+                    content = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("scroll-edge-content")
+                                .verticalScroll(scrollState),
+                        ) {
+                            repeat(80) { index -> Text("滚动内容 $index") }
+                        }
+                    },
+                )
+            }
+        }
+
+        composeRule.waitUntil(5_000) { canScrollForward }
+        composeRule.runOnIdle {
+            assertFalse(canScrollBackward)
+            assertTrue(canScrollForward)
+        }
+        composeRule.onNodeWithTag("scroll-edge-content").performTouchInput { swipeUp() }
+        composeRule.waitUntil(5_000) { canScrollBackward }
     }
 }

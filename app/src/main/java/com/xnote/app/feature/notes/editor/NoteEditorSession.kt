@@ -48,11 +48,13 @@ import com.xnote.app.domain.document.toggleQuoted
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.newNoteId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
 // -- Type Definitions
@@ -91,7 +93,8 @@ class NoteEditorSession(
     private var saveJob: Job? = null
     private var lastSavedTitle = ""
     private var lastSavedDocument = emptyNoteDocument()
-    private var dirty = false
+    private var editVersion = 0L
+    private var savedVersion = 0L
 
     val canUndo: Boolean
         get() = history.canUndo
@@ -119,7 +122,14 @@ class NoteEditorSession(
         val first = document.blocks.firstOrNull()
         selection = EditorSelection(blockId = first?.id.orEmpty())
         focusBlockId = (first as? TextBlock)?.id
-        dirty = false
+        editVersion = 0L
+        savedVersion = 0L
+    }
+
+    suspend fun moveToNotebook(notebookId: String?) {
+        flushSave()
+        library.moveNotes(listOf(noteId), notebookId)
+        note = library.getNote(noteId)
     }
 
     fun updateTitle(value: String) {
@@ -278,9 +288,14 @@ class NoteEditorSession(
     }
 
     suspend fun flushSave() {
-        saveJob?.cancel()
+        val pendingSave = saveJob
+        saveJob = null
+        pendingSave?.cancelAndJoin()
         withContext(NonCancellable) {
-            persist()
+            persist(clearSavedStatusAfterDelay = false)
+        }
+        if (saveStatus == EditorSaveStatus.Saved) {
+            saveStatus = EditorSaveStatus.Idle
         }
     }
 
@@ -336,7 +351,7 @@ class NoteEditorSession(
     }
 
     private fun scheduleSave() {
-        dirty = true
+        editVersion += 1L
         saveStatus = EditorSaveStatus.Saving
         saveJob?.cancel()
         saveJob = scope.launch {
@@ -345,9 +360,15 @@ class NoteEditorSession(
         }
     }
 
-    private suspend fun persist() {
+    private suspend fun persist(clearSavedStatusAfterDelay: Boolean = true) {
         val current = note ?: return
-        if (!dirty && title == lastSavedTitle && document == lastSavedDocument) {
+        val versionToSave = editVersion
+        val titleToSave = title
+        val documentToSave = document
+        if (versionToSave == savedVersion &&
+            titleToSave == lastSavedTitle &&
+            documentToSave == lastSavedDocument
+        ) {
             if (saveStatus == EditorSaveStatus.Saving) {
                 saveStatus = EditorSaveStatus.Idle
             }
@@ -356,21 +377,33 @@ class NoteEditorSession(
         try {
             val saved = library.saveNote(
                 current.copy(
-                    title = title,
-                    document = if (current.kind == NoteKind.Rich) document else current.document,
+                    title = titleToSave,
+                    document = if (current.kind == NoteKind.Rich) documentToSave else current.document,
                 ),
             )
             note = saved
-            lastSavedTitle = title
-            lastSavedDocument = document
-            dirty = false
-            saveStatus = EditorSaveStatus.Saved
-            delay(1_200)
-            if (saveStatus == EditorSaveStatus.Saved) {
-                saveStatus = EditorSaveStatus.Idle
+            lastSavedTitle = titleToSave
+            lastSavedDocument = documentToSave
+            savedVersion = versionToSave
+            if (editVersion == versionToSave) {
+                saveStatus = EditorSaveStatus.Saved
+                if (clearSavedStatusAfterDelay) {
+                    delay(1_200)
+                    if (saveStatus == EditorSaveStatus.Saved && editVersion == versionToSave) {
+                        saveStatus = EditorSaveStatus.Idle
+                    }
+                }
+            } else {
+                saveStatus = EditorSaveStatus.Saving
             }
+        } catch (error: CancellationException) {
+            throw error
         } catch (_: Exception) {
-            saveStatus = EditorSaveStatus.Error
+            saveStatus = if (editVersion == versionToSave) {
+                EditorSaveStatus.Error
+            } else {
+                EditorSaveStatus.Saving
+            }
         }
     }
 }

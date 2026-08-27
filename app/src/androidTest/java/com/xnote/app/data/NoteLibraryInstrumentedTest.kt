@@ -13,6 +13,7 @@ import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.NoteKind
+import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -140,6 +141,55 @@ class NoteLibraryInstrumentedTest {
         assertNull(library.getNote(created.id))
         assertNull(library.getAttachment(attachment.id))
         assertFalse(library.attachmentFile(attachment).exists())
+    }
+
+    @Test
+    fun notePersistsAfterTheDatabaseIsClosedAndReopened() = runTest {
+        val databaseName = "xnote-cold-start-${System.nanoTime()}.db"
+        context.deleteDatabase(databaseName)
+        val firstDatabase = XNoteDatabase.create(context, databaseName)
+        val firstLibrary = NoteLibrary(
+            database = firstDatabase,
+            files = AttachmentFileStore(filesRoot),
+            clock = clock,
+        )
+        val created = firstLibrary.createRichNote(null)
+        firstLibrary.saveNote(created.copy(title = "冷启动仍存在"))
+        firstDatabase.close()
+
+        val reopenedDatabase = XNoteDatabase.create(context, databaseName)
+        try {
+            val reopenedLibrary = NoteLibrary(
+                database = reopenedDatabase,
+                files = AttachmentFileStore(filesRoot),
+                clock = clock,
+            )
+            assertEquals("冷启动仍存在", reopenedLibrary.getNote(created.id)?.title)
+        } finally {
+            reopenedDatabase.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun editorMoveRemainsStableAfterAnotherAutomaticSave() = runTest {
+        val source = library.createNotebook("来源本")
+        val destination = library.createNotebook("目标本")
+        val note = library.createRichNote(source.id)
+        val session = NoteEditorSession(
+            library = library,
+            noteId = note.id,
+            scope = this,
+        )
+
+        session.load()
+        session.moveToNotebook(destination.id)
+        session.updateTitle("移动后继续编辑")
+        session.flushSave()
+
+        val saved = library.getNote(note.id)
+        assertEquals(destination.id, saved?.notebookId)
+        assertEquals("移动后继续编辑", saved?.title)
     }
 
     @Test

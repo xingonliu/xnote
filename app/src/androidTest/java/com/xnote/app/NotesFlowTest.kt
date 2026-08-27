@@ -1,6 +1,8 @@
 package com.xnote.app
 
 import android.content.Context
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -10,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
@@ -95,5 +98,61 @@ class NotesFlowTest {
         assertNull(trashed?.notebookId)
         assertEquals("临时本", trashed?.originalNotebookName)
         assertTrue(library.observeTrashedNotes().first().any { it.id == note.id })
+    }
+
+    @Test
+    fun editorHeaderMovesNoteAndLaterSaveKeepsTheDestination() = runTest {
+        val source = library.createNotebook("来源本")
+        val destination = library.createNotebook("目标本")
+        val note = library.createRichNote(source.id)
+        library.saveNote(note.copy(title = "待移动笔记"))
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("待移动笔记").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-title").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription("选择笔记本").performClick()
+        composeRule.onNodeWithText("目标本").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("目标本").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-editor-title").performTextInput("已编辑")
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        assertEquals(destination.id, library.getNote(note.id)?.notebookId)
+    }
+
+    @Test
+    fun editorRemainsUsableWithLargeFontsAndReducedMotion() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val currentDensity = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = currentDensity.density,
+                        fontScale = 2f,
+                    ),
+                ) {
+                    XNoteApp(noteLibrary = library)
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("xnote-create-note").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-body").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-editor-title").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-editor-body").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("撤销").assertIsDisplayed()
     }
 }

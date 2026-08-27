@@ -73,6 +73,20 @@ class XNoteAppTest {
     }
 
     @Test
+    fun bottomTabsNavigateToProfile() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("我的").performClick()
+
+        composeRule.onNodeWithText("设置中心已预留").assertIsDisplayed()
+        composeRule.onNode(isSelected() and hasText("我的")).assertIsSelected()
+    }
+
+    @Test
     fun searchUsesSecondaryHeaderAndReturns() {
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {

@@ -110,6 +110,11 @@ fun BoxScope.NotesChrome(
                 onBack = onPop,
                 actions = listOf(
                     XNoteHeaderAction(
+                        iconRes = R.drawable.ic_lucide_notebook_pen,
+                        contentDescription = stringResource(R.string.notes_choose_notebook),
+                        onClick = { ui.moveVisible = true },
+                    ),
+                    XNoteHeaderAction(
                         iconRes = R.drawable.ic_lucide_ellipsis,
                         contentDescription = stringResource(R.string.action_more),
                         onClick = { ui.moreVisible = true },
@@ -397,11 +402,10 @@ fun BoxScope.NotesChrome(
         PickerRow(
             title = stringResource(R.string.notes_move_to_unfiled),
             subtitle = null,
-            selected = false,
+            selected = route is NotesRoute.Editor && editorSession?.note?.notebookId == null,
             onClick = {
                 scope.launch {
-                    val ids = moveIds(route, ui, editorSession)
-                    library.moveNotes(ids, null)
+                    moveCurrentSelection(route, ui, editorSession, library, null)
                     ui.selectedIds = emptySet()
                     ui.moveVisible = false
                 }
@@ -411,11 +415,10 @@ fun BoxScope.NotesChrome(
             PickerRow(
                 title = notebook.name,
                 subtitle = null,
-                selected = false,
+                selected = route is NotesRoute.Editor && editorSession?.note?.notebookId == notebook.id,
                 onClick = {
                     scope.launch {
-                        val ids = moveIds(route, ui, editorSession)
-                        library.moveNotes(ids, notebook.id)
+                        moveCurrentSelection(route, ui, editorSession, library, notebook.id)
                         ui.selectedIds = emptySet()
                         ui.moveVisible = false
                     }
@@ -746,4 +749,18 @@ private fun moveIds(
         return listOfNotNull(editorSession?.noteId)
     }
     return ui.selectedIds
+}
+
+private suspend fun moveCurrentSelection(
+    route: NotesRoute,
+    ui: NotesUiState,
+    editorSession: NoteEditorSession?,
+    library: NoteLibrary,
+    notebookId: String?,
+) {
+    if (route is NotesRoute.Editor && editorSession != null) {
+        editorSession.moveToNotebook(notebookId)
+    } else {
+        library.moveNotes(ui.selectedIds, notebookId)
+    }
 }

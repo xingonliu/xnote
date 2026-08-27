@@ -30,8 +30,8 @@ abstract class XNoteDatabase : RoomDatabase() {
     companion object {
         const val FileName = "xnote.db"
 
-        fun create(context: Context): XNoteDatabase {
-            return newBuilder(context.applicationContext, FileName).build()
+        fun create(context: Context, name: String = FileName): XNoteDatabase {
+            return newBuilder(context.applicationContext, name).build()
         }
 
         fun createInMemory(context: Context): XNoteDatabase {
