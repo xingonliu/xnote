@@ -274,7 +274,8 @@ private fun XNoteBottomNavigation(
         modifier = modifier
             .testTag("xnote-bottom-navigation")
             .navigationBarsPadding()
-            .padding(horizontal = 36.dp, vertical = XNoteSpacingSmall)
+            .padding(horizontal = 36.dp)
+            .padding(top = XNoteSpacingSmall)
             .fillMaxWidth()
     ) {
         AppDestination.entries.forEach { destination ->
@@ -282,6 +283,7 @@ private fun XNoteBottomNavigation(
             val label = stringResource(destination.labelRes)
             LiquidBottomTab(
                 onClick = { onDestinationSelected(destination) },
+                index = destination.ordinal,
                 modifier = Modifier.semantics { this.selected = selected },
             ) {
                 NavigationIcon(
