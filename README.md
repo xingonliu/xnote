@@ -1,6 +1,6 @@
 # XNote
 
-XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化，并提供可继续开发的应用外壳、设计系统入口和首屏状态；完整功能范围见 [`docs`](./docs)。
+XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化，并提供可继续开发的应用外壳、设计系统入口和首屏状态；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
 
 ## 当前基线
 

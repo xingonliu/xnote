@@ -1,12 +1,12 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.6
+> 文档版本：v0.7
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
 > 视觉基准：Apple Notes
 >
-> 关联文档：[XNote 功能清单与页面组成](./XNote%20功能清单与页面组成.md)
+> 关联文档：[XNote 功能清单与页面组成](./XNote%20功能清单与页面组成.md)、[XNote 开发顺序](./XNote%20开发顺序.md)
 
 ## 1. 目标与原则
 
@@ -108,6 +108,8 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 编辑页仍必须使用统一的左侧圆形 SVG 返回按钮、右侧功能按钮和顶部 Scroll Edge。
 
+普通笔记的段落样式、行内样式、清单、对齐、表格和折叠命令只能通过 `XNoteRichTextToolbar` 发出。格式工具栏贴在键盘上方或底部插入工具区之上，必须触发底部 Scroll Edge，不得与“添加图片”“画笔”“Agent”操作混成同一组无分区按钮。
+
 ### 4.4 页面标题与右侧功能
 
 | 页面           | Header 标题    | 右侧主要功能               |
@@ -195,6 +197,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 已有官方 catalog 组件必须优先使用：
 
 - 手机一级导航直接使用 `LiquidBottomTabs` 和 `LiquidBottomTab`，保留官方容器、选中滑块、拖拽、回弹、高光与色散实现。
+- Bottom Tabs 选中胶囊的几何中心必须始终与当前 tab 的图标和文字中心重合；按压放大、拖拽形变和色散不得改变中心锚点或产生累计偏移。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
@@ -274,6 +277,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteLoadingState`      | 页面、区域和按钮加载态                               | 隐藏可恢复错误                 |
 | `XNoteEmptyState`        | 空数据说明与下一步操作                               | 使用无操作价值的装饰图         |
 | `XNoteErrorState`        | 错误原因、重试和恢复入口                             | 只显示错误码                   |
+| `XNoteRichTextToolbar`   | 普通笔记段落样式、行内样式、清单、对齐、表格与折叠   | 页面私有格式栏或直接改文档模型 |
 
 所有包含圆角的公共组件必须使用 `XNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
 
@@ -371,8 +375,10 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
 - 手机一级导航直接来自 `LiquidBottomTabs` / `LiquidBottomTab`，不存在自写 tabbar 样式或选中滑块。
+- Bottom Tabs 在静止、按压放大和拖拽状态下，选中胶囊均以当前 tab 中心为锚点，不向任一侧产生非交互预期的偏移。
 - 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
+- 普通笔记编辑页的格式工具栏来自 `XNoteRichTextToolbar`，不存在页面私有格式栏。
 - 编辑页可通过公共背景选择器修改当前单篇笔记背景，设置页可修改默认背景，并准确展示各自影响范围。
 - 继承默认背景与设置专属背景的笔记均按优先级显示正确背景；移动笔记所属的笔记本不会改变背景。
 - 导出预览与最终导出包含相同背景，且不包含 Header、工具栏、按钮或 Liquid Glass Overlay。
