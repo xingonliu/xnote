@@ -1,12 +1,13 @@
 # XNote
 
-XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化与 S1 设计系统，提供可继续开发的应用外壳、统一页面骨架、公共浮层和状态组件；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
+XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统与 S2 本地数据层，提供可继续开发的应用外壳、统一页面骨架、公共浮层、状态组件，以及 Room 笔记库；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)。
 
 ## 当前基线
 
 - Android Gradle Plugin 9.3.2、Gradle 9.7.1、JDK 17 及以上。
 - `compileSdk 37`、`targetSdk 37`、`minSdk 33`。
 - Kotlin/Compose Compiler 2.3.21、Compose BOM 2026.08.00。
+- Room 3.0.2、`BundledSQLiteDriver`（SQLite 2.7.0，用于 FTS5）、DataStore Preferences 1.2.1、WorkManager 2.11.2、kotlinx.serialization JSON 1.11.0。
 - AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1` 均固定版本。
 - 手机一级导航直接采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab`，按钮采用同源 `LiquidButton`；组件源码固定到上游提交 `65ab177`，仅补充 XNote 所需的尺寸、禁用态和无障碍输入。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
@@ -37,6 +38,8 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 
 ```text
 app/src/main/java/com/xnote/app
+├─ data                # Room 笔记库、附件文件、DataStore 设置、回收站清理
+├─ domain              # 笔记文档 JSON、领域规则、纯文本/FTS 抽取
 ├─ design              # 主题、令牌、Shape 与库中没有的项目级玻璃适配
 │  ├─ liquidglass      # 固定版本的 AndroidLiquidGlass 官方 catalog 组件
 │  └─ 公共页面骨架、Header、Scroll Edge、浮层、状态与富文本工具栏
@@ -46,4 +49,4 @@ app/src/main/java/com/xnote/app
 └─ XNoteApp.kt         # 手机/平板应用外壳
 ```
 
-S1 不包含笔记 CRUD、数据库、搜索或 Agent 的假实现。下一切片从 S2 本地数据层开始，并持续复用现有公共组件。
+S2 不接通笔记 CRUD 界面。下一切片从 S3 笔记本与普通文字笔记开始，并持续复用现有公共组件与 `NoteLibrary`。

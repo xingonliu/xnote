@@ -20,7 +20,7 @@
 
 ## 2. 当前基线
 
-仓库 `main` 已完成 S1，并具备：
+仓库 `main` 已完成 S1 与 S2，并具备：
 
 - Android 13+ / Jetpack Compose 工程、主题、令牌、60% 平滑圆角。
 - 手机 `LiquidBottomTabs`、官方 `LiquidButton`、项目级 `XNoteLiquidGlassPanel` 与平板 Navigation Rail。
@@ -30,11 +30,12 @@
 - 公共 Dialog、Drawer、Toast、Popup、Dropdown，以及加载、空、错误状态和 `XNoteRichTextToolbar` API/视觉。
 - 系统减少动画监听；关闭动画时禁用 Liquid Button、Bottom Tabs、Scroll Edge 与浮层的弹性、形变和过渡。
 - 笔记首页空状态；新建笔记按钮存在但未接通。
+- Room 3 本地笔记库：笔记本、笔记、FTS5、附件、历史版本；设置走独立 DataStore。
+- 普通笔记 JSON 文档已定稿全部块类型；回收站 30 天清理走启动补扫与周期性后台任务。
 
 尚未开始：
 
-- 本地数据库、领域模型、ViewModel / Repository。
-- 任何笔记 CRUD、Markdown、搜索、回收站、阅读、导出、背景资源、Agent。
+- 笔记 CRUD 界面、ViewModel，以及 Markdown、搜索页、回收站页、阅读、导出、背景资源、Agent。
 
 ## 3. 总顺序
 
@@ -83,11 +84,14 @@ S1 设计系统补齐
 
 ### S2 本地数据层
 
+**状态：** 已完成（2026-08-27）。
+
 **目标：** 本地笔记库可读写，搜索和回收站有表结构，附件有目录约定。
 
 **工程约定：**
 
-- 持久化使用 Room（SQLite）。全文检索使用 FTS5；中文连续字串必须能命中，分词策略在 S5 验收时验证。
+- 持久化使用 Room 3（`androidx.room3`）与 `BundledSQLiteDriver`。系统 SQLite 未编译 FTS5，因此必须打包 bundled SQLite。
+- 全文检索使用 FTS5；索引前将连续 CJK 字拆成单字短语，使「笔记本」能命中「我的笔记本」。分词策略在 S5 验收时验证。
 - 普通笔记正文存为自有 JSON 文档，不把 HTML 或 Markdown 当作源格式。
 - 附件（用户背景图、后续图片/贴纸/画笔）放在应用私有文件目录，库中只存稳定 ID 与元数据。
 - 设置（默认背景、主题等）与笔记库分开存储。
@@ -339,4 +343,4 @@ Linux 技术方案在本切片开始前确认。
 4. **S13** Android 上 Linux 沙箱的实现路径。
 5. **P24** 笔记库导入导出的文件格式。
 
-S1 已完成；当前不需要再讨论即可开始 S2。
+S1、S2 已完成；当前不需要再讨论即可开始 S3。
