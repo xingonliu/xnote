@@ -7,9 +7,9 @@ compose-bom = "2026.08.00"
 activity-compose = "1.13.0"
 core-ktx = "1.19.0"
 lifecycle = "2.11.0"
-# Android-only Backdrop 1.x is pinned intentionally; 2.x is a KMP migration.
+# AndroidLiquidGlass KMP release used by the official component catalog.
 #noinspection NewerVersionAvailable
-backdrop = "1.0.6"
+backdrop = "2.0.1"
 kyant-shapes = "1.2.1"
 junit4 = "4.13.2"
 androidx-test-ext-junit = "1.3.0"

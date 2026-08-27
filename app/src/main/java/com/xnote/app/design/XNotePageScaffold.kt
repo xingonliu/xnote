@@ -3,6 +3,7 @@ package com.xnote.app.design
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +27,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.xnote.app.R
+import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Composables
 
@@ -66,12 +68,14 @@ fun XNoteHeader(
             .height(XNoteHeaderHeight),
     ) {
         if (onBack != null) {
-            XNoteLiquidGlassButton(
+            LiquidButton(
                 onClick = onBack,
                 backdrop = backdrop,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .size(XNoteMinimumTouchTarget),
+                height = XNoteMinimumTouchTarget,
+                contentPadding = PaddingValues(0.dp),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_arrow_left),
@@ -100,12 +104,14 @@ fun XNoteHeader(
         )
 
         if (onSearch != null) {
-            XNoteLiquidGlassButton(
+            LiquidButton(
                 onClick = onSearch,
                 backdrop = backdrop,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .size(XNoteMinimumTouchTarget),
+                height = XNoteMinimumTouchTarget,
+                contentPadding = PaddingValues(0.dp),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_search),

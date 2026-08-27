@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,10 +25,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -42,12 +43,13 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
 import com.xnote.app.design.XNoteAccentYellow
 import com.xnote.app.design.XNoteHeader
-import com.xnote.app.design.XNoteLiquidGlassButton
-import com.xnote.app.design.XNoteLiquidGlassButtonType
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.liquidglass.LiquidBottomTab
+import com.xnote.app.design.liquidglass.LiquidBottomTabs
+import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.navigation.AppDestination
@@ -200,31 +202,36 @@ private fun XNoteBottomNavigation(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
-    XNoteLiquidGlassPanel(
+    val selectedIndexState = rememberUpdatedState(currentDestination.ordinal)
+    val selectedIndex = remember { { selectedIndexState.value } }
+
+    LiquidBottomTabs(
+        selectedTabIndex = selectedIndex,
+        onTabSelected = { index ->
+            onDestinationSelected(AppDestination.entries[index])
+        },
         backdrop = backdrop,
-        shape = Capsule(),
+        tabsCount = AppDestination.entries.size,
         modifier = modifier
             .navigationBarsPadding()
-            .padding(horizontal = XNoteSpacingMedium, vertical = XNoteSpacingSmall)
+            .padding(horizontal = 36.dp, vertical = XNoteSpacingSmall)
             .fillMaxWidth()
-            .height(72.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            AppDestination.entries.forEach { destination ->
-                XNoteNavigationItem(
+        AppDestination.entries.forEach { destination ->
+            val selected = destination == currentDestination
+            val label = stringResource(destination.labelRes)
+            LiquidBottomTab(
+                onClick = { onDestinationSelected(destination) },
+                modifier = Modifier.semantics { this.selected = selected },
+            ) {
+                NavigationIcon(
                     destination = destination,
-                    selected = destination == currentDestination,
-                    onClick = { onDestinationSelected(destination) },
-                    backdrop = backdrop,
-                    showLabelBesideIcon = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -254,12 +261,11 @@ private fun XNoteNavigationRail(
             verticalArrangement = Arrangement.Center,
         ) {
             AppDestination.entries.forEach { destination ->
-                XNoteNavigationItem(
+                XNoteNavigationRailItem(
                     destination = destination,
                     selected = destination == currentDestination,
                     onClick = { onDestinationSelected(destination) },
                     backdrop = backdrop,
-                    showLabelBesideIcon = false,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(72.dp),
@@ -270,49 +276,40 @@ private fun XNoteNavigationRail(
 }
 
 @Composable
-private fun XNoteNavigationItem(
+private fun XNoteNavigationRailItem(
     destination: AppDestination,
     selected: Boolean,
     onClick: () -> Unit,
     backdrop: Backdrop,
-    showLabelBesideIcon: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val label = stringResource(destination.labelRes)
-    XNoteLiquidGlassButton(
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    LiquidButton(
         onClick = onClick,
         backdrop = backdrop,
-        type = XNoteLiquidGlassButtonType.Rect,
-        selected = selected,
         modifier = modifier.semantics {
             this.selected = selected
-            role = Role.Tab
         },
+        tint = if (selected) XNoteAccentYellow else Color.Unspecified,
+        height = 72.dp,
+        contentPadding = PaddingValues(0.dp),
+        role = Role.Tab,
     ) {
-        if (showLabelBesideIcon) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                NavigationIcon(destination = destination, selected = selected)
-                Text(text = label, style = MaterialTheme.typography.labelMedium)
-            }
-        } else {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                NavigationIcon(destination = destination, selected = selected)
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            NavigationIcon(destination = destination, tint = contentColor)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = contentColor,
+            )
         }
     }
 }
@@ -320,16 +317,12 @@ private fun XNoteNavigationItem(
 @Composable
 private fun NavigationIcon(
     destination: AppDestination,
-    selected: Boolean,
+    tint: Color,
 ) {
     Icon(
         painter = painterResource(destination.iconRes),
         contentDescription = null,
-        tint = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
+        tint = tint,
         modifier = Modifier.size(22.dp),
     )
 }

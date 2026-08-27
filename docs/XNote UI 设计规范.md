@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.5
+> 文档版本：v0.6
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -15,7 +15,7 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 所有新页面和重构页面必须遵守以下原则：
 
 1. 笔记内容始终是视觉主体，装饰效果不能降低文字、图片和画笔内容的可读性。
-2. 按钮统一使用 Liquid Glass 材质，并通过形状、尺寸和前景色表达层级，不为同一功能重复设计局部样式。
+2. 玻璃交互优先直接采用 AndroidLiquidGlass 官方 catalog 组件；只有官方 catalog 没有对应组件时，才允许基于该库创建项目级组件，不为同一功能重复设计局部样式。
 3. 所有页面统一接入 `ScrollEdgeEffectStyle` 视觉规范；页面内容可滚动时，固定 Header、底部工具区与滚动内容之间必须有连续的边缘过渡。
 4. 二级页面统一使用公共 Header；除笔记编辑页外，Header 中间显示当前页面标题。
 5. 弹窗、抽屉、Toast、Popup、下拉菜单、按钮等通用交互只能通过公共组件提供，业务页面不得复制实现。
@@ -42,8 +42,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 | 清晰滚动边界   | `ScrollEdgeEffectStyle.hard`    | `XNoteScrollEdgeStyle.Hard`            |
 | 指定生效边缘   | `scrollEdgeEffectStyle(_:for:)` | `XNoteScrollEdgeEffect(edges, style)`  |
 | 页面统一接入   | View hierarchy modifier         | `XNotePageScaffold` 内置效果层         |
-| 玻璃按钮       | `.buttonStyle(.glass)`          | `XNoteLiquidGlassButton`               |
-| 自定义玻璃形状 | `glassEffect(_:in:)`            | AndroidLiquidGlass 的项目级 Shape 封装 |
+| 玻璃按钮       | `.buttonStyle(.glass)`          | AndroidLiquidGlass catalog `LiquidButton`                  |
+| 手机底部标签栏 | `TabView` / bottom tabs         | AndroidLiquidGlass catalog `LiquidBottomTabs` / `LiquidBottomTab` |
+| 自定义玻璃形状 | `glassEffect(_:in:)`            | AndroidLiquidGlass 的项目级 Shape 适配                     |
 
 ## 3. 页面骨架与 Scroll Edge
 
@@ -183,32 +184,35 @@ Android 资源以 `ic_lucide_<官方名称>` 命名，将 Lucide 名称中的连
 - 图标与可见文字共同表达同一操作时，图标使用 `contentDescription = null`，由父级按钮或文字提供唯一语义，避免屏幕阅读器重复朗读。
 - 选中、禁用、危险和加载状态不能只靠图标颜色表达；同时提供容器状态、文字或无障碍状态描述。
 
-## 6. Liquid Glass 按钮
+## 6. AndroidLiquidGlass 组件
 
 Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的玻璃控件必须作为捕获层的同级节点绘制，不能嵌套在 `layerBackdrop` 子树中，否则 Android HWUI 可能形成循环渲染并导致 `RenderThread` 原生崩溃。
 
+AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，当前源码固定到提交 `65ab177`；纳入项目时只允许补充业务无关的尺寸、禁用态和无障碍输入，不得改写官方材质参数。
+
 ### 6.1 使用范围
 
-所有独立按钮统一使用 `XNoteLiquidGlassButton` 系列，包括：
+已有官方 catalog 组件必须优先使用：
 
-- Header 图标按钮。
-- 底部导航与侧边导航按钮。
-- 浮动按钮和编辑工具按钮。
-- 胶囊按钮、确认按钮和筛选按钮。
-- 弹窗、抽屉、Popup 与下拉菜单中的独立操作按钮。
+- 手机一级导航直接使用 `LiquidBottomTabs` 和 `LiquidBottomTab`，保留官方容器、选中滑块、拖拽、回弹、高光与色散实现。
+- Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
+- 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
+- catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
 列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立的图标操作仍使用玻璃按钮。
 
-### 6.2 按钮类型
+### 6.2 组件来源
 
-| 类型       | 形状         | 典型用途                   |
-| ---------- | ------------ | -------------------------- |
-| `Icon`     | 圆形         | 返回、更多、搜索、关闭     |
-| `Capsule`  | 胶囊         | 完成、保存、筛选、模式切换 |
-| `Rect`     | 连续圆角矩形 | 弹窗主操作、较长文字操作   |
-| `Floating` | 圆形或胶囊   | 新建笔记、发送、编辑       |
+| 组件 | 来源 | XNote 用途 |
+| ---- | ---- | ---------- |
+| `LiquidBottomTabs` / `LiquidBottomTab` | 官方 catalog | 手机一级底部导航 |
+| `LiquidButton` | 官方 catalog | 图标、胶囊、确认与浮动操作 |
+| `LiquidToggle` | 官方 catalog，按需纳入 | 设置开关 |
+| `LiquidSlider` | 官方 catalog，按需纳入 | 连续数值设置 |
+| `XNoteLiquidGlassPanel` | catalog 无对应组件时的项目适配 | 卡片、工具栏与同窗口面板 |
+| 平板 Navigation Rail | catalog 无竖向组件时的项目适配 | 平板一级导航 |
 
-所有类型共享同一套材质、交互状态和无障碍语义，不允许页面复制模糊、描边、阴影或按压动画。
+业务页面只能调用上述公共组件，不允许复制模糊、描边、阴影、按压动画或 Bottom Tabs 的选中滑块逻辑。新增组件前必须先核对当前 AndroidLiquidGlass 官方 catalog；存在对应实现时直接采用，不得创建功能重复的 XNote 版本。
 
 ### 6.3 视觉与状态
 
@@ -257,7 +261,9 @@ Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的�
 | ------------------------ | ---------------------------------------------------- | ------------------------------ |
 | `XNotePageScaffold`      | 页面骨架、安全区域、Header、Scroll Edge、Toast Host  | 承载业务数据请求               |
 | `XNoteHeader`            | 二级页面返回、标题和右侧操作                         | 页面自定义高度或返回图标       |
-| `XNoteLiquidGlassButton` | 所有独立按钮及交互状态                               | 页面私有玻璃参数               |
+| `LiquidButton`          | 官方 catalog 按钮材质与交互                          | 页面私有玻璃参数               |
+| `LiquidBottomTabs`      | 官方 catalog 手机底部导航、选中滑块与拖拽交互        | 自写 tabbar 样式或选中动画      |
+| `XNoteLiquidGlassPanel` | 官方 catalog 没有 Panel 时的卡片与面板适配           | 重复实现 Backdrop 或 Lens       |
 | `XNoteDialog`            | 阻断式确认、危险操作、关键说明                       | 承载长表单或多级导航           |
 | `XNoteDrawer`            | 长内容、选择器、辅助工作流                           | 替代简单确认弹窗               |
 | `XNoteToastHost`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
@@ -364,7 +370,8 @@ Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的�
 - 所有界面矢量图标均能追溯到当前固定版本的 Lucide 官方资源，文件命名、24 × 24 视口、2 单位圆端描边和颜色语义符合图标规范。
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
-- 页面中的独立按钮全部来自 `XNoteLiquidGlassButton` 系列。
+- 手机一级导航直接来自 `LiquidBottomTabs` / `LiquidBottomTab`，不存在自写 tabbar 样式或选中滑块。
+- 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 编辑页可通过公共背景选择器修改当前单篇笔记背景，设置页可修改默认背景，并准确展示各自影响范围。
 - 继承默认背景与设置专属背景的笔记均按优先级显示正确背景；移动笔记所属的笔记本不会改变背景。
@@ -378,6 +385,8 @@ Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的�
 
 - [Apple SwiftUI：ScrollEdgeEffectStyle](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle)
 - [Apple SwiftUI：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
+- [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)
+- [AndroidLiquidGlass LiquidBottomTabs 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/65ab177e90e5c1d8c62e70cf7755841982da65f6/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/components/LiquidBottomTabs.kt)
 - [Apple SwiftUI：RoundedRectangle continuous corner style](https://developer.apple.com/documentation/swiftui/roundedrectangle/init%28cornerradius%3Astyle%3A%29)
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)

@@ -1,6 +1,6 @@
 # XNote 功能清单与页面组成
 
-> 文档版本：v0.4
+> 文档版本：v0.5
 >
 > 产品平台：Android 13（API 33）及以上的手机、平板
 >
@@ -18,7 +18,7 @@ XNote 是一款面向 Android 13 及以上手机和平板的笔记应用，核�
 
 ### 2.1 手机端
 
-底部导航包含三个一级目的地：
+底部导航直接使用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab`，包含三个一级目的地：
 
 1. 笔记
 2. Agent
@@ -381,9 +381,12 @@ Liquid Glass 用于：
 
 技术边界：
 
-- 使用固定版本的 AndroidLiquidGlass。
+- 使用固定版本的 AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1`。
 - Android 13（API 33）是最低支持版本，所有受支持设备统一启用完整背景采样、模糊、折射和色散效果。
-- 项目层封装样式、交互状态和高层组件，不重复实现库已有的 Backdrop 和 Lens 能力。
+- AndroidLiquidGlass 发布物不打包高层组件，因此固定采用官方 catalog 提供的组件源码；当前基线对应上游提交 `65ab177`。
+- 手机 tabbar 直接使用官方 `LiquidBottomTabs` / `LiquidBottomTab`，按钮直接使用官方 `LiquidButton`，保留其材质和交互配方。
+- 后续组件先核对官方 catalog；已有 `LiquidToggle`、`LiquidSlider` 等实现时直接采用，只有不存在对应组件时才创建基于 AndroidLiquidGlass 的项目级适配。
+- 项目级适配不得重复实现库已有的 Backdrop、Lens、Blur、Vibrancy、高光或阴影能力；当前只为 catalog 缺少的 Panel 与竖向 Navigation Rail 保留适配层。
 - 被录制的页面内容和玻璃 Overlay 分层，玻璃组件不进入自身的背景录制。
 - 需要玻璃效果的浮层优先在同一个 Compose Host 内绘制，不承诺跨 Window 的 Popup 或 Dialog 背景采样。
 - 第一阶段完整支持圆形、胶囊和圆角矩形。

@@ -24,12 +24,11 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.XNoteAccentYellow
-import com.xnote.app.design.XNoteLiquidGlassButton
-import com.xnote.app.design.XNoteLiquidGlassButtonType
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNoteSpacingLarge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Composables
 
@@ -85,10 +84,9 @@ fun NotesHomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    XNoteLiquidGlassButton(
+                    LiquidButton(
                         onClick = onCreateNote,
                         backdrop = backdrop,
-                        type = XNoteLiquidGlassButtonType.Capsule,
                         enabled = createEnabled,
                         tint = XNoteAccentYellow,
                         modifier = Modifier.padding(top = XNoteSpacingSmall),
