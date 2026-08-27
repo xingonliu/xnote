@@ -70,14 +70,23 @@ import com.xnote.app.design.rememberXNoteToastHostState
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.data.background.NoteBackgroundResolution
+import com.xnote.app.data.background.NoteBackgroundResolver
+import com.xnote.app.data.background.ResolvedNoteBackground
+import com.xnote.app.data.background.defaultResolvedBackground
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.data.search.EmptySearchHistoryRepository
 import com.xnote.app.data.search.SearchHistoryRepository
+import com.xnote.app.data.settings.AppSettingsRepository
+import com.xnote.app.data.settings.InMemoryAppSettingsRepository
+import com.xnote.app.domain.model.AppSettings
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.Notebook
+import com.xnote.app.domain.model.defaultAppSettings
 import com.xnote.app.feature.PlaceholderScreen
+import com.xnote.app.feature.background.DefaultBackgroundScreen
 import com.xnote.app.feature.notes.NotesChrome
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.feature.notes.NotesScope
@@ -115,10 +124,12 @@ private val TabletBreakpoint = 600.dp
 fun XNoteApp(
     noteLibrary: NoteLibrary,
     searchHistory: SearchHistoryRepository = EmptySearchHistoryRepository,
+    settings: AppSettingsRepository? = null,
 ) {
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
+    var isAppearanceOpen by rememberSaveable { mutableStateOf(false) }
     var notesStackEncoded by rememberSaveable { mutableStateOf("") }
     var scopeEncoded by rememberSaveable { mutableStateOf("all") }
     var homeSortName by rememberSaveable { mutableStateOf(NoteListSort.UpdatedAt.name) }
@@ -131,12 +142,14 @@ fun XNoteApp(
         destinationName,
         isSearchOpen,
         isRecycleBinOpen,
+        isAppearanceOpen,
         notesStackEncoded,
     ) {
         XNoteNavigationState(
             destination = AppDestination.valueOf(destinationName),
             isSearchOpen = isSearchOpen,
             isRecycleBinOpen = isRecycleBinOpen,
+            isAppearanceOpen = isAppearanceOpen,
             notesStack = decodeNotesStack(notesStackEncoded),
         )
     }
@@ -149,18 +162,25 @@ fun XNoteApp(
     val profileListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
     val recycleBinListState = rememberLazyListState()
+    val appearanceScrollState = rememberScrollState()
     val appScope = rememberCoroutineScope()
     val interactionSettings = LocalXNoteInteractionSettings.current
     val editorNoteId = (navigationState.notesRoute as? NotesRoute.Editor)?.noteId
     val editorSession = remember(editorNoteId, noteLibrary) {
         editorNoteId?.let { NoteEditorSession(noteLibrary, it, appScope) }
     }
+    val settingsRepository = remember(settings) { settings ?: InMemoryAppSettingsRepository() }
+    val backgroundResolver = remember(noteLibrary) { NoteBackgroundResolver(noteLibrary) }
     var notebooks by remember { mutableStateOf<List<Notebook>>(emptyList()) }
     var activeNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var trashedNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var searchResults by remember { mutableStateOf<List<NoteSearchResult>>(emptyList()) }
     var recentQueries by remember { mutableStateOf<List<String>>(emptyList()) }
+    var appSettings by remember { mutableStateOf<AppSettings>(defaultAppSettings()) }
+    var defaultBackgroundResolution by remember { mutableStateOf(initialBackgroundResolution()) }
+    var editorBackgroundResolution by remember { mutableStateOf(initialBackgroundResolution()) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val unavailableBackgroundMessage = stringResource(R.string.background_resource_unavailable)
 
     LaunchedEffect(scopeEncoded, homeSortName, notebookSortName) {
         uiState.scope = decodeNotesScope(scopeEncoded)
@@ -177,6 +197,31 @@ fun XNoteApp(
     }
     LaunchedEffect(searchHistory) {
         searchHistory.recentQueries.collect { recentQueries = it }
+    }
+    LaunchedEffect(settingsRepository) {
+        settingsRepository.settings.collect { appSettings = it }
+    }
+    LaunchedEffect(appSettings.defaultBackgroundKey, navigationState.isAppearanceOpen) {
+        defaultBackgroundResolution = backgroundResolver.resolve(
+            noteBackgroundKey = null,
+            defaultBackgroundKeyRaw = appSettings.defaultBackgroundKey,
+        )
+        if (defaultBackgroundResolution.fellBack && navigationState.isAppearanceOpen) {
+            toastHostState.showSnackbar(unavailableBackgroundMessage)
+        }
+    }
+    LaunchedEffect(
+        editorSession?.note?.id,
+        editorSession?.note?.backgroundKey,
+        appSettings.defaultBackgroundKey,
+    ) {
+        editorBackgroundResolution = backgroundResolver.resolve(
+            noteBackgroundKey = editorSession?.note?.backgroundKey,
+            defaultBackgroundKeyRaw = appSettings.defaultBackgroundKey,
+        )
+        if (editorSession?.note != null && editorBackgroundResolution.fellBack) {
+            toastHostState.showSnackbar(unavailableBackgroundMessage)
+        }
     }
     LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes) {
         if (!navigationState.isSearchOpen || searchQuery.isBlank()) {
@@ -215,6 +260,7 @@ fun XNoteApp(
         destinationName = newState.destination.name
         isSearchOpen = newState.isSearchOpen
         isRecycleBinOpen = newState.isRecycleBinOpen
+        isAppearanceOpen = newState.isAppearanceOpen
         notesStackEncoded = encodeNotesStack(newState.notesStack)
     }
 
@@ -264,6 +310,7 @@ fun XNoteApp(
         recycleBinUiState.selectionMode ||
         navigationState.isSearchOpen ||
         navigationState.isRecycleBinOpen ||
+        navigationState.isAppearanceOpen ||
         navigationState.notesRoute !is NotesRoute.Home
     BackHandler(enabled = canGoBack) {
         when {
@@ -274,6 +321,9 @@ fun XNoteApp(
                 recycleBinUiState.finishSelection()
                 updateNavigationState(navigationState.closeRecycleBin())
             }
+            navigationState.isAppearanceOpen -> {
+                updateNavigationState(navigationState.closeAppearance())
+            }
             else -> popNotes()
         }
     }
@@ -283,8 +333,10 @@ fun XNoteApp(
         val showsPrimaryChrome = navigationState.showsPrimaryChrome ||
             (isTablet && navigationState.isSearchOpen)
         val showsShellHeader = !navigationState.isRecycleBinOpen &&
+            !navigationState.isAppearanceOpen &&
             (navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome)
-        val isEditor = navigationState.notesRoute is NotesRoute.Editor
+        val isEditor = navigationState.destination == AppDestination.Notes &&
+            navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor && (
             editorSession?.isMarkdown != true ||
                 editorSession.markdownMode == MarkdownEditorMode.Editing
@@ -301,15 +353,24 @@ fun XNoteApp(
             showsBottomNavigation -> XNoteBottomNavigationHeight
             else -> 0.dp
         }
+        val contentStartPadding = when {
+            isTablet && showsPrimaryChrome -> 112.dp
+            isTablet -> 24.dp
+            else -> XNoteSpacingMedium
+        }
+        val contentEndPadding = if (isTablet) 24.dp else XNoteSpacingMedium
+        val contentTopPadding = statusBarHeight + XNoteHeaderHeight + XNoteSpacingMedium
         val contentPadding = PaddingValues(
-            start = when {
-                isTablet && showsPrimaryChrome -> 112.dp
-                isTablet -> 24.dp
-                else -> XNoteSpacingMedium
-            },
-            top = statusBarHeight + XNoteHeaderHeight + XNoteSpacingMedium,
-            end = if (isTablet) 24.dp else XNoteSpacingMedium,
+            start = contentStartPadding,
+            top = contentTopPadding,
+            end = contentEndPadding,
             bottom = navigationBarHeight + bottomOverlayHeight + XNoteSpacingMedium,
+        )
+        val editorContentPadding = PaddingValues(
+            start = contentStartPadding,
+            top = contentTopPadding,
+            end = contentEndPadding,
+            bottom = bottomOverlayHeight + XNoteSpacingMedium,
         )
         val listState = when {
             navigationState.isSearchOpen -> searchListState
@@ -321,6 +382,7 @@ fun XNoteApp(
             }
         }
         val scrollable = when {
+            navigationState.isAppearanceOpen -> appearanceScrollState
             isEditor -> editorScrollState
             navigationState.notesRoute is NotesRoute.Notebook -> notebookListState
             else -> listState
@@ -352,10 +414,16 @@ fun XNoteApp(
                     notebooks = notebooks,
                     backdrop = backdrop,
                     contentPadding = contentPadding,
+                    editorContentPadding = editorContentPadding,
                     listState = listState,
                     notebookListState = notebookListState,
                     editorScrollState = editorScrollState,
                     editorSession = editorSession,
+                    editorBackground = editorBackgroundResolution.background,
+                    defaultBackgroundKey = appSettings.defaultBackgroundKey,
+                    defaultBackgroundResolution = defaultBackgroundResolution,
+                    settings = settingsRepository,
+                    appearanceScrollState = appearanceScrollState,
                     searchQuery = searchQuery,
                     searchNotebookId = searchNotebookId,
                     searchResults = searchResults,
@@ -370,6 +438,9 @@ fun XNoteApp(
                     onSearchNotebookSelected = { searchNotebookId = it },
                     onOpenRecycleBin = {
                         updateNavigationState(navigationState.openRecycleBin())
+                    },
+                    onOpenBackgroundSettings = {
+                        updateNavigationState(navigationState.openAppearance())
                     },
                 )
             },
@@ -440,6 +511,7 @@ fun XNoteApp(
 
                 if (!navigationState.isSearchOpen &&
                     !navigationState.isRecycleBinOpen &&
+                    !navigationState.isAppearanceOpen &&
                     navigationState.destination == AppDestination.Notes
                 ) {
                     NotesChrome(
@@ -453,6 +525,7 @@ fun XNoteApp(
                         backdrop = backdrop,
                         isTablet = isTablet,
                         editorSession = editorSession,
+                        editorBackground = editorBackgroundResolution.background,
                         toastHostState = toastHostState,
                         onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
                         onCreateNote = ::createNote,
@@ -474,6 +547,18 @@ fun XNoteApp(
                         },
                     )
                 }
+
+                if (navigationState.isAppearanceOpen) {
+                    XNoteHeader(
+                        title = stringResource(R.string.background_settings_title),
+                        backdrop = backdrop,
+                        onBack = {
+                            updateNavigationState(navigationState.closeAppearance())
+                        },
+                        horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
             },
         )
     }
@@ -487,10 +572,16 @@ private fun DestinationContent(
     notebooks: List<Notebook>,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
+    editorContentPadding: PaddingValues,
     listState: LazyListState,
     notebookListState: LazyListState,
     editorScrollState: ScrollState,
     editorSession: NoteEditorSession?,
+    editorBackground: ResolvedNoteBackground,
+    defaultBackgroundKey: String,
+    defaultBackgroundResolution: NoteBackgroundResolution,
+    settings: AppSettingsRepository,
+    appearanceScrollState: ScrollState,
     searchQuery: String,
     searchNotebookId: String?,
     searchResults: List<NoteSearchResult>,
@@ -504,10 +595,28 @@ private fun DestinationContent(
     onSearch: (String) -> Unit,
     onSearchNotebookSelected: (String?) -> Unit,
     onOpenRecycleBin: () -> Unit,
+    onOpenBackgroundSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scope = rememberCoroutineScope()
+    val backgroundFailureMessage = stringResource(R.string.background_resource_unavailable)
+
+    if (navigationState.isAppearanceOpen) {
+        DefaultBackgroundScreen(
+            defaultBackgroundKey = defaultBackgroundKey,
+            resolution = defaultBackgroundResolution,
+            library = noteLibrary,
+            settings = settings,
+            backdrop = backdrop,
+            toastHostState = toastHostState,
+            contentPadding = contentPadding,
+            scrollState = appearanceScrollState,
+            modifier = modifier,
+        )
+        return
+    }
+
     if (navigationState.isRecycleBinOpen) {
-        val scope = rememberCoroutineScope()
         val restoredMessage = stringResource(R.string.recycle_bin_restored)
         RecycleBinScreen(
             notes = trashedNotes,
@@ -603,9 +712,13 @@ private fun DestinationContent(
             is NotesRoute.Editor -> editorSession?.let { session ->
                 NoteEditorScreen(
                     session = session,
+                    background = editorBackground,
                     backdrop = backdrop,
-                    contentPadding = contentPadding,
+                    contentPadding = editorContentPadding,
                     scrollState = editorScrollState,
+                    onBackgroundLoadFailed = {
+                        scope.launch { toastHostState.showSnackbar(backgroundFailureMessage) }
+                    },
                     modifier = modifier,
                 )
             }
@@ -626,12 +739,22 @@ private fun DestinationContent(
             contentPadding = contentPadding,
             listState = listState,
             onOpenRecycleBin = onOpenRecycleBin,
+            onOpenBackgroundSettings = onOpenBackgroundSettings,
             modifier = modifier,
         )
     }
 }
 
 private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
+
+private fun initialBackgroundResolution(): NoteBackgroundResolution {
+    val background = defaultResolvedBackground()
+    return NoteBackgroundResolution(
+        background = background,
+        requestedKey = background.key,
+        fellBack = false,
+    )
+}
 
 @Composable
 private fun XNoteBottomNavigation(

@@ -49,6 +49,7 @@ import com.xnote.app.domain.document.toggleQuoted
 import com.xnote.app.domain.markdown.markdownDocumentTitle
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteKind
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.newNoteId
 import com.xnote.app.domain.rules.ConversionBlocker
 import com.xnote.app.domain.rules.conversionBlockers
@@ -157,6 +158,11 @@ class NoteEditorSession(
         flushSave()
         library.moveNotes(listOf(noteId), notebookId)
         note = library.getNote(noteId)
+    }
+
+    suspend fun setBackground(backgroundKey: BackgroundKey?) {
+        flushSave()
+        note = library.setNoteBackground(noteId, backgroundKey)
     }
 
     fun updateTitle(value: String) {

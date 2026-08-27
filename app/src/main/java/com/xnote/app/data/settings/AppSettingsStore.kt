@@ -26,16 +26,16 @@ private val ThemeModeKey = stringPreferencesKey("theme_mode")
 
 class AppSettingsStore(
     context: Context,
-) {
+) : AppSettingsRepository {
     private val dataStore = context.applicationContext.settingsDataStore
 
-    val settings: Flow<AppSettings> = dataStore.data.map { preferences ->
+    override val settings: Flow<AppSettings> = dataStore.data.map { preferences ->
         preferences.toAppSettings()
     }
 
     suspend fun current(): AppSettings = settings.first()
 
-    suspend fun setDefaultBackgroundKey(key: String) {
+    override suspend fun setDefaultBackgroundKey(key: String) {
         dataStore.edit { preferences ->
             preferences[DefaultBackgroundKey] = key
         }

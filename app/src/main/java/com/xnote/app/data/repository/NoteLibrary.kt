@@ -13,6 +13,7 @@ import com.xnote.app.domain.document.referencedAttachmentIds
 import com.xnote.app.domain.markdown.richNoteMarkdown
 import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteKind
@@ -22,6 +23,7 @@ import com.xnote.app.domain.model.NoteRevision
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.domain.model.RevisionReason
+import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.newNoteId
 import com.xnote.app.domain.rules.RecycleBinPolicy
 import com.xnote.app.domain.rules.conversionBlockers
@@ -35,6 +37,7 @@ import com.xnote.app.domain.text.searchSnippet
 import com.xnote.app.domain.text.visibleTextStats
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.io.InputStream
 
 // -- Type Definitions
 
@@ -212,6 +215,20 @@ class NoteLibrary(
                 indexForSearch(saved)
             }
             saved
+        }
+    }
+
+    suspend fun setNoteBackground(noteId: String, backgroundKey: BackgroundKey?): Note {
+        return write {
+            val existing = notes.get(noteId)?.toDomain()
+                ?: error("Note not found: $noteId")
+            check(!existing.isTrashed) { "Trashed notes cannot change background" }
+            val updated = existing.copy(
+                backgroundKey = backgroundKey?.encode(),
+                updatedAtEpochMs = clock.nowMs(),
+            )
+            notes.upsert(updated.toEntity())
+            updated
         }
     }
 
@@ -402,27 +419,32 @@ class NoteLibrary(
         kind: AttachmentKind,
         mimeType: String,
         extension: String,
-        bytes: ByteArray,
+        input: InputStream,
         originalFileName: String? = null,
         widthPx: Int? = null,
         heightPx: Int? = null,
     ): Attachment {
         val id = newNoteId()
         val relativePath = AttachmentFileStore.relativePath(id, extension)
-        files.write(relativePath, bytes)
+        val file = files.write(relativePath, input)
         val attachment = Attachment(
             id = id,
             kind = kind,
             mimeType = mimeType,
             originalFileName = originalFileName,
             relativePath = relativePath,
-            byteSize = bytes.size.toLong(),
+            byteSize = file.length(),
             widthPx = widthPx,
             heightPx = heightPx,
             createdAtEpochMs = clock.nowMs(),
         )
-        attachments.upsert(attachment.toEntity())
-        return attachment
+        return try {
+            attachments.upsert(attachment.toEntity())
+            attachment
+        } catch (error: Exception) {
+            files.delete(relativePath)
+            throw error
+        }
     }
 
     suspend fun getAttachment(id: String): Attachment? = attachments.get(id)?.toDomain()

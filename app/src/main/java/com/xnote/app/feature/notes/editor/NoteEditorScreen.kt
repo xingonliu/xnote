@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +47,8 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.data.background.ResolvedNoteBackground
+import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.ImageBlock
@@ -64,10 +68,12 @@ import com.kyant.backdrop.Backdrop
 @Composable
 fun NoteEditorScreen(
     session: NoteEditorSession,
+    background: ResolvedNoteBackground,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
+    onBackgroundLoadFailed: () -> Unit = {},
 ) {
     LaunchedEffect(session.noteId) {
         session.load()
@@ -93,47 +99,66 @@ fun NoteEditorScreen(
     }
 
     if (session.isMarkdown) {
-        MarkdownNoteScreen(
-            session = session,
-            contentPadding = contentPadding,
-            scrollState = scrollState,
-            modifier = modifier,
-        )
+        XNoteNoteSurface(
+            background = background,
+            modifier = modifier
+                .padding(contentPadding)
+                .imePadding()
+                .navigationBarsPadding()
+                .fillMaxSize(),
+            onBackgroundLoadFailed = onBackgroundLoadFailed,
+        ) {
+            MarkdownNoteScreen(
+                session = session,
+                contentPadding = PaddingValues(0.dp),
+                scrollState = scrollState,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         return
     }
 
     val labels = session.document.numberedLabels()
-    Column(
+    XNoteNoteSurface(
+        background = background,
         modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
             .padding(contentPadding)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .imePadding()
+            .navigationBarsPadding()
+            .fillMaxSize(),
+        onBackgroundLoadFailed = onBackgroundLoadFailed,
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = XNoteMaximumContentWidth)
+                .fillMaxSize()
+                .verticalScroll(scrollState)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            TitleField(
-                value = session.title,
-                onValueChange = session::updateTitle,
-                readOnly = false,
-            )
-            session.document.visibleBlocks().forEachIndexed { index, block ->
-                EditorBlock(
-                    block = block,
-                    session = session,
-                    numberedLabel = labels[block.id],
-                    isFirstTextBlock = index == 0 || session.document.visibleBlocks()
-                        .take(index)
-                        .none { it is TextBlock },
+            Column(
+                modifier = Modifier
+                    .widthIn(max = XNoteMaximumContentWidth)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            ) {
+                TitleField(
+                    value = session.title,
+                    onValueChange = session::updateTitle,
+                    readOnly = false,
                 )
+                session.document.visibleBlocks().forEachIndexed { index, block ->
+                    EditorBlock(
+                        block = block,
+                        session = session,
+                        numberedLabel = labels[block.id],
+                        isFirstTextBlock = index == 0 || session.document.visibleBlocks()
+                            .take(index)
+                            .none { it is TextBlock },
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

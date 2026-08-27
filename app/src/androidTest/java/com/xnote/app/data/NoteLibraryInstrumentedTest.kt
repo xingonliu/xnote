@@ -6,14 +6,19 @@ import android.content.Context
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.data.background.NoteBackgroundResolver
+import com.xnote.app.data.background.ResolvedNoteBackground
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.InlineRun
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.AttachmentKind
+import com.xnote.app.domain.model.BackgroundKey
+import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.RevisionReason
+import com.xnote.app.domain.model.encode
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -26,6 +31,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.ByteArrayInputStream
 import java.util.concurrent.TimeUnit
 
 // -- Tests
@@ -150,7 +156,7 @@ class NoteLibraryInstrumentedTest {
             kind = AttachmentKind.Image,
             mimeType = "image/png",
             extension = "png",
-            bytes = byteArrayOf(1, 2, 3, 4),
+            input = ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)),
         )
         library.saveNote(
             created.copy(
@@ -184,7 +190,7 @@ class NoteLibraryInstrumentedTest {
             kind = AttachmentKind.UserBackground,
             mimeType = "image/png",
             extension = "png",
-            bytes = byteArrayOf(1, 2, 3),
+            input = ByteArrayInputStream(byteArrayOf(1, 2, 3)),
         )
         externallyReferencedId = attachment.id
         val note = protectedLibrary.createRichNote(null)
@@ -328,6 +334,35 @@ class NoteLibraryInstrumentedTest {
         val notebook = library.createNotebook("空本")
         library.deleteNotebook(notebook.id)
         assertTrue(library.observeTrashedNotes().first().isEmpty())
+    }
+
+    @Test
+    fun noteBackgroundPersistsAcrossMovesAndMarkdownConversionThenCanReturnToInheritance() = runTest {
+        val source = library.createNotebook("来源")
+        val destination = library.createNotebook("目标")
+        val note = library.createRichNote(source.id)
+        val background = BackgroundKey.Builtin(GridBuiltinBackgroundId)
+
+        library.setNoteBackground(note.id, background)
+        library.moveNotes(listOf(note.id), destination.id)
+
+        assertEquals(background.encode(), library.getNote(note.id)?.backgroundKey)
+        library.convertToMarkdown(note.id)
+        assertEquals(background.encode(), library.getNote(note.id)?.backgroundKey)
+        library.setNoteBackground(note.id, null)
+        assertNull(library.getNote(note.id)?.backgroundKey)
+    }
+
+    @Test
+    fun missingUserBackgroundFallsBackToTheConfiguredDefault() = runTest {
+        val resolution = NoteBackgroundResolver(library).resolve(
+            noteBackgroundKey = BackgroundKey.UserImage("missing").encode(),
+            defaultBackgroundKeyRaw = BackgroundKey.Builtin(GridBuiltinBackgroundId).encode(),
+        )
+
+        assertTrue(resolution.fellBack)
+        val resolved = resolution.background as ResolvedNoteBackground.Builtin
+        assertEquals(GridBuiltinBackgroundId, resolved.key.id)
     }
 }
 

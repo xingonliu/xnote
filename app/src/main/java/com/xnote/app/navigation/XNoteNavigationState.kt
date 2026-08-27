@@ -18,6 +18,7 @@ data class XNoteNavigationState(
     val destination: AppDestination = AppDestination.Notes,
     val isSearchOpen: Boolean = false,
     val isRecycleBinOpen: Boolean = false,
+    val isAppearanceOpen: Boolean = false,
     val notesStack: List<NotesRoute> = emptyList(),
 ) {
     val notesRoute: NotesRoute
@@ -27,17 +28,19 @@ data class XNoteNavigationState(
         get() = destination != AppDestination.Notes || notesRoute is NotesRoute.Home
 
     val showsPrimaryChrome: Boolean
-        get() = !isSearchOpen && !isRecycleBinOpen && showsNotesPrimaryChrome
+        get() = !isSearchOpen && !isRecycleBinOpen && !isAppearanceOpen && showsNotesPrimaryChrome
 
     fun openDestination(destination: AppDestination) = copy(
         destination = destination,
         isSearchOpen = false,
         isRecycleBinOpen = false,
+        isAppearanceOpen = false,
     )
 
     fun openSearch() = copy(
         isSearchOpen = true,
         isRecycleBinOpen = false,
+        isAppearanceOpen = false,
     )
 
     fun closeSearch() = copy(isSearchOpen = false)
@@ -46,14 +49,25 @@ data class XNoteNavigationState(
         destination = AppDestination.Profile,
         isSearchOpen = false,
         isRecycleBinOpen = true,
+        isAppearanceOpen = false,
     )
 
     fun closeRecycleBin() = copy(isRecycleBinOpen = false)
+
+    fun openAppearance() = copy(
+        destination = AppDestination.Profile,
+        isSearchOpen = false,
+        isRecycleBinOpen = false,
+        isAppearanceOpen = true,
+    )
+
+    fun closeAppearance() = copy(isAppearanceOpen = false)
 
     fun openNotebook(notebookId: String) = copy(
         destination = AppDestination.Notes,
         isSearchOpen = false,
         isRecycleBinOpen = false,
+        isAppearanceOpen = false,
         notesStack = listOf(NotesRoute.Notebook(notebookId)),
     )
 
@@ -61,6 +75,7 @@ data class XNoteNavigationState(
         destination = AppDestination.Notes,
         isSearchOpen = false,
         isRecycleBinOpen = false,
+        isAppearanceOpen = false,
         notesStack = notesStack.filterNot { it is NotesRoute.Editor } + NotesRoute.Editor(noteId),
     )
 

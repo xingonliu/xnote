@@ -342,6 +342,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ### 9.2 笔记背景
 
+- 内置背景固定为暖白纸、奶油纹理、横线纸、方格纸四款；纸色与纹理颜色必须使用浅色/深色成对方案，不能依赖同一固定颜色覆盖两个主题。
 - 笔记正文统一由 `XNoteNoteSurface` 承载，在普通笔记编辑、Markdown 编辑与预览、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
 - 背景只覆盖笔记内容画布，不延伸到 Header、底部工具栏、导航栏、Dialog、Drawer、Toast、Popup 或 DropdownMenu。
 - 编辑页的更多菜单提供“笔记背景”入口。手机使用 `XNoteDrawer` 底部形态，平板使用锚定面板或受限宽度 Drawer。

@@ -77,4 +77,17 @@ class XNoteNavigationStateTest {
         assertFalse(closed.isRecycleBinOpen)
         assertEquals(AppDestination.Profile, closed.destination)
     }
+
+    @Test
+    fun appearanceIsASecondaryProfilePage() {
+        val opened = XNoteNavigationState().openAppearance()
+
+        assertEquals(AppDestination.Profile, opened.destination)
+        assertTrue(opened.isAppearanceOpen)
+        assertFalse(opened.showsPrimaryChrome)
+
+        val closed = opened.closeAppearance()
+        assertFalse(closed.isAppearanceOpen)
+        assertEquals(AppDestination.Profile, closed.destination)
+    }
 }

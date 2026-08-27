@@ -10,6 +10,16 @@ sealed interface BackgroundKey {
 // -- Constants
 
 const val DefaultBuiltinBackgroundId = "default"
+const val CreamBuiltinBackgroundId = "cream"
+const val RuledBuiltinBackgroundId = "ruled"
+const val GridBuiltinBackgroundId = "grid"
+
+val BuiltinBackgroundIds = setOf(
+    DefaultBuiltinBackgroundId,
+    CreamBuiltinBackgroundId,
+    RuledBuiltinBackgroundId,
+    GridBuiltinBackgroundId,
+)
 
 // -- Functions
 
@@ -39,3 +49,20 @@ fun BackgroundKey.attachmentIdOrNull(): String? = when (this) {
 }
 
 fun defaultBackgroundKey(): BackgroundKey = BackgroundKey.Builtin(DefaultBuiltinBackgroundId)
+
+fun BackgroundKey.isSupported(): Boolean = when (this) {
+    is BackgroundKey.Builtin -> id in BuiltinBackgroundIds
+    is BackgroundKey.UserImage -> attachmentId.isNotBlank()
+}
+
+fun resolveBackgroundKey(
+    noteBackgroundKey: String?,
+    defaultBackgroundKeyRaw: String?,
+): BackgroundKey {
+    val defaultKey = parseBackgroundKey(defaultBackgroundKeyRaw)
+        ?.takeIf(BackgroundKey::isSupported)
+        ?: defaultBackgroundKey()
+    return parseBackgroundKey(noteBackgroundKey)
+        ?.takeIf(BackgroundKey::isSupported)
+        ?: defaultKey
+}

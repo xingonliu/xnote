@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
                 XNoteApp(
                     noteLibrary = container.noteLibrary,
                     searchHistory = container.searchHistory,
+                    settings = container.settings,
                 )
             }
         }

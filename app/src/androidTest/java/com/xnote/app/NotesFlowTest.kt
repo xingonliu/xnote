@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Density
@@ -18,13 +19,19 @@ import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.data.settings.InMemoryAppSettingsRepository
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.domain.model.SystemEpochClock
 import com.xnote.app.domain.document.InlineRun
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.NoteKind
+import com.xnote.app.domain.model.BackgroundKey
+import com.xnote.app.domain.model.GridBuiltinBackgroundId
+import com.xnote.app.domain.model.RuledBuiltinBackgroundId
+import com.xnote.app.domain.model.encode
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -294,5 +301,59 @@ class NotesFlowTest {
         }
         assertNull(library.getNote(first.id))
         assertNull(library.getNote(second.id))
+    }
+
+    @Test
+    fun profileDefaultBackgroundSettingPersistsTheSelectedPreset() {
+        val settings = InMemoryAppSettingsRepository()
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library, settings = settings)
+            }
+        }
+
+        composeRule.onNodeWithText("我的").performClick()
+        composeRule.onNodeWithText("默认笔记背景").performClick()
+        composeRule.onNodeWithText("所有未设置专属背景的笔记").assertIsDisplayed()
+        composeRule.onNodeWithText("方格纸").performClick()
+
+        composeRule.waitUntil(5_000) {
+            runBlocking {
+                settings.settings.first().defaultBackgroundKey ==
+                    BackgroundKey.Builtin(GridBuiltinBackgroundId).encode()
+            }
+        }
+    }
+
+    @Test
+    fun editorBackgroundOverrideCanReturnToDefaultInheritance() {
+        val note = runBlocking {
+            library.saveNote(library.createRichNote(null).copy(title = "背景测试"))
+        }
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("背景测试").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-title").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("笔记背景").performClick()
+        composeRule.onNodeWithText("仅当前笔记").assertIsDisplayed()
+        composeRule.onNodeWithText("横线纸").performScrollTo().performClick()
+        composeRule.waitUntil(5_000) {
+            runBlocking {
+                library.getNote(note.id)?.backgroundKey ==
+                    BackgroundKey.Builtin(RuledBuiltinBackgroundId).encode()
+            }
+        }
+
+        composeRule.onNodeWithText("使用默认背景").performClick()
+        composeRule.waitUntil(5_000) {
+            runBlocking { library.getNote(note.id)?.backgroundKey == null }
+        }
     }
 }

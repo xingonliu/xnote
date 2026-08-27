@@ -1,16 +1,24 @@
 package com.xnote.app.data.files
 
 import java.io.File
+import java.io.InputStream
 
 // -- Type Definitions
 
 class AttachmentFileStore(
     private val rootDirectory: File,
 ) {
-    fun write(relativePath: String, bytes: ByteArray): File {
+    fun write(relativePath: String, input: InputStream): File {
         val file = resolve(relativePath)
         file.parentFile?.mkdirs()
-        file.writeBytes(bytes)
+        try {
+            file.outputStream().buffered().use { output ->
+                input.copyTo(output)
+            }
+        } catch (error: Exception) {
+            file.delete()
+            throw error
+        }
         return file
     }
 

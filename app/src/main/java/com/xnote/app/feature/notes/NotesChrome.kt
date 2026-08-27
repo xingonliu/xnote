@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
+import com.xnote.app.data.background.ResolvedNoteBackground
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteDialog
 import com.xnote.app.design.XNoteDialogAction
@@ -50,7 +51,10 @@ import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.MarkdownEditorMode
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.editor.toDomain
+import com.xnote.app.feature.background.XNoteBackgroundPicker
+import com.xnote.app.feature.background.rememberUserBackgroundImportController
 import com.xnote.app.navigation.NotesRoute
+import com.xnote.app.domain.model.parseBackgroundKey
 import kotlinx.coroutines.launch
 
 // -- Constants
@@ -71,6 +75,7 @@ fun BoxScope.NotesChrome(
     backdrop: Backdrop,
     isTablet: Boolean,
     editorSession: NoteEditorSession?,
+    editorBackground: ResolvedNoteBackground,
     toastHostState: SnackbarHostState,
     onOpenNotebook: (String) -> Unit,
     onCreateNote: (notebookId: String?) -> Unit,
@@ -83,6 +88,11 @@ fun BoxScope.NotesChrome(
     }
     val conversionBlockedMessage = stringResource(R.string.editor_convert_markdown_blocked)
     val conversionFailedMessage = stringResource(R.string.editor_convert_markdown_failed)
+    val backgroundImportController = rememberUserBackgroundImportController(
+        library = library,
+        toastHostState = toastHostState,
+        onImported = { key -> editorSession?.setBackground(key) },
+    )
 
     when (route) {
         NotesRoute.Home -> Unit
@@ -382,6 +392,12 @@ fun BoxScope.NotesChrome(
             ),
         )
         is NotesRoute.Editor -> buildList {
+            add(
+                XNoteDropdownMenuItem(
+                    label = stringResource(R.string.editor_note_background),
+                    onClick = { ui.backgroundPickerVisible = true },
+                ),
+            )
             if (editorSession?.isMarkdown == false) {
                 add(
                     XNoteDropdownMenuItem(
@@ -416,6 +432,29 @@ fun BoxScope.NotesChrome(
         alignment = Alignment.TopEnd,
         modifier = Modifier.padding(top = 72.dp, end = XNoteSpacingMedium),
     )
+
+    XNoteDrawer(
+        visible = ui.backgroundPickerVisible && route is NotesRoute.Editor,
+        onDismissRequest = { ui.backgroundPickerVisible = false },
+        title = stringResource(R.string.background_picker_title),
+        backdrop = backdrop,
+        placement = drawerPlacement,
+    ) {
+        XNoteBackgroundPicker(
+            selectedKey = parseBackgroundKey(editorSession?.note?.backgroundKey),
+            resolvedBackground = editorBackground,
+            scopeDescription = stringResource(R.string.background_scope_current_note),
+            backdrop = backdrop,
+            onSelect = { key ->
+                editorSession?.let { session ->
+                    scope.launch { session.setBackground(key) }
+                }
+            },
+            onImport = backgroundImportController.launch,
+            allowDefaultInheritance = true,
+            isImporting = backgroundImportController.isImporting,
+        )
+    }
 
     XNoteDropdownMenu(
         expanded = ui.paragraphMenuVisible,

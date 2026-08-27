@@ -31,6 +31,7 @@ fun ProfileScreen(
     contentPadding: PaddingValues,
     listState: LazyListState,
     onOpenRecycleBin: () -> Unit,
+    onOpenBackgroundSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -79,6 +80,52 @@ fun ProfileScreen(
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_chevron_right),
                     contentDescription = stringResource(R.string.recycle_bin_open),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        item {
+            Text(
+                text = stringResource(R.string.profile_appearance_section),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = XNoteSpacingSmall),
+            )
+        }
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenBackgroundSettings)
+                    .padding(vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_sparkles),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.background_settings_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(R.string.background_settings_summary),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_lucide_chevron_right),
+                    contentDescription = stringResource(R.string.background_settings_open),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
