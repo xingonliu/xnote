@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -70,7 +69,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.min
 import kotlin.math.sign
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
@@ -78,12 +76,10 @@ import kotlin.math.sign
 // -- Constants
 
 private val BottomTabsInset = 4.dp
-private val BottomTabsHeight = 56.dp
-private val BottomTabHeight = 48.dp
-private const val BottomTabPressedScaleX = 0.97f
-private const val BottomTabPressedScaleY = 0.9f
-private const val BridgeBreakStart = 0.42f
-private const val BridgeBreakEnd = 0.56f
+private val BottomTabsHeight = 64.dp
+private val BottomTabHeight = 56.dp
+private const val BottomTabPressedScale = 78f / 56f
+private const val BottomTabPressedContentScale = 1.2f
 
 // -- Composables
 
@@ -125,7 +121,6 @@ fun LiquidBottomTabs(
             (constraints.maxWidth.toFloat() - tabInset * 2f) / tabsCount
         }
         val tabWidthDp = with(density) { tabWidth.toDp() }
-        val tabHeightPx = with(density) { BottomTabHeight.toPx() }
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val dragDirection = if (isLtr) 1f else -1f
         val animationScope = rememberCoroutineScope()
@@ -137,10 +132,6 @@ fun LiquidBottomTabs(
         var gestureValue by remember(selectedTabIndex) {
             mutableFloatStateOf(selectedTabIndex().toFloat())
         }
-        var gestureAnchorIndex by remember { mutableIntStateOf(currentIndex) }
-        var pressedTabIndex by remember { mutableIntStateOf(-1) }
-        var isGestureActive by remember { mutableStateOf(false) }
-        var isDragging by remember { mutableStateOf(false) }
         var preactivatedIndex by remember { mutableIntStateOf(currentIndex) }
         var isPreactivationActive by remember { mutableStateOf(false) }
         var reselectedIndex by remember { mutableIntStateOf(-1) }
@@ -208,22 +199,17 @@ fun LiquidBottomTabs(
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
-                pressedScaleX = BottomTabPressedScaleX,
-                pressedScaleY = BottomTabPressedScaleY,
+                pressedScale = BottomTabPressedScale,
                 onDragStarted = { position ->
-                    gestureAnchorIndex = currentIndex
                     gestureValue = tabValueAtPosition(position.x)
-                    pressedTabIndex = gestureValue.fastRoundToInt()
-                    isGestureActive = true
-                    isDragging = false
                     hapticView.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                 },
                 onDragStopped = { wasDragged ->
-                    isGestureActive = false
-                    isDragging = false
-                    pressedTabIndex = -1
-                    val targetIndex = gestureValue.fastRoundToInt()
-                        .fastCoerceIn(0, tabsCount - 1)
+                    val targetIndex = if (wasDragged) {
+                        targetValue
+                    } else {
+                        gestureValue
+                    }.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
                     if (!wasDragged) {
                         suppressedPointerClickIndex = targetIndex
                         if (targetIndex == currentIndex) {
@@ -251,26 +237,20 @@ fun LiquidBottomTabs(
                     animationScope.launch {
                         offsetAnimation.animateTo(
                             targetValue = 0f,
-                            animationSpec = spring(0.62f, 420f, 0.5f),
+                            animationSpec = spring(1f, 300f, 0.5f),
                         )
                     }
                 },
                 onDragCancelled = {
-                    isGestureActive = false
-                    isDragging = false
-                    pressedTabIndex = -1
                     animateToValue(currentIndex.toFloat())
                 },
                 onDrag = { _, dragAmount ->
-                    if (dragAmount != Offset.Zero) {
-                        isDragging = true
-                        gestureValue = (gestureValue + dragAmount.x / tabWidth * dragDirection)
-                            .fastCoerceIn(0f, (tabsCount - 1).toFloat())
-                        pressedTabIndex = gestureValue.fastRoundToInt()
-                        snapToValue(gestureValue)
-                        animationScope.launch {
-                            offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
-                        }
+                    updateValue(
+                        (targetValue + dragAmount.x / tabWidth * dragDirection)
+                            .fastCoerceIn(0f, (tabsCount - 1).toFloat()),
+                    )
+                    animationScope.launch {
+                        offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
                     }
                 },
             )
@@ -314,40 +294,14 @@ fun LiquidBottomTabs(
         } else {
             selectedTabIndex().toFloat()
         }
-        val pressureValue = when {
-            isGestureActive -> gestureValue
-            pressedTabIndex >= 0 -> pressedTabIndex.toFloat()
-            else -> dampedDragAnimation.targetValue
-        }
         val tabContentTransform: (Int) -> LiquidBottomTabTransform = { tabIndex ->
-            val proximity = (1f - abs(tabIndex - pressureValue)).fastCoerceIn(0f, 1f)
+            val proximity = (1f - abs(tabIndex - indicatorValue)).fastCoerceIn(0f, 1f)
             val localPress = pressProgress * proximity
             LiquidBottomTabTransform(
-                scaleX = lerp(1f, 0.94f, localPress),
-                scaleY = lerp(1f, 0.86f, localPress),
-                translationY = with(density) { 2.dp.toPx() } * localPress,
+                scaleX = lerp(1f, BottomTabPressedContentScale, localPress),
+                scaleY = lerp(1f, BottomTabPressedContentScale, localPress),
             )
         }
-        val bridgeDistance = if (isDragging) {
-            abs(indicatorValue - gestureAnchorIndex)
-        } else {
-            0f
-        }
-        val bridgeBreakProgress = (
-            (bridgeDistance - BridgeBreakStart) / (BridgeBreakEnd - BridgeBreakStart)
-            ).fastCoerceIn(0f, 1f)
-        val bridgeAlpha = if (hasInteractiveMotion && isDragging) {
-            pressProgress * (1f - bridgeBreakProgress)
-        } else {
-            0f
-        }
-        val bridgeTension = (bridgeDistance / BridgeBreakEnd).fastCoerceIn(0f, 1f)
-        val anchorCenterX = tabCenterX(gestureAnchorIndex.toFloat()) + panelOffset
-        val indicatorCenterX = tabCenterX(indicatorValue) + panelOffset
-        val bridgeWidth = abs(indicatorCenterX - anchorCenterX) + tabWidth * 0.58f
-        val bridgeHeight = lerp(tabHeightPx * 0.72f, tabHeightPx * 0.24f, bridgeTension)
-        val bridgeLeft = min(anchorCenterX, indicatorCenterX) - tabWidth * 0.29f
-        val bridgeTop = (tabHeightPx - bridgeHeight) / 2f
 
         if (preactivationProgress > 0f) {
             Box(
@@ -394,7 +348,7 @@ fun LiquidBottomTabs(
                     radius = lerp(10.dp.toPx(), 58.dp.toPx(), phase),
                     center = Offset(
                         x = tabCenterX(reselectedIndex.toFloat()) + panelOffset,
-                        y = size.height / 2f - 48.dp.toPx() * phase,
+                        y = size.height / 2f - BottomTabHeight.toPx() * phase,
                     ),
                     style = Stroke(width = lerp(2.dp.toPx(), 0.5.dp.toPx(), phase)),
                 )
@@ -439,10 +393,9 @@ fun LiquidBottomTabs(
                                 lens(24.dp.toPx(), 24.dp.toPx())
                             },
                             layerBlock = {
-                                transformOrigin = TransformOrigin.Center
-                                scaleX = lerp(1f, 1f + 4.dp.toPx() / size.width, pressProgress)
-                                scaleY = lerp(1f, 0.985f, pressProgress)
-                                translationY = 1.dp.toPx() * pressProgress
+                                val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, pressProgress)
+                                scaleX = scale
+                                scaleY = scale
                             },
                             onDrawSurface = { drawRect(containerColor) },
                         )
@@ -495,66 +448,6 @@ fun LiquidBottomTabs(
             }
         }
 
-        if (bridgeAlpha > 0f) {
-            Box(
-                modifier = Modifier
-                    .clearAndSetSemantics { }
-                    .offset {
-                        IntOffset(bridgeLeft.fastRoundToInt(), bridgeTop.fastRoundToInt())
-                    }
-                    .graphicsLayer { alpha = bridgeAlpha }
-                    .drawBackdrop(
-                        backdrop = indicatorBackdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            lens(
-                                6.dp.toPx() * bridgeAlpha,
-                                10.dp.toPx() * bridgeAlpha,
-                                chromaticAberration = true,
-                            )
-                        },
-                        highlight = {
-                            Highlight.Default.copy(alpha = 0.42f * bridgeAlpha)
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.025f * bridgeAlpha))
-                        },
-                    )
-                    .height(with(density) { bridgeHeight.toDp() })
-                    .width(with(density) { bridgeWidth.toDp() }),
-            )
-
-            Box(
-                modifier = Modifier
-                    .clearAndSetSemantics { }
-                    .offset {
-                        IntOffset(
-                            x = (anchorCenterX - tabWidth / 2f).fastRoundToInt(),
-                            y = 0,
-                        )
-                    }
-                    .graphicsLayer { alpha = bridgeAlpha * 0.72f }
-                    .drawBackdrop(
-                        backdrop = indicatorBackdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            lens(
-                                5.dp.toPx() * bridgeAlpha,
-                                8.dp.toPx() * bridgeAlpha,
-                            )
-                        },
-                        highlight = {
-                            Highlight.Default.copy(alpha = 0.3f * bridgeAlpha)
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.02f * bridgeAlpha))
-                        },
-                    )
-                    .height(BottomTabHeight)
-                    .width(tabWidthDp),
-            )
-        }
-
         Box(
             modifier = Modifier
                 .offset {
@@ -575,31 +468,27 @@ fun LiquidBottomTabs(
                         )
                     },
                     highlight = {
-                        Highlight.Default.copy(
-                            alpha = lerp(0.18f, 1f, pressProgress),
-                        )
+                        Highlight.Default.copy(alpha = pressProgress)
                     },
                     shadow = {
-                        Shadow(alpha = lerp(0.12f, 1f, pressProgress))
+                        Shadow(alpha = pressProgress)
                     },
                     innerShadow = {
                         InnerShadow(
-                            radius = 2.dp + 7.dp * pressProgress,
-                            alpha = lerp(0.12f, 1f, pressProgress),
+                            radius = 8.dp * pressProgress,
+                            alpha = pressProgress,
                         )
                     },
                     layerBlock = {
-                        transformOrigin = TransformOrigin.Center
                         scaleX = if (hasInteractiveMotion) dampedDragAnimation.scaleX else 1f
                         scaleY = if (hasInteractiveMotion) dampedDragAnimation.scaleY else 1f
-                        translationY = 2.dp.toPx() * pressProgress
                         val velocity = if (hasInteractiveMotion) {
                             dampedDragAnimation.velocity / 10f
                         } else {
                             0f
                         }
-                        scaleX /= 1f - (velocity * 0.78f).fastCoerceIn(-0.22f, 0.22f)
-                        scaleY *= 1f - (velocity * 0.28f).fastCoerceIn(-0.18f, 0.18f)
+                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                     },
                     onDrawSurface = {
                         drawRect(
@@ -610,7 +499,7 @@ fun LiquidBottomTabs(
                             },
                             alpha = 1f - pressProgress,
                         )
-                        drawRect(accentColor.copy(alpha = 0.035f + 0.025f * pressProgress))
+                        drawRect(Color.Black.copy(alpha = 0.03f * pressProgress))
                     },
                 )
                 .height(BottomTabHeight)

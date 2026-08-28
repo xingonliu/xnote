@@ -27,8 +27,7 @@ class DampedDragAnimation(
     private val valueRange: ClosedRange<Float>,
     visibilityThreshold: Float,
     private val initialScale: Float,
-    private val pressedScaleX: Float,
-    private val pressedScaleY: Float,
+    private val pressedScale: Float,
     private val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     private val onDragStopped: DampedDragAnimation.(wasDragged: Boolean) -> Unit,
     private val onDragCancelled: DampedDragAnimation.() -> Unit,
@@ -36,11 +35,11 @@ class DampedDragAnimation(
 ) {
     // -- Constants
 
-    private val valueAnimationSpec = spring(0.64f, 720f, visibilityThreshold)
-    private val velocityAnimationSpec = spring(0.52f, 360f, visibilityThreshold * 10f)
-    private val pressProgressAnimationSpec = spring(0.72f, 900f, 0.001f)
-    private val scaleXAnimationSpec = spring(0.58f, 420f, 0.001f)
-    private val scaleYAnimationSpec = spring(0.54f, 460f, 0.001f)
+    private val valueAnimationSpec = spring(1f, 1000f, visibilityThreshold)
+    private val velocityAnimationSpec = spring(0.5f, 300f, visibilityThreshold * 10f)
+    private val pressProgressAnimationSpec = spring(1f, 1000f, 0.001f)
+    private val scaleXAnimationSpec = spring(0.6f, 250f, 0.001f)
+    private val scaleYAnimationSpec = spring(0.7f, 250f, 0.001f)
 
     // -- State
 
@@ -97,8 +96,8 @@ class DampedDragAnimation(
         velocityTracker.resetTracking()
         animationScope.launch {
             launch { pressProgressAnimation.animateTo(1f, pressProgressAnimationSpec) }
-            launch { scaleXAnimation.animateTo(pressedScaleX, scaleXAnimationSpec) }
-            launch { scaleYAnimation.animateTo(pressedScaleY, scaleYAnimationSpec) }
+            launch { scaleXAnimation.animateTo(pressedScale, scaleXAnimationSpec) }
+            launch { scaleYAnimation.animateTo(pressedScale, scaleYAnimationSpec) }
         }
     }
 
@@ -117,11 +116,14 @@ class DampedDragAnimation(
         }
     }
 
-    fun snapToValue(value: Float) {
+    fun updateValue(value: Float) {
         val targetValue = value.coerceIn(valueRange)
         animationScope.launch {
-            valueAnimation.snapTo(targetValue)
-            updateVelocity()
+            launch {
+                valueAnimation.animateTo(targetValue, valueAnimationSpec) {
+                    updateVelocity()
+                }
+            }
         }
     }
 

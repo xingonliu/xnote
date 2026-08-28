@@ -780,7 +780,8 @@ private fun XNoteBottomNavigation(
         modifier = modifier
             .testTag("xnote-bottom-navigation")
             .navigationBarsPadding()
-            .padding(horizontal = 36.dp, vertical = XNoteSpacingSmall)
+            .padding(horizontal = 36.dp)
+            .padding(top = XNoteSpacingSmall, bottom = XNoteSpacingMedium)
             .fillMaxWidth()
     ) {
         AppDestination.entries.forEach { destination ->

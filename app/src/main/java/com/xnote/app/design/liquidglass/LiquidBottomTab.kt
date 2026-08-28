@@ -44,7 +44,6 @@ import com.xnote.app.design.LocalXNoteInteractionSettings
 internal data class LiquidBottomTabTransform(
     val scaleX: Float = 1f,
     val scaleY: Float = 1f,
-    val translationY: Float = 0f,
 )
 
 internal enum class LiquidBottomTabLayer {
@@ -212,7 +211,6 @@ fun RowScope.LiquidBottomTab(
                 alpha = if (isInteractiveLayer) baseAlpha else 1f
                 scaleX = contentTransform.scaleX * pulseTransform.scaleX
                 scaleY = contentTransform.scaleY * pulseTransform.scaleY
-                translationY = contentTransform.translationY
             },
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,

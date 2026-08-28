@@ -36,6 +36,7 @@ import com.xnote.app.design.XNoteDropdownMenu
 import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
+import com.xnote.app.design.XNoteBottomNavigationHeight
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
@@ -186,7 +187,7 @@ fun BoxScope.NotesChrome(
                     .padding(
                         end = if (isTablet) 24.dp else XNoteSpacingMedium,
                         bottom = if (route is NotesRoute.Home && !isTablet) {
-                            80.dp
+                            XNoteBottomNavigationHeight + XNoteSpacingSmall
                         } else {
                             XNoteSpacingMedium
                         },
@@ -214,7 +215,11 @@ fun BoxScope.NotesChrome(
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(
-                        bottom = if (route is NotesRoute.Home && !isTablet) 80.dp else XNoteSpacingMedium,
+                        bottom = if (route is NotesRoute.Home && !isTablet) {
+                            XNoteBottomNavigationHeight + XNoteSpacingSmall
+                        } else {
+                            XNoteSpacingMedium
+                        },
                     ),
             )
         }

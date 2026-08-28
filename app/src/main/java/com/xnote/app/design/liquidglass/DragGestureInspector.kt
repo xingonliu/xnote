@@ -70,10 +70,13 @@ private suspend inline fun AwaitPointerEventScope.drag(
         }
         val dragAmount = change.position - change.previousPosition
         accumulatedDrag += dragAmount
-        wasDragged = wasDragged || accumulatedDrag.getDistance() >= touchSlop
-        onDrag(change, dragAmount)
-        if (wasDragged && consumeChanges) {
-            change.consume()
+        val crossedSlop = !wasDragged && accumulatedDrag.getDistance() >= touchSlop
+        wasDragged = wasDragged || crossedSlop
+        if (wasDragged) {
+            onDrag(change, if (crossedSlop) accumulatedDrag else dragAmount)
+            if (consumeChanges) {
+                change.consume()
+            }
         }
         pointer = change.id
     }
