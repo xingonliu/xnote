@@ -203,7 +203,6 @@ fun LiquidBottomTabs(
                 pressedScale = BottomTabPressedScale,
                 onDragStarted = { position ->
                     gestureValue = tabValueAtPosition(position.x)
-                    updateValue(gestureValue)
                     hapticView.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                 },
                 onDragStopped = { wasDragged ->
@@ -481,22 +480,28 @@ fun LiquidBottomTabs(
                     backdrop = backdrop,
                     shape = { Capsule() },
                     effects = {
+                        vibrancy()
+                        blur(2.dp.toPx() * (1f - pressProgress * 0.5f))
                         lens(
-                            10.dp.toPx() * pressProgress,
-                            14.dp.toPx() * pressProgress,
+                            10.dp.toPx() * lerp(0.35f, 1f, pressProgress),
+                            14.dp.toPx() * lerp(0.35f, 1f, pressProgress),
                             chromaticAberration = true,
                         )
                     },
                     highlight = {
-                        Highlight.Default.copy(alpha = pressProgress)
+                        Highlight.Default.copy(
+                            alpha = lerp(0.3f, 1f, pressProgress),
+                        )
                     },
                     shadow = {
-                        Shadow(alpha = pressProgress)
+                        Shadow(
+                            alpha = lerp(0.18f, 1f, pressProgress),
+                        )
                     },
                     innerShadow = {
                         InnerShadow(
-                            radius = 8.dp * pressProgress,
-                            alpha = pressProgress,
+                            radius = 3.dp + 6.dp * pressProgress,
+                            alpha = lerp(0.2f, 1f, pressProgress),
                         )
                     },
                     layerBlock = {
@@ -513,13 +518,14 @@ fun LiquidBottomTabs(
                     onDrawSurface = {
                         drawRect(
                             color = if (isLightTheme) {
-                                Color.Black.copy(0.1f)
+                                Color.Black.copy(0.08f)
                             } else {
                                 Color.White.copy(0.1f)
                             },
                             alpha = 1f - pressProgress,
                         )
                         drawRect(containerColor)
+                        drawRect(accentColor.copy(alpha = 0.035f + 0.035f * pressProgress))
                         drawRect(Color.Black.copy(alpha = 0.03f * pressProgress))
                     },
                 ),
