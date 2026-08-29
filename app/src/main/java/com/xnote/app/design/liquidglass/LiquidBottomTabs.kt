@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -379,6 +380,42 @@ fun LiquidBottomTabs(
                 .fillMaxWidth(),
         )
 
+        val createIndicatorRoundRect: (Size) -> RoundRect = { size ->
+            val scaleX = if (hasInteractiveMotion) {
+                val baseScale = dampedDragAnimation.scaleX
+                val velocity = dampedDragAnimation.velocity / 10f
+                baseScale / (1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
+            } else {
+                1f
+            }
+            val scaleY = if (hasInteractiveMotion) {
+                val baseScale = dampedDragAnimation.scaleY
+                val velocity = dampedDragAnimation.velocity / 10f
+                baseScale * (1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
+            } else {
+                1f
+            }
+            val currentTabWidth = tabWidth * scaleX
+            val currentTabHeight = (size.height - tabInset * 2f) * scaleY
+            val centerX = tabCenterX(indicatorValue)
+            val centerY = size.height / 2f
+            val left = centerX - currentTabWidth / 2f
+            val right = centerX + currentTabWidth / 2f
+            val top = centerY - currentTabHeight / 2f
+            val bottom = centerY + currentTabHeight / 2f
+            val radius = CornerRadius(currentTabHeight / 2f, currentTabHeight / 2f)
+            RoundRect(
+                left = left,
+                top = top,
+                right = right,
+                bottom = bottom,
+                topLeftCornerRadius = radius,
+                topRightCornerRadius = radius,
+                bottomLeftCornerRadius = radius,
+                bottomRightCornerRadius = radius,
+            )
+        }
+
         CompositionLocalProvider(
             LocalLiquidBottomTabTransform provides tabContentTransform,
             LocalLiquidBottomTabClick provides { index ->
@@ -411,27 +448,11 @@ fun LiquidBottomTabs(
                         translationX = panelOffset
                         clip = true
                         shape = GenericShape { size, _ ->
-                            val left = tabCenterX(indicatorValue) - tabWidth / 2f
-                            val right = left + tabWidth
-                            val top = tabInset
-                            val bottom = size.height - tabInset
-                            val radius = CornerRadius((bottom - top) / 2f, (bottom - top) / 2f)
                             val fullPath = Path().apply {
                                 addRect(Rect(0f, 0f, size.width, size.height))
                             }
                             val capsulePath = Path().apply {
-                                addRoundRect(
-                                    RoundRect(
-                                        left = left,
-                                        top = top,
-                                        right = right,
-                                        bottom = bottom,
-                                        topLeftCornerRadius = radius,
-                                        topRightCornerRadius = radius,
-                                        bottomLeftCornerRadius = radius,
-                                        bottomRightCornerRadius = radius,
-                                    )
-                                )
+                                addRoundRect(createIndicatorRoundRect(size))
                             }
                             op(fullPath, capsulePath, PathOperation.Difference)
                         }
@@ -511,23 +532,7 @@ fun LiquidBottomTabs(
                     translationX = panelOffset
                     clip = true
                     shape = GenericShape { size, _ ->
-                        val left = tabCenterX(indicatorValue) - tabWidth / 2f
-                        val right = left + tabWidth
-                        val top = tabInset
-                        val bottom = size.height - tabInset
-                        val radius = CornerRadius((bottom - top) / 2f, (bottom - top) / 2f)
-                        addRoundRect(
-                            RoundRect(
-                                left = left,
-                                top = top,
-                                right = right,
-                                bottom = bottom,
-                                topLeftCornerRadius = radius,
-                                topRightCornerRadius = radius,
-                                bottomLeftCornerRadius = radius,
-                                bottomRightCornerRadius = radius,
-                            )
-                        )
+                        addRoundRect(createIndicatorRoundRect(size))
                     }
                 }
                 .height(BottomTabsHeight)
