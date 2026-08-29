@@ -18,15 +18,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteMinimumTouchTarget
+import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.domain.model.Note
 
-// -- Composables
+// -- Functions
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -42,21 +44,17 @@ fun NoteListRow(
     dragHandle: (@Composable () -> Unit)? = null,
 ) {
     val title = note.displayTitle(untitledLabel)
-    val meta = buildString {
-        append(formatNoteTimestamp(note.updatedAtEpochMs))
-        if (!notebookName.isNullOrBlank()) {
-            append(" · ")
-            append(notebookName)
-        }
-    }
+    val timestamp = formatNoteTimestamp(note.updatedAtEpochMs)
+    val summaryText = if (note.summary.isNotBlank()) note.summary else stringResource(R.string.notes_untitled)
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .semantics { this.selected = selected }
             .testTag("xnote-note-row")
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectionMode) {
@@ -68,38 +66,62 @@ fun NoteListRow(
                 tint = if (selected) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 },
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (note.summary.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = note.summary,
+                    text = timestamp,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 1,
+                )
+                Text(
+                    text = summaryText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            Text(
-                text = meta,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (!notebookName.isNullOrBlank()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lucide_notebook_pen),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Text(
+                        text = notebookName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
         dragHandle?.invoke()
     }

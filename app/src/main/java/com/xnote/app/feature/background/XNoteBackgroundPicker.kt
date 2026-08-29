@@ -54,7 +54,7 @@ data class UserBackgroundImportController(
     val launch: () -> Unit,
 )
 
-// -- Composables
+// -- Functions
 
 @Composable
 fun XNoteBackgroundPicker(

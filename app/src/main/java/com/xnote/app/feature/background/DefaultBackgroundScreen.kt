@@ -34,7 +34,7 @@ import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.parseBackgroundKey
 import kotlinx.coroutines.launch
 
-// -- Composables
+// -- Functions
 
 @Composable
 fun DefaultBackgroundScreen(

@@ -17,7 +17,7 @@ import com.kyant.backdrop.Backdrop
 import com.xnote.app.design.XNoteEmptyState
 import com.xnote.app.design.XNoteMaximumContentWidth
 
-// -- Composables
+// -- Functions
 
 @Composable
 fun PlaceholderScreen(

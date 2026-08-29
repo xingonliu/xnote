@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.XNoteEmptyState
+import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
@@ -54,7 +56,7 @@ import com.xnote.app.feature.notes.displayTitle
 import com.xnote.app.feature.notes.formatNoteTimestamp
 import com.xnote.app.feature.notes.notebookName
 
-// -- Composables
+// -- Functions
 
 @Composable
 fun SearchScreen(
@@ -85,10 +87,10 @@ fun SearchScreen(
         state = listState,
         modifier = modifier
             .fillMaxHeight()
-            .widthIn(max = 560.dp)
+            .widthIn(max = 680.dp)
             .fillMaxWidth(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+        verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
     ) {
         item {
             XNoteTextField(
@@ -132,16 +134,23 @@ fun SearchScreen(
                 item {
                     Text(
                         text = stringResource(R.string.search_recent_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = XNoteSpacingSmall),
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                 }
-                items(recentQueries, key = { it.lowercase() }) { recentQuery ->
-                    RecentSearchRow(
-                        query = recentQuery,
-                        onClick = { onSearch(recentQuery) },
-                    )
+                item {
+                    XNoteGroupCard(modifier = Modifier.fillMaxWidth()) {
+                        recentQueries.forEachIndexed { index, recentQuery ->
+                            RecentSearchRow(
+                                query = recentQuery,
+                                onClick = { onSearch(recentQuery) },
+                            )
+                            if (index < recentQueries.lastIndex) {
+                                XNoteInsetDivider(startIndent = 44.dp)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -159,22 +168,29 @@ fun SearchScreen(
                 item {
                     Text(
                         text = stringResource(R.string.search_results_count, results.size),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = XNoteSpacingSmall),
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                 }
-                items(results, key = { it.note.id }) { result ->
-                    SearchResultRow(
-                        result = result,
-                        query = query,
-                        notebookName = notebookName(notebooks, result.note.notebookId),
-                        untitledLabel = untitledLabel,
-                        onClick = {
-                            onSearch(query)
-                            onOpenNote(result.note.id)
-                        },
-                    )
+                item {
+                    XNoteGroupCard(modifier = Modifier.fillMaxWidth()) {
+                        results.forEachIndexed { index, result ->
+                            SearchResultRow(
+                                result = result,
+                                query = query,
+                                notebookName = notebookName(notebooks, result.note.notebookId),
+                                untitledLabel = untitledLabel,
+                                onClick = {
+                                    onSearch(query)
+                                    onOpenNote(result.note.id)
+                                },
+                            )
+                            if (index < results.lastIndex) {
+                                XNoteInsetDivider(startIndent = 16.dp)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -190,7 +206,7 @@ private fun SearchNotebookFilters(
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-        contentPadding = PaddingValues(vertical = XNoteSpacingSmall),
+        contentPadding = PaddingValues(vertical = 2.dp),
     ) {
         item(key = "all") {
             SearchFilterButton(
@@ -223,8 +239,8 @@ private fun SearchFilterButton(
         backdrop = backdrop,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
         modifier = Modifier.semantics { this.selected = selected },
-        height = XNoteMinimumTouchTarget,
-        contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
+        height = 36.dp,
+        contentPadding = PaddingValues(horizontal = 14.dp),
     ) {
         Text(
             text = label,
@@ -250,15 +266,15 @@ private fun RecentSearchRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_lucide_search),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.size(18.dp),
         )
         Text(
             text = query,
@@ -281,22 +297,23 @@ private fun SearchResultRow(
     val primary = MaterialTheme.colorScheme.primary
     val highlight = primary.copy(alpha = 0.18f)
     val title = result.note.displayTitle(untitledLabel)
+    val timestamp = formatNoteTimestamp(result.note.updatedAtEpochMs)
     val metadata = buildString {
         append(notebookName ?: stringResource(R.string.notes_scope_unfiled))
         append(" · ")
-        append(formatNoteTimestamp(result.note.updatedAtEpochMs))
+        append(timestamp)
     }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .testTag("xnote-search-result")
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
             text = highlightedText(title, query, primary, highlight),
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -306,21 +323,19 @@ private fun SearchResultRow(
                 text = highlightedText(result.matchedText, query, primary, highlight),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
         Text(
             text = metadata,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
-
-// -- Functions
 
 private fun highlightedText(
     text: String,
