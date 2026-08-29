@@ -11,6 +11,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -31,7 +32,11 @@ class DampedDragAnimation(
     private val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     private val onDragStopped: DampedDragAnimation.(wasDragged: Boolean) -> Unit,
     private val onDragCancelled: DampedDragAnimation.() -> Unit,
-    private val onDrag: DampedDragAnimation.(size: IntSize, dragAmount: Offset) -> Unit,
+    private val onDrag: DampedDragAnimation.(
+        size: IntSize,
+        position: Offset,
+        dragAmount: Offset,
+    ) -> Unit,
 ) {
     // -- Constants
 
@@ -85,8 +90,9 @@ class DampedDragAnimation(
                 onDragCancelled()
                 release()
             },
-        ) { _, dragAmount ->
-            onDrag(size, dragAmount)
+            followPointerImmediately = true,
+        ) { change, dragAmount ->
+            onDrag(size, change.position, dragAmount)
         }
     }
 
@@ -118,12 +124,9 @@ class DampedDragAnimation(
 
     fun updateValue(value: Float) {
         val targetValue = value.coerceIn(valueRange)
-        animationScope.launch {
-            launch {
-                valueAnimation.animateTo(targetValue, valueAnimationSpec) {
-                    updateVelocity()
-                }
-            }
+        animationScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            valueAnimation.snapTo(targetValue)
+            updateVelocity()
         }
     }
 

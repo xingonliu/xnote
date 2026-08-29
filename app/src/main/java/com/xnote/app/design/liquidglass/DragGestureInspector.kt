@@ -27,6 +27,7 @@ suspend fun PointerInputScope.inspectDragGestures(
     onDragEnd: (change: PointerInputChange, wasDragged: Boolean) -> Unit = { _, _ -> },
     onDragCancel: () -> Unit = {},
     consumeChanges: Boolean = true,
+    followPointerImmediately: Boolean = false,
     onDrag: (change: PointerInputChange, dragAmount: Offset) -> Unit,
 ) {
     awaitEachGesture {
@@ -39,6 +40,7 @@ suspend fun PointerInputScope.inspectDragGestures(
             pointerId = down.id,
             touchSlop = viewConfiguration.touchSlop,
             consumeChanges = consumeChanges,
+            followPointerImmediately = followPointerImmediately,
             onDrag = onDrag,
         )
         if (upEvent == null) {
@@ -53,6 +55,7 @@ private suspend inline fun AwaitPointerEventScope.drag(
     pointerId: PointerId,
     touchSlop: Float,
     consumeChanges: Boolean,
+    followPointerImmediately: Boolean,
     onDrag: (change: PointerInputChange, dragAmount: Offset) -> Unit,
 ): DragEnd? {
     val isPointerUp = currentEvent.changes.fastFirstOrNull { it.id == pointerId }?.pressed != true
@@ -72,8 +75,13 @@ private suspend inline fun AwaitPointerEventScope.drag(
         accumulatedDrag += dragAmount
         val crossedSlop = !wasDragged && accumulatedDrag.getDistance() >= touchSlop
         wasDragged = wasDragged || crossedSlop
+        if (followPointerImmediately || wasDragged) {
+            onDrag(
+                change,
+                if (followPointerImmediately || !crossedSlop) dragAmount else accumulatedDrag,
+            )
+        }
         if (wasDragged) {
-            onDrag(change, if (crossedSlop) accumulatedDrag else dragAmount)
             if (consumeChanges) {
                 change.consume()
             }

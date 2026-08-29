@@ -122,7 +122,6 @@ fun LiquidBottomTabs(
         }
         val tabWidthDp = with(density) { tabWidth.toDp() }
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
-        val dragDirection = if (isLtr) 1f else -1f
         val animationScope = rememberCoroutineScope()
         val offsetAnimation = remember { Animatable(0f) }
         val reselectionWavePhase = remember { Animatable(1f) }
@@ -202,6 +201,7 @@ fun LiquidBottomTabs(
                 pressedScale = BottomTabPressedScale,
                 onDragStarted = { position ->
                     gestureValue = tabValueAtPosition(position.x)
+                    updateValue(gestureValue)
                     hapticView.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                 },
                 onDragStopped = { wasDragged ->
@@ -244,11 +244,9 @@ fun LiquidBottomTabs(
                 onDragCancelled = {
                     animateToValue(currentIndex.toFloat())
                 },
-                onDrag = { _, dragAmount ->
-                    updateValue(
-                        (targetValue + dragAmount.x / tabWidth * dragDirection)
-                            .fastCoerceIn(0f, (tabsCount - 1).toFloat()),
-                    )
+                onDrag = { _, position, dragAmount ->
+                    gestureValue = tabValueAtPosition(position.x)
+                    updateValue(gestureValue)
                     animationScope.launch {
                         offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
                     }
