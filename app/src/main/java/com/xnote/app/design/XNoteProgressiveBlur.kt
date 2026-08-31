@@ -41,8 +41,8 @@ data class XNoteScrollEdgeState(
 // -- Constants
 
 private val ProgressiveBlurHeight = 128.dp
-private val ProgressiveBlurRadius = 4.dp
-private const val ProgressiveBlurTintIntensity = 0.8f
+private val ProgressiveBlurRadius = 16.dp
+private const val ProgressiveBlurTintIntensity = 0.2f
 private const val ProgressiveBlurShader = """
     uniform shader content;
 
@@ -53,9 +53,8 @@ private const val ProgressiveBlurShader = """
 
     half4 main(float2 coord) {
         float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
-        float blurAlpha = smoothstep(size.y, size.y * 0.5, edgeCoordinate);
-        float tintAlpha = smoothstep(size.y, size.y * 0.5, edgeCoordinate);
-        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
+        float mask = smoothstep(size.y, size.y * 0.2, edgeCoordinate);
+        return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
     }
 """
 
