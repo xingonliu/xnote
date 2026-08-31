@@ -1,6 +1,7 @@
 package com.xnote.app.data.settings
 
 import com.xnote.app.domain.model.AppSettings
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.defaultAppSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 interface AppSettingsRepository {
     val settings: Flow<AppSettings>
 
-    suspend fun setDefaultBackgroundKey(key: String)
+    suspend fun setDefaultBackground(background: BackgroundKey)
 }
 
 class InMemoryAppSettingsRepository(
@@ -20,7 +21,7 @@ class InMemoryAppSettingsRepository(
 
     override val settings: Flow<AppSettings> = state
 
-    override suspend fun setDefaultBackgroundKey(key: String) {
-        state.value = state.value.copy(defaultBackgroundKey = key)
+    override suspend fun setDefaultBackground(background: BackgroundKey) {
+        state.value = state.value.copy(defaultBackground = background)
     }
 }

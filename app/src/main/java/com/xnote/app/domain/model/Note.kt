@@ -24,7 +24,7 @@ data class Note(
     val kind: NoteKind,
     val document: NoteDocument?,
     val markdownText: String?,
-    val backgroundKey: String?,
+    val backgroundKey: BackgroundKey?,
     val sortIndex: Long,
     val visibleCharacterCount: Int,
     val latinWordCount: Int,

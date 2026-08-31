@@ -47,7 +47,6 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
-import com.xnote.app.data.background.ResolvedNoteBackground
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.EditorSelection
@@ -61,6 +60,7 @@ import com.xnote.app.domain.document.TextAlignment
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.document.numberedLabels
 import com.xnote.app.domain.document.plainText
+import com.xnote.app.domain.model.BackgroundKey
 import com.kyant.backdrop.Backdrop
 
 // -- Composables
@@ -68,12 +68,11 @@ import com.kyant.backdrop.Backdrop
 @Composable
 fun NoteEditorScreen(
     session: NoteEditorSession,
-    background: ResolvedNoteBackground,
+    background: BackgroundKey,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
-    onBackgroundLoadFailed: () -> Unit = {},
 ) {
     LaunchedEffect(session.noteId) {
         session.load()
@@ -106,7 +105,6 @@ fun NoteEditorScreen(
                 .imePadding()
                 .navigationBarsPadding()
                 .fillMaxSize(),
-            onBackgroundLoadFailed = onBackgroundLoadFailed,
         ) {
             MarkdownNoteScreen(
                 session = session,
@@ -126,7 +124,6 @@ fun NoteEditorScreen(
             .imePadding()
             .navigationBarsPadding()
             .fillMaxSize(),
-        onBackgroundLoadFailed = onBackgroundLoadFailed,
     ) {
         Column(
             modifier = Modifier

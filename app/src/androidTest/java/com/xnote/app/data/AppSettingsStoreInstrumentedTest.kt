@@ -7,7 +7,6 @@ import com.xnote.app.data.settings.AppSettingsStore
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.defaultBackgroundKey
-import com.xnote.app.domain.model.encode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -23,14 +22,14 @@ class AppSettingsStoreInstrumentedTest {
     @Test
     fun defaultBackgroundPersistsAcrossStoreInstances() = runTest {
         val store = AppSettingsStore(context)
-        val selected = BackgroundKey.Builtin(GridBuiltinBackgroundId).encode()
+        val selected = BackgroundKey(GridBuiltinBackgroundId)
         try {
-            store.setDefaultBackgroundKey(selected)
+            store.setDefaultBackground(selected)
 
             val reopened = AppSettingsStore(context)
-            assertEquals(selected, reopened.settings.first().defaultBackgroundKey)
+            assertEquals(selected, reopened.settings.first().defaultBackground)
         } finally {
-            store.setDefaultBackgroundKey(defaultBackgroundKey().encode())
+            store.setDefaultBackground(defaultBackgroundKey())
         }
     }
 }

@@ -30,9 +30,6 @@ class XNoteContainer(
         database = database,
         files = AttachmentFileStore(appContext.filesDir),
         clock = clock,
-        additionallyReferencedAttachmentIds = {
-            settings.current().referencedAttachmentIds()
-        },
     )
 
     fun start() {

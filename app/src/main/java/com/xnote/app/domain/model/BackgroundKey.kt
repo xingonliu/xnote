@@ -2,9 +2,10 @@ package com.xnote.app.domain.model
 
 // -- Type Definitions
 
-sealed interface BackgroundKey {
-    data class Builtin(val id: String) : BackgroundKey
-    data class UserImage(val attachmentId: String) : BackgroundKey
+data class BackgroundKey(val id: String) {
+    init {
+        require(id in BuiltinBackgroundIds) { "Unsupported built-in background: $id" }
+    }
 }
 
 // -- Constants
@@ -14,7 +15,7 @@ const val CreamBuiltinBackgroundId = "cream"
 const val RuledBuiltinBackgroundId = "ruled"
 const val GridBuiltinBackgroundId = "grid"
 
-val BuiltinBackgroundIds = setOf(
+private val BuiltinBackgroundIds = setOf(
     DefaultBuiltinBackgroundId,
     CreamBuiltinBackgroundId,
     RuledBuiltinBackgroundId,
@@ -23,46 +24,17 @@ val BuiltinBackgroundIds = setOf(
 
 // -- Functions
 
-fun BackgroundKey.encode(): String = when (this) {
-    is BackgroundKey.Builtin -> "builtin:$id"
-    is BackgroundKey.UserImage -> "attachment:$attachmentId"
-}
+fun BackgroundKey.encode(): String = "builtin:$id"
 
 fun parseBackgroundKey(raw: String?): BackgroundKey? {
-    if (raw.isNullOrBlank()) return null
-    return when {
-        raw.startsWith("builtin:") -> {
-            val id = raw.removePrefix("builtin:")
-            if (id.isBlank()) null else BackgroundKey.Builtin(id)
-        }
-        raw.startsWith("attachment:") -> {
-            val id = raw.removePrefix("attachment:")
-            if (id.isBlank()) null else BackgroundKey.UserImage(id)
-        }
-        else -> null
-    }
+    if (raw?.startsWith("builtin:") != true) return null
+    val id = raw.removePrefix("builtin:")
+    return if (id in BuiltinBackgroundIds) BackgroundKey(id) else null
 }
 
-fun BackgroundKey.attachmentIdOrNull(): String? = when (this) {
-    is BackgroundKey.Builtin -> null
-    is BackgroundKey.UserImage -> attachmentId
-}
-
-fun defaultBackgroundKey(): BackgroundKey = BackgroundKey.Builtin(DefaultBuiltinBackgroundId)
-
-fun BackgroundKey.isSupported(): Boolean = when (this) {
-    is BackgroundKey.Builtin -> id in BuiltinBackgroundIds
-    is BackgroundKey.UserImage -> attachmentId.isNotBlank()
-}
+fun defaultBackgroundKey(): BackgroundKey = BackgroundKey(DefaultBuiltinBackgroundId)
 
 fun resolveBackgroundKey(
-    noteBackgroundKey: String?,
-    defaultBackgroundKeyRaw: String?,
-): BackgroundKey {
-    val defaultKey = parseBackgroundKey(defaultBackgroundKeyRaw)
-        ?.takeIf(BackgroundKey::isSupported)
-        ?: defaultBackgroundKey()
-    return parseBackgroundKey(noteBackgroundKey)
-        ?.takeIf(BackgroundKey::isSupported)
-        ?: defaultKey
-}
+    noteBackground: BackgroundKey?,
+    defaultBackground: BackgroundKey,
+): BackgroundKey = noteBackground ?: defaultBackground

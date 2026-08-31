@@ -3,7 +3,6 @@ package com.xnote.app.domain.model
 // -- Type Definitions
 
 enum class AttachmentKind {
-    UserBackground,
     Image,
     Sticker,
     Drawing,

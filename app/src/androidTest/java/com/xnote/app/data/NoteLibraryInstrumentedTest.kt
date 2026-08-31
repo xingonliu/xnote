@@ -6,8 +6,6 @@ import android.content.Context
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
-import com.xnote.app.data.background.NoteBackgroundResolver
-import com.xnote.app.data.background.ResolvedNoteBackground
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.InlineRun
 import com.xnote.app.domain.document.NoteDocument
@@ -18,7 +16,6 @@ import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.RevisionReason
-import com.xnote.app.domain.model.encode
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -178,38 +175,6 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
-    fun permanentDeleteKeepsAttachmentReferencedOutsideNotes() = runTest {
-        var externallyReferencedId = ""
-        val protectedLibrary = NoteLibrary(
-            database = database,
-            files = AttachmentFileStore(filesRoot),
-            clock = clock,
-            additionallyReferencedAttachmentIds = { setOf(externallyReferencedId) },
-        )
-        val attachment = protectedLibrary.putAttachment(
-            kind = AttachmentKind.UserBackground,
-            mimeType = "image/png",
-            extension = "png",
-            input = ByteArrayInputStream(byteArrayOf(1, 2, 3)),
-        )
-        externallyReferencedId = attachment.id
-        val note = protectedLibrary.createRichNote(null)
-        protectedLibrary.saveNote(
-            note.copy(
-                document = NoteDocument(
-                    blocks = listOf(ImageBlock(id = "image", attachmentId = attachment.id)),
-                ),
-            ),
-        )
-        protectedLibrary.trashNotes(listOf(note.id))
-
-        protectedLibrary.permanentlyDeleteNotes(listOf(note.id))
-
-        assertNotNull(protectedLibrary.getAttachment(attachment.id))
-        assertTrue(protectedLibrary.attachmentFile(attachment).exists())
-    }
-
-    @Test
     fun notePersistsAfterTheDatabaseIsClosedAndReopened() = runTest {
         val databaseName = "xnote-cold-start-${System.nanoTime()}.db"
         context.deleteDatabase(databaseName)
@@ -341,29 +306,18 @@ class NoteLibraryInstrumentedTest {
         val source = library.createNotebook("来源")
         val destination = library.createNotebook("目标")
         val note = library.createRichNote(source.id)
-        val background = BackgroundKey.Builtin(GridBuiltinBackgroundId)
+        val background = BackgroundKey(GridBuiltinBackgroundId)
 
         library.setNoteBackground(note.id, background)
         library.moveNotes(listOf(note.id), destination.id)
 
-        assertEquals(background.encode(), library.getNote(note.id)?.backgroundKey)
+        assertEquals(background, library.getNote(note.id)?.backgroundKey)
         library.convertToMarkdown(note.id)
-        assertEquals(background.encode(), library.getNote(note.id)?.backgroundKey)
+        assertEquals(background, library.getNote(note.id)?.backgroundKey)
         library.setNoteBackground(note.id, null)
         assertNull(library.getNote(note.id)?.backgroundKey)
     }
 
-    @Test
-    fun missingUserBackgroundFallsBackToTheConfiguredDefault() = runTest {
-        val resolution = NoteBackgroundResolver(library).resolve(
-            noteBackgroundKey = BackgroundKey.UserImage("missing").encode(),
-            defaultBackgroundKeyRaw = BackgroundKey.Builtin(GridBuiltinBackgroundId).encode(),
-        )
-
-        assertTrue(resolution.fellBack)
-        val resolved = resolution.background as ResolvedNoteBackground.Builtin
-        assertEquals(GridBuiltinBackgroundId, resolved.key.id)
-    }
 }
 
 // -- Fixtures

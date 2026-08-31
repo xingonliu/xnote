@@ -77,16 +77,11 @@
     <string name="background_builtin_cream">奶油纹理</string>
     <string name="background_builtin_ruled">横线纸</string>
     <string name="background_builtin_grid">方格纸</string>
-    <string name="background_user_image">相册图片</string>
-    <string name="background_import_from_gallery">从相册选择</string>
-    <string name="background_importing">正在导入图片</string>
-    <string name="background_import_failed">未能导入这张图片，请选择可正常打开的图片。</string>
-    <string name="background_resource_unavailable">背景资源不可用，已显示默认背景。</string>
     <string name="background_preview_title">笔记背景预览</string>
     <string name="background_preview_body">背景只会显示在笔记内容画布中。</string>
     <string name="background_settings_title">默认笔记背景</string>
     <string name="background_settings_open">打开默认笔记背景设置</string>
-    <string name="background_settings_summary">为未设置专属背景的笔记选择纸张或图片</string>
+    <string name="background_settings_summary">为未设置专属背景的笔记选择内置纸张</string>
     <string name="background_restore_initial">恢复初始默认背景</string>
     <string name="editor_unsupported_block">此块仅保存内容，当前不能在文字编辑中修改。</string>
     <string name="editor_link_title">链接</string>

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,8 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.data.background.NoteBackgroundResolution
-import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.design.XNoteMaximumContentWidth
 import com.xnote.app.design.XNoteMinimumTouchTarget
@@ -29,31 +26,21 @@ import com.xnote.app.design.XNoteSpacingLarge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.BackgroundKey
-import com.xnote.app.domain.model.DefaultBuiltinBackgroundId
-import com.xnote.app.domain.model.encode
-import com.xnote.app.domain.model.parseBackgroundKey
+import com.xnote.app.domain.model.defaultBackgroundKey
 import kotlinx.coroutines.launch
 
 // -- Functions
 
 @Composable
 fun DefaultBackgroundScreen(
-    defaultBackgroundKey: String,
-    resolution: NoteBackgroundResolution,
-    library: NoteLibrary,
+    selectedBackground: BackgroundKey,
     settings: AppSettingsRepository,
     backdrop: Backdrop,
-    toastHostState: SnackbarHostState,
     contentPadding: PaddingValues,
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val importController = rememberUserBackgroundImportController(
-        library = library,
-        toastHostState = toastHostState,
-        onImported = { key -> settings.setDefaultBackgroundKey(key.encode()) },
-    )
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -68,23 +55,18 @@ fun DefaultBackgroundScreen(
             verticalArrangement = Arrangement.spacedBy(XNoteSpacingLarge),
         ) {
             XNoteBackgroundPicker(
-                selectedKey = parseBackgroundKey(defaultBackgroundKey),
-                resolvedBackground = resolution.background,
+                selectedKey = selectedBackground,
+                previewBackground = selectedBackground,
                 scopeDescription = stringResource(R.string.background_scope_default),
-                backdrop = backdrop,
                 onSelect = { selected ->
-                    val key = selected ?: BackgroundKey.Builtin(DefaultBuiltinBackgroundId)
-                    scope.launch { settings.setDefaultBackgroundKey(key.encode()) }
+                    val key = selected ?: defaultBackgroundKey()
+                    scope.launch { settings.setDefaultBackground(key) }
                 },
-                onImport = importController.launch,
-                isImporting = importController.isImporting,
             )
             LiquidButton(
                 onClick = {
                     scope.launch {
-                        settings.setDefaultBackgroundKey(
-                            BackgroundKey.Builtin(DefaultBuiltinBackgroundId).encode(),
-                        )
+                        settings.setDefaultBackground(defaultBackgroundKey())
                     }
                 },
                 backdrop = backdrop,

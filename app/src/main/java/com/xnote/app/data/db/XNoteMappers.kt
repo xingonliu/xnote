@@ -5,11 +5,13 @@ import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.document.encodeToJson
 import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
+import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.NoteRevision
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.RevisionReason
+import com.xnote.app.domain.model.parseBackgroundKey
 
 // -- Functions
 
@@ -36,7 +38,7 @@ fun NoteEntity.toDomain(): Note = Note(
     kind = kind.toNoteKind(),
     document = documentJson?.let(::decodeNoteDocument),
     markdownText = markdownText,
-    backgroundKey = backgroundKey,
+    backgroundKey = parseBackgroundKey(backgroundKey),
     sortIndex = sortIndex,
     visibleCharacterCount = visibleCharacterCount,
     latinWordCount = latinWordCount,
@@ -54,7 +56,7 @@ fun Note.toEntity(): NoteEntity = NoteEntity(
     kind = kind.storageValue(),
     documentJson = document?.encodeToJson(),
     markdownText = markdownText,
-    backgroundKey = backgroundKey,
+    backgroundKey = backgroundKey?.encode(),
     sortIndex = sortIndex,
     visibleCharacterCount = visibleCharacterCount,
     latinWordCount = latinWordCount,
@@ -132,14 +134,12 @@ fun String.toRevisionReason(): RevisionReason = when (this) {
 }
 
 fun AttachmentKind.storageValue(): String = when (this) {
-    AttachmentKind.UserBackground -> "user_background"
     AttachmentKind.Image -> "image"
     AttachmentKind.Sticker -> "sticker"
     AttachmentKind.Drawing -> "drawing"
 }
 
 fun String.toAttachmentKind(): AttachmentKind = when (this) {
-    "user_background" -> AttachmentKind.UserBackground
     "sticker" -> AttachmentKind.Sticker
     "drawing" -> AttachmentKind.Drawing
     else -> AttachmentKind.Image

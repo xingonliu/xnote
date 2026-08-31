@@ -9,36 +9,35 @@ import org.junit.Test
 class BackgroundKeyTest {
     @Test
     fun keysRoundTripThroughStorageEncoding() {
-        val builtin = BackgroundKey.Builtin(RuledBuiltinBackgroundId)
-        val image = BackgroundKey.UserImage("attachment-1")
+        val builtin = BackgroundKey(RuledBuiltinBackgroundId)
 
         assertEquals(builtin, parseBackgroundKey(builtin.encode()))
-        assertEquals(image, parseBackgroundKey(image.encode()))
+        assertNull(parseBackgroundKey("attachment:removed"))
         assertNull(parseBackgroundKey("unsupported"))
     }
 
     @Test
     fun noteOverrideWinsAndNullContinuesToFollowTheDefault() {
-        val default = BackgroundKey.Builtin(GridBuiltinBackgroundId)
-        val override = BackgroundKey.Builtin(CreamBuiltinBackgroundId)
+        val default = BackgroundKey(GridBuiltinBackgroundId)
+        val override = BackgroundKey(CreamBuiltinBackgroundId)
 
         assertEquals(
             default,
-            resolveBackgroundKey(null, default.encode()),
+            resolveBackgroundKey(null, default),
         )
         assertEquals(
             override,
-            resolveBackgroundKey(override.encode(), default.encode()),
+            resolveBackgroundKey(override, default),
         )
     }
 
     @Test
     fun unsupportedBuiltInFallsBackToTheCurrentDefault() {
-        val default = BackgroundKey.Builtin(GridBuiltinBackgroundId)
+        val default = BackgroundKey(GridBuiltinBackgroundId)
 
         assertEquals(
             default,
-            resolveBackgroundKey("builtin:removed", default.encode()),
+            resolveBackgroundKey(parseBackgroundKey("builtin:removed"), default),
         )
     }
 }

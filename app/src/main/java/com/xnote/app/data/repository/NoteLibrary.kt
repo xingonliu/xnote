@@ -23,7 +23,6 @@ import com.xnote.app.domain.model.NoteRevision
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.domain.model.RevisionReason
-import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.newNoteId
 import com.xnote.app.domain.rules.RecycleBinPolicy
 import com.xnote.app.domain.rules.conversionBlockers
@@ -45,7 +44,6 @@ class NoteLibrary(
     private val database: XNoteDatabase,
     private val files: AttachmentFileStore,
     private val clock: EpochClock,
-    private val additionallyReferencedAttachmentIds: suspend () -> Set<String> = { emptySet() },
 ) {
     private val notebooks = database.notebooks()
     private val notes = database.notes()
@@ -224,7 +222,7 @@ class NoteLibrary(
                 ?: error("Note not found: $noteId")
             check(!existing.isTrashed) { "Trashed notes cannot change background" }
             val updated = existing.copy(
-                backgroundKey = backgroundKey?.encode(),
+                backgroundKey = backgroundKey,
                 updatedAtEpochMs = clock.nowMs(),
             )
             notes.upsert(updated.toEntity())
@@ -322,33 +320,28 @@ class NoteLibrary(
         }
     }
 
-    suspend fun permanentlyDeleteNotes(
-        ids: Collection<String>,
-        extraReferencedAttachmentIds: Set<String> = emptySet(),
-    ) {
+    suspend fun permanentlyDeleteNotes(ids: Collection<String>) {
         if (ids.isEmpty()) return
-        val referencedOutsideNotes = extraReferencedAttachmentIds +
-            additionallyReferencedAttachmentIds()
         write {
             val idList = ids.toList()
             revisions.deleteByNoteIds(idList)
             noteFts.deleteByNoteIds(idList)
             notes.deleteByIds(idList)
-            deleteOrphanAttachments(referencedOutsideNotes)
+            deleteOrphanAttachments()
         }
     }
 
-    suspend fun emptyTrash(extraReferencedAttachmentIds: Set<String> = emptySet()) {
+    suspend fun emptyTrash() {
         val trashedIds = notes.getTrashed().map { it.id }
-        permanentlyDeleteNotes(trashedIds, extraReferencedAttachmentIds)
+        permanentlyDeleteNotes(trashedIds)
     }
 
-    suspend fun purgeExpiredTrash(extraReferencedAttachmentIds: Set<String> = emptySet()) {
+    suspend fun purgeExpiredTrash() {
         val expireBefore = clock.nowMs() - java.util.concurrent.TimeUnit.DAYS.toMillis(
             RecycleBinPolicy.RetentionDays.toLong(),
         )
         val expiredIds = notes.expiredTrash(expireBefore).map { it.id }
-        permanentlyDeleteNotes(expiredIds, extraReferencedAttachmentIds)
+        permanentlyDeleteNotes(expiredIds)
     }
 
     suspend fun saveRevision(noteId: String, reason: RevisionReason): NoteRevision {
@@ -464,11 +457,10 @@ class NoteLibrary(
         )
     }
 
-    private suspend fun deleteOrphanAttachments(extraKeepIds: Set<String>) {
+    private suspend fun deleteOrphanAttachments() {
         val remainingNotes = notes.getAll().map { it.toDomain() }
         val remainingRevisions = revisions.getAll().map { it.toDomain() }
         val referenced = linkedSetOf<String>()
-        referenced += extraKeepIds
         remainingNotes.forEach { referenced += it.referencedAttachmentIds() }
         remainingRevisions.forEach { referenced += it.referencedAttachmentIds() }
         val orphans = attachments.getAll().filter { it.id !in referenced }

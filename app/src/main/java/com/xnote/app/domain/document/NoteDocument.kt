@@ -1,9 +1,7 @@
 package com.xnote.app.domain.document
 
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.attachmentIdOrNull
 import com.xnote.app.domain.model.newNoteId
-import com.xnote.app.domain.model.parseBackgroundKey
 import kotlinx.serialization.Serializable
 
 // -- Type Definitions
@@ -38,9 +36,4 @@ fun NoteDocument.attachmentIds(): Set<String> {
     return ids
 }
 
-fun Note.referencedAttachmentIds(): Set<String> {
-    val ids = linkedSetOf<String>()
-    parseBackgroundKey(backgroundKey)?.attachmentIdOrNull()?.let { ids += it }
-    document?.let { ids += it.attachmentIds() }
-    return ids
-}
+fun Note.referencedAttachmentIds(): Set<String> = document?.attachmentIds().orEmpty()

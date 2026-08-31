@@ -9,16 +9,11 @@ enum class ThemeMode {
 }
 
 data class AppSettings(
-    val defaultBackgroundKey: String,
+    val defaultBackground: BackgroundKey,
     val themeMode: ThemeMode,
-) {
-    fun referencedAttachmentIds(): Set<String> {
-        val attachmentId = parseBackgroundKey(defaultBackgroundKey)?.attachmentIdOrNull()
-        return if (attachmentId == null) emptySet() else setOf(attachmentId)
-    }
-}
+)
 
 fun defaultAppSettings(): AppSettings = AppSettings(
-    defaultBackgroundKey = defaultBackgroundKey().encode(),
+    defaultBackground = defaultBackgroundKey(),
     themeMode = ThemeMode.System,
 )

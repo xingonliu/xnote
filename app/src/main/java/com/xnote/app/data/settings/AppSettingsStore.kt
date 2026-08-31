@@ -7,10 +7,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.xnote.app.domain.model.AppSettings
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.ThemeMode
-import com.xnote.app.domain.model.defaultAppSettings
+import com.xnote.app.domain.model.defaultBackgroundKey
+import com.xnote.app.domain.model.encode
+import com.xnote.app.domain.model.parseBackgroundKey
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 // -- Constants
@@ -33,11 +35,9 @@ class AppSettingsStore(
         preferences.toAppSettings()
     }
 
-    suspend fun current(): AppSettings = settings.first()
-
-    override suspend fun setDefaultBackgroundKey(key: String) {
+    override suspend fun setDefaultBackground(background: BackgroundKey) {
         dataStore.edit { preferences ->
-            preferences[DefaultBackgroundKey] = key
+            preferences[DefaultBackgroundKey] = background.encode()
         }
     }
 
@@ -51,9 +51,9 @@ class AppSettingsStore(
 // -- Functions
 
 private fun Preferences.toAppSettings(): AppSettings {
-    val defaults = defaultAppSettings()
     return AppSettings(
-        defaultBackgroundKey = this[DefaultBackgroundKey] ?: defaults.defaultBackgroundKey,
+        defaultBackground = parseBackgroundKey(this[DefaultBackgroundKey])
+            ?: defaultBackgroundKey(),
         themeMode = this[ThemeModeKey].toThemeMode(),
     )
 }

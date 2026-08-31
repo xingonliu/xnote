@@ -70,21 +70,19 @@ import com.xnote.app.design.rememberXNoteToastHostState
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
-import com.xnote.app.data.background.NoteBackgroundResolution
-import com.xnote.app.data.background.NoteBackgroundResolver
-import com.xnote.app.data.background.ResolvedNoteBackground
-import com.xnote.app.data.background.defaultResolvedBackground
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.data.search.EmptySearchHistoryRepository
 import com.xnote.app.data.search.SearchHistoryRepository
 import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.data.settings.InMemoryAppSettingsRepository
 import com.xnote.app.domain.model.AppSettings
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.defaultAppSettings
+import com.xnote.app.domain.model.resolveBackgroundKey
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.background.DefaultBackgroundScreen
 import com.xnote.app.feature.notes.NotesChrome
@@ -170,17 +168,21 @@ fun XNoteApp(
         editorNoteId?.let { NoteEditorSession(noteLibrary, it, appScope) }
     }
     val settingsRepository = remember(settings) { settings ?: InMemoryAppSettingsRepository() }
-    val backgroundResolver = remember(noteLibrary) { NoteBackgroundResolver(noteLibrary) }
     var notebooks by remember { mutableStateOf<List<Notebook>>(emptyList()) }
     var activeNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var trashedNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var searchResults by remember { mutableStateOf<List<NoteSearchResult>>(emptyList()) }
     var recentQueries by remember { mutableStateOf<List<String>>(emptyList()) }
     var appSettings by remember { mutableStateOf<AppSettings>(defaultAppSettings()) }
-    var defaultBackgroundResolution by remember { mutableStateOf(initialBackgroundResolution()) }
-    var editorBackgroundResolution by remember { mutableStateOf(initialBackgroundResolution()) }
+    val defaultBackground = resolveBackgroundKey(
+        noteBackground = null,
+        defaultBackground = appSettings.defaultBackground,
+    )
+    val editorBackground = resolveBackgroundKey(
+        noteBackground = editorSession?.note?.backgroundKey,
+        defaultBackground = appSettings.defaultBackground,
+    )
     val lifecycleOwner = LocalLifecycleOwner.current
-    val unavailableBackgroundMessage = stringResource(R.string.background_resource_unavailable)
 
     LaunchedEffect(scopeEncoded, homeSortName, notebookSortName) {
         uiState.scope = decodeNotesScope(scopeEncoded)
@@ -200,28 +202,6 @@ fun XNoteApp(
     }
     LaunchedEffect(settingsRepository) {
         settingsRepository.settings.collect { appSettings = it }
-    }
-    LaunchedEffect(appSettings.defaultBackgroundKey, navigationState.isAppearanceOpen) {
-        defaultBackgroundResolution = backgroundResolver.resolve(
-            noteBackgroundKey = null,
-            defaultBackgroundKeyRaw = appSettings.defaultBackgroundKey,
-        )
-        if (defaultBackgroundResolution.fellBack && navigationState.isAppearanceOpen) {
-            toastHostState.showSnackbar(unavailableBackgroundMessage)
-        }
-    }
-    LaunchedEffect(
-        editorSession?.note?.id,
-        editorSession?.note?.backgroundKey,
-        appSettings.defaultBackgroundKey,
-    ) {
-        editorBackgroundResolution = backgroundResolver.resolve(
-            noteBackgroundKey = editorSession?.note?.backgroundKey,
-            defaultBackgroundKeyRaw = appSettings.defaultBackgroundKey,
-        )
-        if (editorSession?.note != null && editorBackgroundResolution.fellBack) {
-            toastHostState.showSnackbar(unavailableBackgroundMessage)
-        }
     }
     LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes) {
         if (!navigationState.isSearchOpen || searchQuery.isBlank()) {
@@ -431,9 +411,8 @@ fun XNoteApp(
                     notebookListState = notebookListState,
                     editorScrollState = editorScrollState,
                     editorSession = editorSession,
-                    editorBackground = editorBackgroundResolution.background,
-                    defaultBackgroundKey = appSettings.defaultBackgroundKey,
-                    defaultBackgroundResolution = defaultBackgroundResolution,
+                    editorBackground = editorBackground,
+                    defaultBackground = defaultBackground,
                     settings = settingsRepository,
                     appearanceScrollState = appearanceScrollState,
                     searchQuery = searchQuery,
@@ -537,7 +516,7 @@ fun XNoteApp(
                         backdrop = backdrop,
                         isTablet = isTablet,
                         editorSession = editorSession,
-                        editorBackground = editorBackgroundResolution.background,
+                        editorBackground = editorBackground,
                         toastHostState = toastHostState,
                         onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
                         onCreateNote = ::createNote,
@@ -589,9 +568,8 @@ private fun DestinationContent(
     notebookListState: LazyListState,
     editorScrollState: ScrollState,
     editorSession: NoteEditorSession?,
-    editorBackground: ResolvedNoteBackground,
-    defaultBackgroundKey: String,
-    defaultBackgroundResolution: NoteBackgroundResolution,
+    editorBackground: BackgroundKey,
+    defaultBackground: BackgroundKey,
     settings: AppSettingsRepository,
     appearanceScrollState: ScrollState,
     searchQuery: String,
@@ -611,16 +589,12 @@ private fun DestinationContent(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val backgroundFailureMessage = stringResource(R.string.background_resource_unavailable)
 
     if (navigationState.isAppearanceOpen) {
         DefaultBackgroundScreen(
-            defaultBackgroundKey = defaultBackgroundKey,
-            resolution = defaultBackgroundResolution,
-            library = noteLibrary,
+            selectedBackground = defaultBackground,
             settings = settings,
             backdrop = backdrop,
-            toastHostState = toastHostState,
             contentPadding = contentPadding,
             scrollState = appearanceScrollState,
             modifier = modifier,
@@ -728,9 +702,6 @@ private fun DestinationContent(
                     backdrop = backdrop,
                     contentPadding = editorContentPadding,
                     scrollState = editorScrollState,
-                    onBackgroundLoadFailed = {
-                        scope.launch { toastHostState.showSnackbar(backgroundFailureMessage) }
-                    },
                     modifier = modifier,
                 )
             }
@@ -758,15 +729,6 @@ private fun DestinationContent(
 }
 
 private fun Set<String>.toggle(id: String): Set<String> = if (id in this) this - id else this + id
-
-private fun initialBackgroundResolution(): NoteBackgroundResolution {
-    val background = defaultResolvedBackground()
-    return NoteBackgroundResolution(
-        background = background,
-        requestedKey = background.key,
-        fellBack = false,
-    )
-}
 
 @Composable
 private fun XNoteBottomNavigation(

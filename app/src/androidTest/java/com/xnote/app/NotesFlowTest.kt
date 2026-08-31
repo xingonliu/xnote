@@ -29,7 +29,6 @@ import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.RuledBuiltinBackgroundId
-import com.xnote.app.domain.model.encode
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -319,8 +318,8 @@ class NotesFlowTest {
 
         composeRule.waitUntil(5_000) {
             runBlocking {
-                settings.settings.first().defaultBackgroundKey ==
-                    BackgroundKey.Builtin(GridBuiltinBackgroundId).encode()
+                settings.settings.first().defaultBackground ==
+                    BackgroundKey(GridBuiltinBackgroundId)
             }
         }
     }
@@ -347,7 +346,7 @@ class NotesFlowTest {
         composeRule.waitUntil(5_000) {
             runBlocking {
                 library.getNote(note.id)?.backgroundKey ==
-                    BackgroundKey.Builtin(RuledBuiltinBackgroundId).encode()
+                    BackgroundKey(RuledBuiltinBackgroundId)
             }
         }
 
