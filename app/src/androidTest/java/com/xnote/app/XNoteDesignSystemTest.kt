@@ -280,9 +280,8 @@ class XNoteDesignSystemTest {
     }
 
     @Test
-    fun bottomTabsSeparateSelectionFromActiveReselection() {
+    fun bottomTabsHandleClickSelection() {
         var selectedIndex = 0
-        var reselectedIndex = -1
 
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
@@ -290,29 +289,22 @@ class XNoteDesignSystemTest {
                 LiquidBottomTabs(
                     selectedTabIndex = { selectedIndex },
                     onTabSelected = { selectedIndex = it },
-                    onTabReselected = { reselectedIndex = it },
                     backdrop = backdrop,
                     tabsCount = 2,
                 ) {
-                    LiquidBottomTab(index = 0) { Text("笔记") }
-                    LiquidBottomTab(index = 1) { Text("智能") }
+                    LiquidBottomTab(onClick = { selectedIndex = 0 }) { Text("笔记") }
+                    LiquidBottomTab(onClick = { selectedIndex = 1 }) { Text("智能") }
                 }
             }
         }
 
-        composeRule.onNodeWithText("笔记").performClick()
-        composeRule.runOnIdle { assertEquals(0, reselectedIndex) }
-
         composeRule.onNodeWithText("智能").performClick()
-        composeRule.waitUntil(5_000) { selectedIndex == 1 }
-        composeRule.onNodeWithText("智能").performClick()
-        composeRule.runOnIdle { assertEquals(1, reselectedIndex) }
+        composeRule.runOnIdle { assertEquals(1, selectedIndex) }
     }
 
     @Test
-    fun bottomTabsHandleTouchThroughTheDragSurface() {
+    fun bottomTabsHandleTouchSelection() {
         var selectedIndex = 0
-        var reselectedIndex = -1
 
         composeRule.setContent {
             XNoteTheme(reduceMotion = false) {
@@ -320,22 +312,19 @@ class XNoteDesignSystemTest {
                 LiquidBottomTabs(
                     selectedTabIndex = { selectedIndex },
                     onTabSelected = { selectedIndex = it },
-                    onTabReselected = { reselectedIndex = it },
                     backdrop = backdrop,
                     tabsCount = 3,
                     modifier = Modifier.testTag("touch-liquid-tabs"),
                 ) {
-                    LiquidBottomTab(index = 0) { Text("笔记") }
-                    LiquidBottomTab(index = 1) { Text("智能") }
-                    LiquidBottomTab(index = 2) { Text("我的") }
+                    LiquidBottomTab(onClick = { selectedIndex = 0 }) { Text("笔记") }
+                    LiquidBottomTab(onClick = { selectedIndex = 1 }) { Text("智能") }
+                    LiquidBottomTab(onClick = { selectedIndex = 2 }) { Text("我的") }
                 }
             }
         }
 
         composeRule.onNodeWithText("智能").performTouchInput { click() }
         composeRule.waitUntil(5_000) { selectedIndex == 1 }
-        composeRule.onNodeWithText("智能").performTouchInput { click() }
-        composeRule.runOnIdle { assertEquals(1, reselectedIndex) }
     }
 
     @Test
@@ -352,9 +341,9 @@ class XNoteDesignSystemTest {
                     tabsCount = 3,
                     modifier = Modifier.testTag("draggable-liquid-tabs"),
                 ) {
-                    LiquidBottomTab(index = 0) { Text("笔记") }
-                    LiquidBottomTab(index = 1) { Text("智能") }
-                    LiquidBottomTab(index = 2) { Text("我的") }
+                    LiquidBottomTab(onClick = { selectedIndex = 0 }) { Text("笔记") }
+                    LiquidBottomTab(onClick = { selectedIndex = 1 }) { Text("智能") }
+                    LiquidBottomTab(onClick = { selectedIndex = 2 }) { Text("我的") }
                 }
             }
         }

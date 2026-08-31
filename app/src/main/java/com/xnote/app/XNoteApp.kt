@@ -2,6 +2,7 @@ package com.xnote.app
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,14 +45,19 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
@@ -745,16 +752,19 @@ private fun XNoteBottomNavigation(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
-    val selectedIndexState = rememberUpdatedState(currentDestination.ordinal)
-    val selectedIndex = remember { { selectedIndexState.value } }
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val contentColor = if (isLightTheme) Color.Black else Color.White
+    val iconColorFilter = remember(contentColor) { ColorFilter.tint(contentColor) }
 
     LiquidBottomTabs(
-        selectedTabIndex = selectedIndex,
+        selectedTabIndex = { currentDestination.ordinal },
         onTabSelected = { index ->
-            onDestinationSelected(AppDestination.entries[index])
-        },
-        onTabReselected = { index ->
-            onDestinationReselected(AppDestination.entries[index])
+            val destination = AppDestination.entries[index]
+            if (destination == currentDestination) {
+                onDestinationReselected(destination)
+            } else {
+                onDestinationSelected(destination)
+            }
         },
         backdrop = backdrop,
         tabsCount = AppDestination.entries.size,
@@ -762,25 +772,30 @@ private fun XNoteBottomNavigation(
             .testTag("xnote-bottom-navigation")
             .navigationBarsPadding()
             .padding(horizontal = 36.dp)
-            .height(XNoteBottomNavigationHeight)
-            .padding(top = 12.dp, bottom = 20.dp)
-            .fillMaxWidth()
+            .padding(bottom = 16.dp),
     ) {
         AppDestination.entries.forEach { destination ->
-            val selected = destination == currentDestination
+            val iconPainter = painterResource(destination.iconRes)
             val label = stringResource(destination.labelRes)
+            val isSelected = destination == currentDestination
             LiquidBottomTab(
-                index = destination.ordinal,
-                modifier = Modifier.semantics { this.selected = selected },
+                onClick = {
+                    if (isSelected) {
+                        onDestinationReselected(destination)
+                    } else {
+                        onDestinationSelected(destination)
+                    }
+                },
+                modifier = Modifier.semantics { this.selected = isSelected },
             ) {
-                NavigationIcon(
-                    destination = destination,
-                    tint = MaterialTheme.colorScheme.onSurface,
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .paint(iconPainter, colorFilter = iconColorFilter),
                 )
-                Text(
+                BasicText(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = TextStyle(color = contentColor, fontSize = 12.sp),
                 )
             }
         }

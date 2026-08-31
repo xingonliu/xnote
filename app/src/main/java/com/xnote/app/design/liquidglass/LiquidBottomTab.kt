@@ -18,66 +18,39 @@ import com.kyant.shapes.Capsule
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
 
-// -- Type Definitions
-
-internal data class LiquidBottomTabTransform(
-    val scaleX: Float = 1f,
-    val scaleY: Float = 1f,
-)
-
-internal enum class LiquidBottomTabLayer {
-    Base,
-    Highlight,
-    Interaction,
-}
-
 // -- State
 
-internal val LocalLiquidBottomTabTransform = staticCompositionLocalOf<(Int) -> LiquidBottomTabTransform> {
-    { LiquidBottomTabTransform() }
-}
-internal val LocalLiquidBottomTabClick = staticCompositionLocalOf<(Int) -> Unit> {
-    { }
-}
-internal val LocalLiquidBottomTabLayer = staticCompositionLocalOf {
-    LiquidBottomTabLayer.Base
-}
+internal val LocalLiquidBottomTabScale =
+    staticCompositionLocalOf { { 1f } }
 
 // -- Composables
 
 @Composable
 fun RowScope.LiquidBottomTab(
-    index: Int,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val layer = LocalLiquidBottomTabLayer.current
-    val transform = LocalLiquidBottomTabTransform.current(index)
-    val onClick = LocalLiquidBottomTabClick.current
-    val interactionModifier = if (layer == LiquidBottomTabLayer.Interaction) {
-        Modifier
+    val scale = LocalLiquidBottomTabScale.current
+    Column(
+        modifier = modifier
             .clip(Capsule())
             .clickable(
                 interactionSource = null,
                 indication = null,
                 role = Role.Tab,
-                onClick = { onClick(index) },
+                onClick = onClick,
             )
-    } else {
-        Modifier
-    }
-
-    Column(
-        modifier = modifier
-            .then(interactionModifier)
             .fillMaxHeight()
             .weight(1f)
             .graphicsLayer {
-                scaleX = transform.scaleX
-                scaleY = transform.scaleY
+                val currentScale = scale()
+                scaleX = currentScale
+                scaleY = currentScale
             },
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
     )
 }
+
