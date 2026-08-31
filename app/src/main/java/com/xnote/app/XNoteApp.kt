@@ -760,9 +760,7 @@ private fun XNoteBottomNavigation(
         selectedTabIndex = { currentDestination.ordinal },
         onTabSelected = { index ->
             val destination = AppDestination.entries[index]
-            if (destination == currentDestination) {
-                onDestinationReselected(destination)
-            } else {
+            if (destination != currentDestination) {
                 onDestinationSelected(destination)
             }
         },

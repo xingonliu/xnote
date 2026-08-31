@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -73,6 +74,8 @@ fun LiquidBottomTabs(
         if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
 
+    val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
+    val currentOnTabSelected by rememberUpdatedState(onTabSelected)
     val tabsBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
@@ -96,13 +99,13 @@ fun LiquidBottomTabs(
 
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val animationScope = rememberCoroutineScope()
-        var currentIndex by remember(selectedTabIndex) {
-            mutableIntStateOf(selectedTabIndex())
+        var currentIndex by remember {
+            mutableIntStateOf(currentSelectedTabIndex())
         }
         val dampedDragAnimation = remember(animationScope) {
             DampedDragAnimation(
                 animationScope = animationScope,
-                initialValue = selectedTabIndex().toFloat(),
+                initialValue = currentSelectedTabIndex().toFloat(),
                 valueRange = 0f..(tabsCount - 1).toFloat(),
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
@@ -110,7 +113,10 @@ fun LiquidBottomTabs(
                 onDragStarted = {},
                 onDragStopped = {
                     val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
-                    currentIndex = targetIndex
+                    if (targetIndex != currentIndex) {
+                        currentIndex = targetIndex
+                        currentOnTabSelected(targetIndex)
+                    }
                     animateToValue(targetIndex.toFloat())
                     animationScope.launch {
                         offsetAnimation.animateTo(
@@ -130,18 +136,14 @@ fun LiquidBottomTabs(
                 },
             )
         }
-        LaunchedEffect(selectedTabIndex) {
-            snapshotFlow { selectedTabIndex() }
+        LaunchedEffect(Unit) {
+            snapshotFlow { currentSelectedTabIndex() }
                 .collectLatest { index ->
-                    currentIndex = index
-                }
-        }
-        LaunchedEffect(dampedDragAnimation) {
-            snapshotFlow { currentIndex }
-                .drop(1)
-                .collectLatest { index ->
-                    dampedDragAnimation.animateToValue(index.toFloat())
-                    onTabSelected(index)
+                    val safeIndex = index.fastCoerceIn(0, tabsCount - 1)
+                    if (safeIndex != currentIndex) {
+                        currentIndex = safeIndex
+                        dampedDragAnimation.animateToValue(safeIndex.toFloat())
+                    }
                 }
         }
 
