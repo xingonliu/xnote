@@ -9,7 +9,6 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.util.fastFirstOrNull
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
@@ -18,71 +17,45 @@ import androidx.compose.ui.util.fastFirstOrNull
 
 suspend fun PointerInputScope.inspectDragGestures(
     onDragStart: (down: PointerInputChange) -> Unit = {},
-    onDragEnd: (change: PointerInputChange) -> Unit = {},
+    onDragEnd: (change: PointerInputChange, wasDragged: Boolean) -> Unit = { _, _ -> },
     onDragCancel: () -> Unit = {},
+    consumeChanges: Boolean = true,
+    followPointerImmediately: Boolean = true,
     onDrag: (change: PointerInputChange, dragAmount: Offset) -> Unit,
 ) {
     awaitEachGesture {
-        val initialDown = awaitFirstDown(false, PointerEventPass.Initial)
-
-        val down = awaitFirstDown(false)
-        val drag = initialDown
-
-        onDragStart(down)
-        onDrag(drag, Offset.Zero)
-        val upEvent = drag(
-            pointerId = drag.id,
-            onDrag = { onDrag(it, it.positionChange()) },
+        val down = awaitFirstDown(
+            requireUnconsumed = false,
+            pass = PointerEventPass.Initial,
         )
-        if (upEvent == null) {
-            onDragCancel()
-        } else {
-            onDragEnd(upEvent)
+        onDragStart(down)
+        var pointer = down.id
+        var accumulatedDrag = Offset.Zero
+        var wasDragged = false
+        val touchSlop = viewConfiguration.touchSlop
+
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val dragEvent = event.changes.fastFirstOrNull { it.id == pointer } ?: break
+            if (dragEvent.changedToUpIgnoreConsumed()) {
+                onDragEnd(dragEvent, wasDragged)
+                break
+            }
+            val dragAmount = dragEvent.position - dragEvent.previousPosition
+            accumulatedDrag += dragAmount
+            val crossedSlop = !wasDragged && accumulatedDrag.getDistance() >= touchSlop
+            wasDragged = wasDragged || crossedSlop
+            if (followPointerImmediately || wasDragged) {
+                onDrag(
+                    dragEvent,
+                    if (followPointerImmediately || !crossedSlop) dragAmount else accumulatedDrag,
+                )
+            }
+            if (wasDragged && consumeChanges) {
+                dragEvent.consume()
+            }
+            pointer = dragEvent.id
         }
     }
 }
 
-private suspend inline fun AwaitPointerEventScope.drag(
-    pointerId: PointerId,
-    onDrag: (PointerInputChange) -> Unit,
-): PointerInputChange? {
-    val isPointerUp = currentEvent.changes.fastFirstOrNull { it.id == pointerId }?.pressed != true
-    if (isPointerUp) {
-        return null
-    }
-    var pointer = pointerId
-    while (true) {
-        val change = awaitDragOrUp(pointer) ?: return null
-        if (change.isConsumed) {
-            return null
-        }
-        if (change.changedToUpIgnoreConsumed()) {
-            return change
-        }
-        onDrag(change)
-        pointer = change.id
-    }
-}
-
-private suspend inline fun AwaitPointerEventScope.awaitDragOrUp(
-    pointerId: PointerId,
-): PointerInputChange? {
-    var pointer = pointerId
-    while (true) {
-        val event = awaitPointerEvent()
-        val dragEvent = event.changes.fastFirstOrNull { it.id == pointer } ?: return null
-        if (dragEvent.changedToUpIgnoreConsumed()) {
-            val otherDown = event.changes.fastFirstOrNull { it.pressed }
-            if (otherDown == null) {
-                return dragEvent
-            } else {
-                pointer = otherDown.id
-            }
-        } else {
-            val hasDragged = dragEvent.previousPosition != dragEvent.position
-            if (hasDragged) {
-                return dragEvent
-            }
-        }
-    }
-}

@@ -100,8 +100,9 @@ class InteractiveHighlight(
                     launch { positionAnimation.snapTo(startPosition) }
                 }
             },
-            onDragEnd = { release() },
+            onDragEnd = { _, _ -> release() },
             onDragCancel = { release() },
+            consumeChanges = false,
         ) { change, _ ->
             animationScope.launch { positionAnimation.snapTo(change.position) }
         }
