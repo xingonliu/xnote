@@ -78,7 +78,7 @@
     <string name="background_builtin_ruled">横线纸</string>
     <string name="background_builtin_grid">方格纸</string>
     <string name="background_preview_title">笔记背景预览</string>
-    <string name="background_preview_body">背景只会显示在笔记内容画布中。</string>
+    <string name="background_preview_body">背景会铺满笔记编辑页，并延伸到 Header 与底部工具区下方。</string>
     <string name="background_settings_title">默认笔记背景</string>
     <string name="background_settings_open">打开默认笔记背景设置</string>
     <string name="background_settings_summary">为未设置专属背景的笔记选择内置纸张</string>

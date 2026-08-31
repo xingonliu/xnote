@@ -12,14 +12,14 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方；玻璃本体为 56 dp、滑块为 48 dp，外层导航占位保持 88 dp，并用滑块路径切割出主题色图标与文字。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
 - 界面矢量图标统一来自 Lucide `1.34.0`，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
-- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass Progressive blur；所有二级页面的内容边界常驻顶部和底部渐进模糊遮罩。
+- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass catalog Progressive blur；所有二级页面的 Header 与页面底部常驻同一套 128 dp 渐进模糊遮罩。
 - `XNoteHeader`、Dialog、Drawer、Toast、Popup、Dropdown、加载/空/错误状态与富文本工具栏均由公共设计系统提供；系统动画倍率为 0 时取消弹性、形变和过渡动画。
 - 笔记首页、笔记本详情与普通笔记编辑页已接通本地笔记库：可创建笔记本、从编辑页 Header 选择归属、编写完整富文本（含表格与标题折叠）、自动保存，并将笔记移入回收站。
 - 普通笔记可在移除媒体块后永久转换为 Markdown；转换事务会先保存历史版本，再按块顺序映射标题、行内样式、清单、引用、代码和 GitHub 风格表格。
 - Markdown 笔记以首行一级标题同步列表标题，支持原文编辑、会话内撤销重做、右下角确认保存、结构化预览和从预览返回编辑；不提供转回普通笔记的入口。
 - 全屏手机搜索与平板列表栏搜索复用 FTS5：支持标题/正文、笔记本筛选、原文片段高亮、最近搜索持久化与清空，连续中文子串可命中且回收站内容始终排除。
 - “我的”已提供回收站入口；回收站展示删除时间、剩余天数和原笔记本，可恢复、永久删除、清空及多选，并在启动补扫或后台任务中清理满 30 天的笔记和未引用附件。
-- 普通笔记编辑、Markdown 编辑与预览统一使用 `XNoteNoteSurface`：支持暖白、奶油纹理、横线、方格四款内置纸张；“我的”可设置默认背景，单篇笔记可从内置纸张中覆盖选择或恢复继承。
+- 普通笔记编辑、Markdown 编辑与预览统一使用全屏 `XNoteNoteSurface` 作为页面唯一背景，纸张连续延伸到系统栏、Header 与底部工具区下方，不再叠加独立页面底色；支持暖白、奶油纹理、横线、方格四款内置纸张，“我的”可设置默认背景，单篇笔记可覆盖选择或恢复继承。
 
 ## 本地运行
 

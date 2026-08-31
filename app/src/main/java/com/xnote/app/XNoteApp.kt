@@ -85,6 +85,7 @@ import com.xnote.app.domain.model.defaultAppSettings
 import com.xnote.app.domain.model.resolveBackgroundKey
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.background.DefaultBackgroundScreen
+import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.NotesChrome
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.feature.notes.NotesScope
@@ -398,6 +399,16 @@ fun XNoteApp(
             alwaysVisibleScrollEdges = alwaysVisibleScrollEdges,
             bottomOverlayHeight = bottomOverlayHeight,
             toastHostState = toastHostState,
+            pageBackground = if (isEditor) {
+                {
+                    XNoteNoteSurface(
+                        background = editorBackground,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            } else {
+                null
+            },
             content = {
                 DestinationContent(
                     navigationState = navigationState,
@@ -411,7 +422,6 @@ fun XNoteApp(
                     notebookListState = notebookListState,
                     editorScrollState = editorScrollState,
                     editorSession = editorSession,
-                    editorBackground = editorBackground,
                     defaultBackground = defaultBackground,
                     settings = settingsRepository,
                     appearanceScrollState = appearanceScrollState,
@@ -568,7 +578,6 @@ private fun DestinationContent(
     notebookListState: LazyListState,
     editorScrollState: ScrollState,
     editorSession: NoteEditorSession?,
-    editorBackground: BackgroundKey,
     defaultBackground: BackgroundKey,
     settings: AppSettingsRepository,
     appearanceScrollState: ScrollState,
@@ -698,7 +707,6 @@ private fun DestinationContent(
             is NotesRoute.Editor -> editorSession?.let { session ->
                 NoteEditorScreen(
                     session = session,
-                    background = editorBackground,
                     backdrop = backdrop,
                     contentPadding = editorContentPadding,
                     scrollState = editorScrollState,

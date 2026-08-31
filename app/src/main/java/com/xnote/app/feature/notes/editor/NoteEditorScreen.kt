@@ -47,7 +47,6 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
-import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.ImageBlock
@@ -60,7 +59,6 @@ import com.xnote.app.domain.document.TextAlignment
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.document.numberedLabels
 import com.xnote.app.domain.document.plainText
-import com.xnote.app.domain.model.BackgroundKey
 import com.kyant.backdrop.Backdrop
 
 // -- Composables
@@ -68,7 +66,6 @@ import com.kyant.backdrop.Backdrop
 @Composable
 fun NoteEditorScreen(
     session: NoteEditorSession,
-    background: BackgroundKey,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     scrollState: ScrollState,
@@ -98,64 +95,52 @@ fun NoteEditorScreen(
     }
 
     if (session.isMarkdown) {
-        XNoteNoteSurface(
-            background = background,
+        MarkdownNoteScreen(
+            session = session,
+            contentPadding = contentPadding,
+            scrollState = scrollState,
             modifier = modifier
-                .padding(contentPadding)
+                .fillMaxSize()
                 .imePadding()
-                .navigationBarsPadding()
-                .fillMaxSize(),
-        ) {
-            MarkdownNoteScreen(
-                session = session,
-                contentPadding = PaddingValues(0.dp),
-                scrollState = scrollState,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+                .navigationBarsPadding(),
+        )
         return
     }
 
     val labels = session.document.numberedLabels()
-    XNoteNoteSurface(
-        background = background,
+    Column(
         modifier = modifier
-            .padding(contentPadding)
+            .fillMaxSize()
             .imePadding()
             .navigationBarsPadding()
-            .fillMaxSize(),
+            .verticalScroll(scrollState)
+            .padding(contentPadding)
+            .fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
+                .widthIn(max = XNoteMaximumContentWidth)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = XNoteMaximumContentWidth)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-            ) {
-                TitleField(
-                    value = session.title,
-                    onValueChange = session::updateTitle,
-                    readOnly = false,
+            TitleField(
+                value = session.title,
+                onValueChange = session::updateTitle,
+                readOnly = false,
+            )
+            session.document.visibleBlocks().forEachIndexed { index, block ->
+                EditorBlock(
+                    block = block,
+                    session = session,
+                    numberedLabel = labels[block.id],
+                    isFirstTextBlock = index == 0 || session.document.visibleBlocks()
+                        .take(index)
+                        .none { it is TextBlock },
                 )
-                session.document.visibleBlocks().forEachIndexed { index, block ->
-                    EditorBlock(
-                        block = block,
-                        session = session,
-                        numberedLabel = labels[block.id],
-                        isFirstTextBlock = index == 0 || session.document.visibleBlocks()
-                            .take(index)
-                            .none { it is TextBlock },
-                    )
-                }
-                Spacer(modifier = Modifier.height(24.dp))
             }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

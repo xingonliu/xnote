@@ -10,16 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
@@ -60,24 +57,30 @@ fun XNotePageScaffold(
     scrollEdgeState: XNoteScrollEdgeState = XNoteScrollEdgeState(),
     scrollEdges: Set<XNoteScrollEdge> = setOf(XNoteScrollEdge.Top),
     alwaysVisibleScrollEdges: Set<XNoteScrollEdge> = emptySet(),
-    topOverlayHeight: Dp = XNoteHeaderHeight,
     bottomOverlayHeight: Dp = 0.dp,
     toastHostState: SnackbarHostState? = null,
     pageState: XNotePageState = XNotePageState.Content,
     onPageStateAction: (() -> Unit)? = null,
+    pageBackground: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
-    val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .layerBackdrop(backdrop),
-        )
+                .layerBackdrop(backdrop)
+                .fillMaxSize(),
+        ) {
+            if (pageBackground == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                )
+            } else {
+                pageBackground()
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -115,8 +118,6 @@ fun XNotePageScaffold(
             state = scrollEdgeState,
             edges = scrollEdges,
             alwaysVisibleEdges = alwaysVisibleScrollEdges,
-            topInset = statusBarHeight + topOverlayHeight,
-            bottomInset = navigationBarHeight + bottomOverlayHeight,
         )
 
         overlay()

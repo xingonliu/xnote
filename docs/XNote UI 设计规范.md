@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.12
+> 文档版本：v0.13
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -31,6 +31,7 @@ Android 实现统一封装为 `XNoteProgressiveBlur`，由 `XNotePageScaffold` �
 - 直接组合 `drawPlainBackdrop`、`blur` 与 `runtimeShaderEffect("AlphaMask")`，以方向化 Alpha Mask 形成渐进模糊。
 - 二级页面顶部和底部常驻；一级页面可以根据滚动状态显示需要的边缘。
 - 顶部和底部只改变遮罩方向，共享同一组材质参数。
+- 材质参数与 AndroidLiquidGlass `2.0.1` catalog 示例保持一致：高度 128 dp、模糊半径 4 dp、Tint 强度 0.8，Alpha Mask 在 50% 高度处开始渐隐。
 - 不拦截触摸、滚动、选择、拖放或无障碍焦点。
 - “减少动画”只取消遮罩显隐过渡，不改变 Progressive blur 材质。
 
@@ -66,7 +67,7 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 
 - 所有二级页面必须同时声明顶部和底部边缘，且不依赖内容是否已经滚动而隐藏。
 - 一级页面存在固定底部导航、编辑工具栏、输入框或悬浮操作区时，同时声明底部边缘；其余边缘可以根据滚动能力显隐。
-- 顶部遮罩从固定 Header 下沿向内容区渐隐，底部遮罩从系统导航栏或固定底部控件上沿向内容区渐隐。
+- 顶部遮罩固定在屏幕顶部并覆盖系统状态栏与 Header，再向内容区渐隐；底部遮罩固定在屏幕底部并覆盖系统导航栏与固定底部控件，再向内容区渐隐。
 - 所有页面使用同一套高度、模糊半径、Tint 强度和 Alpha Mask。
 - 边缘效果只负责层级过渡，不能额外占据布局高度，也不能遮挡标题、首行内容、滚动条或底部最后一项。
 - 长列表、网格、富文本编辑器、Markdown 编辑器、阅读模式和对话消息区均遵循同一规则。
@@ -341,7 +342,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 - 背景只允许从暖白纸、奶油纹理、横线纸、方格纸四款内置预设中选择，不提供图片导入或其他自定义背景；纸色与纹理颜色必须使用浅色/深色成对方案，不能依赖同一固定颜色覆盖两个主题。
 - 笔记正文统一由 `XNoteNoteSurface` 承载，在普通笔记编辑、Markdown 编辑与预览、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
-- 背景只覆盖笔记内容画布，不延伸到 Header、底部工具栏、导航栏、Dialog、Drawer、Toast、Popup 或 DropdownMenu。
+- 编辑页不绘制独立页面底色。`XNoteNoteSurface` 作为页面唯一背景全屏延伸到系统栏、Header、底部工具栏和导航栏下方；Dialog、Drawer、Toast、Popup 与 DropdownMenu 仍作为独立 Overlay 绘制在背景之上。
 - 编辑页的更多菜单提供“笔记背景”入口。手机使用 `XNoteDrawer` 底部形态，平板使用锚定面板或受限宽度 Drawer。
 - `XNoteBackgroundPicker` 必须展示背景缩略图、选中状态、实时预览、“使用默认背景”选项，以及明确的影响范围说明。
 - 编辑页背景选择器的影响范围文案固定为“仅当前笔记”；设置页中的默认背景选择器复用同一组件，影响范围文案为“所有未设置专属背景的笔记”。
@@ -412,6 +413,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 普通笔记编辑页的格式工具栏来自 `XNoteRichTextToolbar`，不存在页面私有格式栏。
 - 编辑页可通过公共背景选择器修改当前单篇笔记背景，设置页可修改默认背景，并准确展示各自影响范围。
+- 普通笔记、Markdown 编辑与预览均只存在一层全屏笔记背景，系统栏、Header 和底部工具区周围不得露出第二层页面底色。
 - 继承默认背景与设置专属背景的笔记均按优先级显示正确背景；移动笔记所属的笔记本不会改变背景。
 - 导出预览与最终导出包含相同背景，且不包含 Header、工具栏、按钮或 Liquid Glass Overlay。
 - 所有应用自绘圆角均来自公共 Shape，平滑度固定为 60%；不存在普通圆角与连续圆角混用。
@@ -424,7 +426,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - [Apple SwiftUI：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
 - [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)
 - [AndroidLiquidGlass LiquidBottomTabs 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/65ab177e90e5c1d8c62e70cf7755841982da65f6/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/components/LiquidBottomTabs.kt)
-- [AndroidLiquidGlass Progressive blur 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/kmp/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/destinations/ProgressiveBlurContent.kt)
+- [AndroidLiquidGlass 2.0.1 Progressive blur 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/65ab177e90e5c1d8c62e70cf7755841982da65f6/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/destinations/ProgressiveBlurContent.kt)
 - [Apple SwiftUI：RoundedRectangle continuous corner style](https://developer.apple.com/documentation/swiftui/roundedrectangle/init%28cornerradius%3Astyle%3A%29)
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)

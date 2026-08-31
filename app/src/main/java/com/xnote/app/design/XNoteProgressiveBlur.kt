@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -16,9 +15,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
@@ -40,9 +40,9 @@ data class XNoteScrollEdgeState(
 
 // -- Constants
 
-private val ProgressiveBlurHeight = 64.dp
-private val ProgressiveBlurRadius = 18.dp
-private const val ProgressiveBlurTintIntensity = 0.22f
+private val ProgressiveBlurHeight = 128.dp
+private val ProgressiveBlurRadius = 4.dp
+private const val ProgressiveBlurTintIntensity = 0.8f
 private const val ProgressiveBlurShader = """
     uniform shader content;
 
@@ -53,8 +53,9 @@ private const val ProgressiveBlurShader = """
 
     half4 main(float2 coord) {
         float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
-        float mask = smoothstep(size.y, size.y * 0.42, edgeCoordinate);
-        return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
+        float blurAlpha = smoothstep(size.y, size.y * 0.5, edgeCoordinate);
+        float tintAlpha = smoothstep(size.y, size.y * 0.5, edgeCoordinate);
+        return mix(content.eval(coord) * blurAlpha, tint * tintAlpha, tintIntensity);
     }
 """
 
@@ -85,17 +86,13 @@ fun BoxScope.XNoteProgressiveBlur(
     state: XNoteScrollEdgeState,
     edges: Set<XNoteScrollEdge>,
     alwaysVisibleEdges: Set<XNoteScrollEdge> = emptySet(),
-    topInset: Dp = 0.dp,
-    bottomInset: Dp = 0.dp,
 ) {
     if (XNoteScrollEdge.Top in edges) {
         XNoteProgressiveBlurLayer(
             edge = XNoteScrollEdge.Top,
             visible = XNoteScrollEdge.Top in alwaysVisibleEdges || state.canScrollBackward,
             backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = topInset),
+            modifier = Modifier.align(Alignment.TopCenter),
         )
     }
 
@@ -104,9 +101,7 @@ fun BoxScope.XNoteProgressiveBlur(
             edge = XNoteScrollEdge.Bottom,
             visible = XNoteScrollEdge.Bottom in alwaysVisibleEdges || state.canScrollForward,
             backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = bottomInset),
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
@@ -119,7 +114,8 @@ private fun XNoteProgressiveBlurLayer(
     modifier: Modifier = Modifier,
 ) {
     val settings = LocalXNoteInteractionSettings.current
-    val tint = MaterialTheme.colorScheme.background
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
+    val tint = if (isLightTheme) Color.White else Color(0xFF808080)
     val targetAlpha = if (visible) 1f else 0f
     val alpha = if (settings.reduceMotion) {
         targetAlpha
