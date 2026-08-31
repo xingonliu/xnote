@@ -30,6 +30,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -52,6 +54,9 @@ import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
@@ -104,6 +109,7 @@ fun LiquidBottomTabs(
     val hapticView = LocalView.current
     val currentOnTabSelected by rememberUpdatedState(onTabSelected)
     val currentOnTabReselected by rememberUpdatedState(onTabReselected)
+    val tabsBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
         modifier = modifier,
@@ -181,7 +187,7 @@ fun LiquidBottomTabs(
                 onDragStarted = { position ->
                     pendingPointerClickIndex = -1
                     gestureValue = tabValueAtPosition(position.x)
-                    updateValue(gestureValue)
+                    animatePositionToValue(gestureValue)
                     hapticView.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                 },
                 onDragStopped = { wasDragged ->
@@ -303,147 +309,178 @@ fun LiquidBottomTabs(
 
         Box(
             modifier = Modifier
-                .graphicsLayer { translationX = panelOffset }
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { Capsule() },
-                    effects = {
-                        vibrancy()
-                        blur(8.dp.toPx())
-                        lens(24.dp.toPx(), 24.dp.toPx())
-                    },
-                    layerBlock = {
-                        val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, pressProgress)
-                        scaleX = scale
-                        scaleY = scale
-                    },
-                    onDrawSurface = { drawRect(containerColor) },
-                )
-                .then(if (hasInteractiveMotion) interactiveHighlight.modifier else Modifier)
-                .height(BottomTabsHeight)
-                .fillMaxWidth(),
-        )
-
-        CompositionLocalProvider(
-            LocalLiquidBottomTabTransform provides contentTransform,
-            LocalLiquidBottomTabClick provides { index ->
-                pendingPointerClickIndex = -1
-                selectTab(index)
-            },
-            LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Base,
-        ) {
-            Row(
-                modifier = Modifier
-                    .graphicsLayer {
-                        translationX = panelOffset
-                        clip = true
-                        shape = GenericShape { size, _ ->
-                            val fullPath = Path().apply {
-                                addRect(Rect(0f, 0f, size.width, size.height))
-                            }
-                            val indicatorPath = Path().apply {
-                                addRoundRect(indicatorRoundRect(size))
-                            }
-                            op(fullPath, indicatorPath, PathOperation.Difference)
-                        }
-                    }
-                    .height(BottomTabsHeight)
-                    .fillMaxWidth()
-                    .padding(BottomTabsInset),
-                verticalAlignment = Alignment.CenterVertically,
-                content = content,
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .clearAndSetSemantics { }
-                .offset {
-                    IntOffset(
-                        x = (tabCenterX(indicatorValue) - tabWidth / 2f + panelOffset)
-                            .fastRoundToInt(),
-                        y = 0,
-                    )
-                }
-                .width(tabWidthDp)
-                .height(BottomTabHeight)
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { Capsule() },
-                    effects = {
-                        lens(
-                            refractionHeight = 10.dp.toPx() * pressProgress,
-                            refractionAmount = 14.dp.toPx() * pressProgress,
-                            chromaticAberration = true,
-                        )
-                    },
-                    highlight = {
-                        Highlight.Default.copy(alpha = pressProgress)
-                    },
-                    shadow = {
-                        Shadow(alpha = pressProgress)
-                    },
-                    innerShadow = {
-                        InnerShadow(
-                            radius = 8.dp * pressProgress,
-                            alpha = pressProgress,
-                        )
-                    },
-                    layerBlock = {
-                        scaleX = if (hasInteractiveMotion) dampedDragAnimation.scaleX else 1f
-                        scaleY = if (hasInteractiveMotion) dampedDragAnimation.scaleY else 1f
-                        val velocity = if (hasInteractiveMotion) {
-                            dampedDragAnimation.velocity / 10f
-                        } else {
-                            0f
-                        }
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                    },
-                    onDrawSurface = {
-                        drawRect(
-                            color = if (isLightTheme) {
-                                Color.Black.copy(alpha = 0.1f)
-                            } else {
-                                Color.White.copy(alpha = 0.1f)
-                            },
-                            alpha = 1f - pressProgress,
-                        )
-                        drawRect(Color.Black.copy(alpha = 0.03f * pressProgress))
-                    },
-                ),
-        )
-
-        Row(
-            modifier = Modifier
-                .clearAndSetSemantics { }
-                .graphicsLayer {
-                    translationX = panelOffset
-                    clip = true
-                    shape = GenericShape { size, _ ->
-                        addRoundRect(indicatorRoundRect(size))
-                    }
-                }
-                .height(BottomTabsHeight)
-                .fillMaxWidth()
-                .padding(BottomTabsInset)
-                .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CompositionLocalProvider(
-                LocalLiquidBottomTabTransform provides contentTransform,
-                LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Highlight,
-            ) {
-                content()
-            }
-        }
-
-        Box(
-            modifier = Modifier
                 .height(BottomTabsHeight)
                 .fillMaxWidth()
                 .then(if (hasInteractiveMotion) interactiveHighlight.gestureModifier else Modifier)
                 .then(if (hasInteractiveMotion) dampedDragAnimation.modifier else Modifier),
-        )
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .graphicsLayer { translationX = panelOffset }
+                    .drawBackdrop(
+                        backdrop = backdrop,
+                        shape = { Capsule() },
+                        effects = {
+                            vibrancy()
+                            blur(8.dp.toPx())
+                            lens(24.dp.toPx(), 24.dp.toPx())
+                        },
+                        layerBlock = {
+                            val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, pressProgress)
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                        onDrawSurface = { drawRect(containerColor) },
+                    )
+                    .then(if (hasInteractiveMotion) interactiveHighlight.modifier else Modifier)
+                    .height(BottomTabsHeight)
+                    .fillMaxWidth(),
+            )
+
+            CompositionLocalProvider(
+                LocalLiquidBottomTabTransform provides contentTransform,
+                LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Base,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clearAndSetSemantics { }
+                        .graphicsLayer {
+                            translationX = panelOffset
+                            clip = true
+                            shape = GenericShape { size, _ ->
+                                val fullPath = Path().apply {
+                                    addRect(Rect(0f, 0f, size.width, size.height))
+                                }
+                                val indicatorPath = Path().apply {
+                                    addRoundRect(indicatorRoundRect(size))
+                                }
+                                op(fullPath, indicatorPath, PathOperation.Difference)
+                            }
+                        }
+                        .height(BottomTabsHeight)
+                        .fillMaxWidth()
+                        .padding(BottomTabsInset),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+
+            CompositionLocalProvider(
+                LocalLiquidBottomTabTransform provides contentTransform,
+                LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Highlight,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clearAndSetSemantics { }
+                        .alpha(0f)
+                        .layerBackdrop(tabsBackdrop)
+                        .graphicsLayer { translationX = panelOffset }
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { Capsule() },
+                            effects = {
+                                vibrancy()
+                                blur(8.dp.toPx())
+                                lens(
+                                    refractionHeight = 24.dp.toPx() * pressProgress,
+                                    refractionAmount = 24.dp.toPx() * pressProgress,
+                                )
+                            },
+                            highlight = {
+                                Highlight.Default.copy(alpha = pressProgress)
+                            },
+                            onDrawSurface = { drawRect(containerColor) },
+                        )
+                        .then(if (hasInteractiveMotion) interactiveHighlight.modifier else Modifier)
+                        .height(BottomTabHeight)
+                        .fillMaxWidth()
+                        .padding(horizontal = BottomTabsInset)
+                        .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clearAndSetSemantics { }
+                    .offset {
+                        IntOffset(
+                            x = (tabCenterX(indicatorValue) - tabWidth / 2f + panelOffset)
+                                .fastRoundToInt(),
+                            y = 0,
+                        )
+                    }
+                    .width(tabWidthDp)
+                    .height(BottomTabHeight)
+                    .drawBackdrop(
+                        backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
+                        shape = { Capsule() },
+                        effects = {
+                            lens(
+                                refractionHeight = 10.dp.toPx() * pressProgress,
+                                refractionAmount = 14.dp.toPx() * pressProgress,
+                                chromaticAberration = true,
+                            )
+                        },
+                        highlight = {
+                            Highlight.Default.copy(alpha = pressProgress)
+                        },
+                        shadow = {
+                            Shadow(alpha = pressProgress)
+                        },
+                        innerShadow = {
+                            InnerShadow(
+                                radius = 8.dp * pressProgress,
+                                alpha = pressProgress,
+                            )
+                        },
+                        layerBlock = {
+                            scaleX = if (hasInteractiveMotion) dampedDragAnimation.scaleX else 1f
+                            scaleY = if (hasInteractiveMotion) dampedDragAnimation.scaleY else 1f
+                            val velocity = if (hasInteractiveMotion) {
+                                dampedDragAnimation.velocity / 10f
+                            } else {
+                                0f
+                            }
+                            scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+                            scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+                        },
+                        onDrawSurface = {
+                            drawRect(
+                                color = if (isLightTheme) {
+                                    Color.Black.copy(alpha = 0.1f)
+                                } else {
+                                    Color.White.copy(alpha = 0.1f)
+                                },
+                                alpha = 1f - pressProgress,
+                            )
+                            drawRect(Color.Black.copy(alpha = 0.03f * pressProgress))
+                        },
+                    ),
+            )
+
+            // The gesture modifiers stay on the parent so these semantic click targets share
+            // the same pointer path without becoming a visual overlay above the glass.
+            CompositionLocalProvider(
+                LocalLiquidBottomTabTransform provides contentTransform,
+                LocalLiquidBottomTabClick provides { index ->
+                    pendingPointerClickIndex = -1
+                    selectTab(index)
+                },
+                LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Interaction,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .drawWithContent { }
+                        .height(BottomTabsHeight)
+                        .fillMaxWidth()
+                        .padding(BottomTabsInset),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+        }
     }
 }

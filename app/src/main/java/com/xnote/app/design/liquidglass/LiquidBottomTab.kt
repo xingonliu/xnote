@@ -28,6 +28,7 @@ internal data class LiquidBottomTabTransform(
 internal enum class LiquidBottomTabLayer {
     Base,
     Highlight,
+    Interaction,
 }
 
 // -- State
@@ -53,7 +54,7 @@ fun RowScope.LiquidBottomTab(
     val layer = LocalLiquidBottomTabLayer.current
     val transform = LocalLiquidBottomTabTransform.current(index)
     val onClick = LocalLiquidBottomTabClick.current
-    val interactionModifier = if (layer == LiquidBottomTabLayer.Base) {
+    val interactionModifier = if (layer == LiquidBottomTabLayer.Interaction) {
         Modifier
             .clip(Capsule())
             .clickable(

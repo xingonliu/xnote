@@ -332,9 +332,9 @@ class XNoteDesignSystemTest {
             }
         }
 
-        composeRule.onNodeWithTag("touch-liquid-tabs").performTouchInput { click() }
+        composeRule.onNodeWithText("智能").performTouchInput { click() }
         composeRule.waitUntil(5_000) { selectedIndex == 1 }
-        composeRule.onNodeWithTag("touch-liquid-tabs").performTouchInput { click() }
+        composeRule.onNodeWithText("智能").performTouchInput { click() }
         composeRule.runOnIdle { assertEquals(1, reselectedIndex) }
     }
 

@@ -40,11 +40,11 @@ class DampedDragAnimation(
 ) {
     // -- Constants
 
-    private val valueAnimationSpec = spring(0.78f, 480f, visibilityThreshold)
-    private val velocityAnimationSpec = spring(0.52f, 320f, visibilityThreshold * 10f)
-    private val pressProgressAnimationSpec = spring(0.82f, 520f, 0.001f)
-    private val scaleXAnimationSpec = spring(0.68f, 380f, 0.001f)
-    private val scaleYAnimationSpec = spring(0.65f, 420f, 0.001f)
+    private val valueAnimationSpec = spring(1f, 1000f, visibilityThreshold)
+    private val velocityAnimationSpec = spring(0.5f, 300f, visibilityThreshold * 10f)
+    private val pressProgressAnimationSpec = spring(1f, 1000f, 0.001f)
+    private val scaleXAnimationSpec = spring(0.6f, 250f, 0.001f)
+    private val scaleYAnimationSpec = spring(0.7f, 250f, 0.001f)
 
     // -- State
 
@@ -127,6 +127,14 @@ class DampedDragAnimation(
         animationScope.launch(start = CoroutineStart.UNDISPATCHED) {
             valueAnimation.snapTo(targetValue)
             updateVelocity()
+        }
+    }
+
+    fun animatePositionToValue(value: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                valueAnimation.animateTo(value.coerceIn(valueRange), valueAnimationSpec)
+            }
         }
     }
 
