@@ -18,12 +18,8 @@ import com.kyant.shapes.Capsule
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
 
-// -- State
-
 internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
-
-// -- Composables
 
 @Composable
 fun RowScope.LiquidBottomTab(
@@ -33,7 +29,7 @@ fun RowScope.LiquidBottomTab(
 ) {
     val scale = LocalLiquidBottomTabScale.current
     Column(
-        modifier = modifier
+        modifier
             .clip(Capsule())
             .clickable(
                 interactionSource = null,
@@ -44,13 +40,14 @@ fun RowScope.LiquidBottomTab(
             .fillMaxHeight()
             .weight(1f)
             .graphicsLayer {
-                val currentScale = scale()
-                scaleX = currentScale
-                scaleY = currentScale
+                val scale = scale()
+                scaleX = scale
+                scaleY = scale
             },
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
     )
 }
+
 
