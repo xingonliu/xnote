@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.dp
 val XNoteLightPrimaryColor = Color(0xFFE09F3E)
 val XNoteDarkPrimaryColor = Color(0xFFFFD60A)
 
-val XNoteHeaderHeight = 44.dp
+val XNoteHeaderHeight = 48.dp
 val XNoteMinimumTouchTarget = 44.dp
 val XNoteBottomNavigationHeight = 88.dp
 val XNoteMaximumContentWidth = 840.dp

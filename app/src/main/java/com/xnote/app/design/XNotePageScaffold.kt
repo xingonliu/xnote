@@ -163,7 +163,7 @@ fun XNoteHeader(
                 backdrop = backdrop,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(XNoteMinimumTouchTarget),
+                    .size(XNoteHeaderHeight),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_arrow_left),
@@ -176,7 +176,7 @@ fun XNoteHeader(
             Spacer(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(XNoteMinimumTouchTarget),
+                    .size(XNoteHeaderHeight),
             )
         }
 
@@ -195,7 +195,7 @@ fun XNoteHeader(
             Spacer(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .size(XNoteMinimumTouchTarget),
+                    .size(XNoteHeaderHeight),
             )
         } else {
             Row(
@@ -208,7 +208,7 @@ fun XNoteHeader(
                         onClick = action.onClick,
                         backdrop = backdrop,
                         enabled = action.enabled,
-                        modifier = Modifier.size(XNoteMinimumTouchTarget),
+                        modifier = Modifier.size(XNoteHeaderHeight),
                     ) {
                         Icon(
                             painter = painterResource(action.iconRes),
