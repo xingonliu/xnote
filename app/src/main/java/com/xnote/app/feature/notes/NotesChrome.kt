@@ -36,6 +36,7 @@ import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
+import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
@@ -186,13 +187,13 @@ fun BoxScope.NotesChrome(
                         },
                     )
                     .testTag("xnote-create-note")
-                    .size(XNoteMinimumTouchTarget),
+                    .size(XNoteHeaderHeight),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_plus),
                     contentDescription = stringResource(R.string.action_create_note),
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(24.dp),
                 )
             }
         } else {
