@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.derivedStateOf
@@ -15,20 +16,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.effects.runtimeShaderEffect
 
 // -- Type Definitions
 
@@ -37,42 +32,31 @@ enum class XNoteScrollEdge {
     Bottom,
 }
 
-enum class XNoteScrollEdgeStyle {
-    Soft,
-    Hard,
-}
-
 @Immutable
 data class XNoteScrollEdgeState(
     val canScrollBackward: Boolean = false,
     val canScrollForward: Boolean = false,
 )
 
-private data class XNoteScrollEdgeVisuals(
-    val height: Dp,
-    val blurRadius: Dp,
-    val refractionHeight: Dp,
-    val refractionAmount: Dp,
-    val surfaceAlpha: Float,
-)
-
 // -- Constants
 
-private val SoftVisuals = XNoteScrollEdgeVisuals(
-    height = 28.dp,
-    blurRadius = 12.dp,
-    refractionHeight = 4.dp,
-    refractionAmount = 7.dp,
-    surfaceAlpha = 0.08f,
-)
+private val ProgressiveBlurHeight = 64.dp
+private val ProgressiveBlurRadius = 18.dp
+private const val ProgressiveBlurTintIntensity = 0.22f
+private const val ProgressiveBlurShader = """
+    uniform shader content;
 
-private val HardVisuals = XNoteScrollEdgeVisuals(
-    height = 40.dp,
-    blurRadius = 18.dp,
-    refractionHeight = 7.dp,
-    refractionAmount = 12.dp,
-    surfaceAlpha = 0.14f,
-)
+    uniform float2 size;
+    layout(color) uniform half4 tint;
+    uniform float tintIntensity;
+    uniform float bottomEdge;
+
+    half4 main(float2 coord) {
+        float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
+        float mask = smoothstep(size.y, size.y * 0.42, edgeCoordinate);
+        return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
+    }
+"""
 
 // -- Composables
 
@@ -96,20 +80,18 @@ fun rememberXNoteScrollEdgeState(
 }
 
 @Composable
-fun BoxScope.XNoteScrollEdgeEffect(
+fun BoxScope.XNoteProgressiveBlur(
     backdrop: Backdrop,
     state: XNoteScrollEdgeState,
     edges: Set<XNoteScrollEdge>,
-    topStyle: XNoteScrollEdgeStyle = XNoteScrollEdgeStyle.Soft,
-    bottomStyle: XNoteScrollEdgeStyle = XNoteScrollEdgeStyle.Soft,
+    alwaysVisibleEdges: Set<XNoteScrollEdge> = emptySet(),
     topInset: Dp = 0.dp,
     bottomInset: Dp = 0.dp,
 ) {
     if (XNoteScrollEdge.Top in edges) {
-        XNoteScrollEdgeLayer(
+        XNoteProgressiveBlurLayer(
             edge = XNoteScrollEdge.Top,
-            style = topStyle,
-            visible = state.canScrollBackward,
+            visible = XNoteScrollEdge.Top in alwaysVisibleEdges || state.canScrollBackward,
             backdrop = backdrop,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -118,10 +100,9 @@ fun BoxScope.XNoteScrollEdgeEffect(
     }
 
     if (XNoteScrollEdge.Bottom in edges) {
-        XNoteScrollEdgeLayer(
+        XNoteProgressiveBlurLayer(
             edge = XNoteScrollEdge.Bottom,
-            style = bottomStyle,
-            visible = state.canScrollForward,
+            visible = XNoteScrollEdge.Bottom in alwaysVisibleEdges || state.canScrollForward,
             backdrop = backdrop,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -131,15 +112,14 @@ fun BoxScope.XNoteScrollEdgeEffect(
 }
 
 @Composable
-private fun XNoteScrollEdgeLayer(
+private fun XNoteProgressiveBlurLayer(
     edge: XNoteScrollEdge,
-    style: XNoteScrollEdgeStyle,
     visible: Boolean,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
     val settings = LocalXNoteInteractionSettings.current
-    val visuals = if (style == XNoteScrollEdgeStyle.Hard) HardVisuals else SoftVisuals
+    val tint = MaterialTheme.colorScheme.background
     val targetAlpha = if (visible) 1f else 0f
     val alpha = if (settings.reduceMotion) {
         targetAlpha
@@ -147,54 +127,36 @@ private fun XNoteScrollEdgeLayer(
         val animatedAlpha by animateFloatAsState(
             targetValue = targetAlpha,
             animationSpec = tween(XNoteShortAnimationDurationMillis),
-            label = "XNoteScrollEdgeAlpha",
+            label = "XNoteProgressiveBlurAlpha",
         )
         animatedAlpha
-    }
-    val surfaceAlpha = if (settings.highContrast) {
-        visuals.surfaceAlpha * 1.6f
-    } else {
-        visuals.surfaceAlpha
-    }
-    val mask = if (edge == XNoteScrollEdge.Top) {
-        Brush.verticalGradient(listOf(Color.Black, Color.Transparent))
-    } else {
-        Brush.verticalGradient(listOf(Color.Transparent, Color.Black))
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(visuals.height)
+            .height(ProgressiveBlurHeight)
             .clearAndSetSemantics { }
-            .graphicsLayer {
-                this.alpha = alpha
-                compositingStrategy = CompositingStrategy.Offscreen
-            }
-            .drawBackdrop(
+            .drawPlainBackdrop(
                 backdrop = backdrop,
-                shape = { XNoteSmoothCornerShape(0.dp) },
+                shape = { RectangleShape },
                 effects = {
-                    vibrancy()
-                    blur(visuals.blurRadius.toPx())
-                    lens(
-                        refractionHeight = visuals.refractionHeight.toPx(),
-                        refractionAmount = visuals.refractionAmount.toPx(),
-                        chromaticAberration = true,
-                    )
+                    blur(ProgressiveBlurRadius.toPx())
+                    runtimeShaderEffect(
+                        "AlphaMask",
+                        ProgressiveBlurShader,
+                        "content",
+                    ) {
+                        setFloatUniform("size", size.width, size.height)
+                        setColorUniform("tint", tint)
+                        setFloatUniform("tintIntensity", ProgressiveBlurTintIntensity)
+                        setFloatUniform(
+                            "bottomEdge",
+                            if (edge == XNoteScrollEdge.Bottom) 1f else 0f,
+                        )
+                    }
                 },
-                highlight = null,
-                shadow = null,
-                onDrawSurface = {
-                    drawRect(Color.White.copy(alpha = surfaceAlpha))
-                },
-            )
-            .drawWithContent {
-                drawContent()
-                drawRect(
-                    brush = mask,
-                    blendMode = BlendMode.DstIn,
-                )
-            },
+                layerBlock = { this.alpha = alpha },
+            ),
     )
 }

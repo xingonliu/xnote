@@ -344,6 +344,13 @@ fun XNoteApp(
         val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val showsRecycleSelection = navigationState.isRecycleBinOpen &&
             recycleBinUiState.selectionMode
+        val isSecondaryPage = navigationState.isSearchOpen ||
+            navigationState.isRecycleBinOpen ||
+            navigationState.isAppearanceOpen ||
+            (
+                navigationState.destination == AppDestination.Notes &&
+                    navigationState.notesRoute !is NotesRoute.Home
+            )
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
@@ -388,23 +395,28 @@ fun XNoteApp(
             else -> listState
         }
         val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
-        val scrollEdges = if (showsBottomNavigation || showsEditorToolbar || showsRecycleSelection) {
+        val scrollEdges = if (
+            isSecondaryPage ||
+            showsBottomNavigation ||
+            showsEditorToolbar ||
+            showsRecycleSelection
+        ) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
         }
-        val bottomScrollEdgeStyle = if (showsEditorToolbar) {
-            com.xnote.app.design.XNoteScrollEdgeStyle.Hard
+        val alwaysVisibleScrollEdges = if (isSecondaryPage) {
+            setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
-            com.xnote.app.design.XNoteScrollEdgeStyle.Soft
+            emptySet()
         }
 
         XNotePageScaffold(
             backdrop = backdrop,
             scrollEdgeState = scrollEdgeState,
             scrollEdges = scrollEdges,
+            alwaysVisibleScrollEdges = alwaysVisibleScrollEdges,
             bottomOverlayHeight = bottomOverlayHeight,
-            bottomScrollEdgeStyle = bottomScrollEdgeStyle,
             toastHostState = toastHostState,
             content = {
                 DestinationContent(
@@ -781,7 +793,8 @@ private fun XNoteBottomNavigation(
             .testTag("xnote-bottom-navigation")
             .navigationBarsPadding()
             .padding(horizontal = 36.dp)
-            .padding(top = XNoteSpacingSmall, bottom = XNoteSpacingMedium)
+            .height(XNoteBottomNavigationHeight)
+            .padding(top = 12.dp, bottom = 20.dp)
             .fillMaxWidth()
     ) {
         AppDestination.entries.forEach { destination ->

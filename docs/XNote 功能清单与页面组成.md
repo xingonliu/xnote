@@ -400,6 +400,8 @@ Liquid Glass 用于：
 - Android 13（API 33）是最低支持版本，所有受支持设备统一启用完整背景采样、模糊、折射和色散效果。
 - AndroidLiquidGlass 发布物不打包高层组件，因此固定采用官方 catalog 提供的组件源码；当前基线对应上游提交 `65ab177`。
 - 手机 tabbar 直接使用官方 `LiquidBottomTabs` / `LiquidBottomTab`，按钮直接使用官方 `LiquidButton`，保留其材质和交互配方。
+- Bottom Tabs 外层导航高度保持 88 dp，内部玻璃容器为 56 dp、滑块为 48 dp；滑块路径切割出的图标和文字使用主题主色。
+- 所有二级页面顶部和底部使用 AndroidLiquidGlass catalog Progressive blur 配方，遮罩不随滚动边界消失。
 - 后续组件先核对官方 catalog；已有 `LiquidToggle`、`LiquidSlider` 等实现时直接采用，只有不存在对应组件时才创建基于 AndroidLiquidGlass 的项目级适配。
 - 项目级适配不得重复实现库已有的 Backdrop、Lens、Blur、Vibrancy、高光或阴影能力；当前只为 catalog 缺少的 Panel 与竖向 Navigation Rail 保留适配层。
 - 被录制的页面内容和玻璃 Overlay 分层，玻璃组件不进入自身的背景录制。

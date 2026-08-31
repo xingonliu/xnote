@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.11
+> 文档版本：v0.12
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -16,7 +16,7 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 1. 笔记内容始终是视觉主体，装饰效果不能降低文字、图片和画笔内容的可读性。
 2. 玻璃交互优先直接采用 AndroidLiquidGlass 官方 catalog 组件；只有官方 catalog 没有对应组件时，才允许基于该库创建项目级组件，不为同一功能重复设计局部样式。
-3. 所有页面统一接入 `ScrollEdgeEffectStyle` 视觉规范；页面内容可滚动时，固定 Header、底部工具区与滚动内容之间必须有连续的边缘过渡。
+3. 所有页面统一接入 AndroidLiquidGlass Progressive blur；二级页面顶部和底部必须常驻连续的渐进模糊遮罩。
 4. 二级页面统一使用公共 Header；除笔记编辑页外，Header 中间显示当前页面标题。
 5. 弹窗、抽屉、Toast、Popup、下拉菜单、按钮等通用交互只能通过公共组件提供，业务页面不得复制实现。
 6. 所有由应用绘制的非圆形圆角统一使用接近 iOS 连续曲线的 60% 平滑圆角，不得混用普通四分之一圆圆角。
@@ -24,31 +24,30 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 ## 2. 平台与技术边界
 
-`ScrollEdgeEffectStyle` 是 SwiftUI 中用于定义滚动视图边缘模糊过渡的类型，`scrollEdgeEffectStyle(_:for:)` 用于配置指定边缘。XNote 当前是 Android/Jetpack Compose 应用，因此本文中的 `ScrollEdgeEffectStyle` 表示项目级视觉规范，不表示 Android 代码直接调用 SwiftUI API。
+XNote 当前是 Android/Jetpack Compose 应用。页面边缘过渡直接采用 AndroidLiquidGlass catalog 的 Progressive blur 配方，顶部和底部共享统一材质参数。
 
-Android 实现统一封装为 `XNoteScrollEdgeEffect`，由 `XNotePageScaffold` 接入。它至少包含以下能力：
+Android 实现统一封装为 `XNoteProgressiveBlur`，由 `XNotePageScaffold` 接入。它至少包含以下能力：
 
-- 根据滚动状态分别控制顶部和底部边缘效果。
-- 默认提供 `soft`，需要强化固定控件边界时提供 `hard`。
-- 使用固定版本的 AndroidLiquidGlass 实现背景采样、模糊、折射、色散和渐变能力；所有受支持设备使用同一套完整材质。
+- 直接组合 `drawPlainBackdrop`、`blur` 与 `runtimeShaderEffect("AlphaMask")`，以方向化 Alpha Mask 形成渐进模糊。
+- 二级页面顶部和底部常驻；一级页面可以根据滚动状态显示需要的边缘。
+- 顶部和底部只改变遮罩方向，共享同一组材质参数。
 - 不拦截触摸、滚动、选择、拖放或无障碍焦点。
-- 遵守“减少动画”和高对比度设置，同时保留完整 Liquid Glass 材质。
+- “减少动画”只取消遮罩显隐过渡，不改变 Progressive blur 材质。
 
-Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与倍率变更监听接入公共交互设置；倍率为 0 时，Scroll Edge 直接切换显隐，Liquid Button 与 Bottom Tabs 停止形变和弹性反馈，公共浮层不执行进入或退出过渡。页面不得各自读取系统动画设置。
+Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与倍率变更监听接入公共交互设置；倍率为 0 时，Progressive blur 直接切换显隐，Liquid Button 与 Bottom Tabs 停止形变和弹性反馈，公共浮层不执行进入或退出过渡。页面不得各自读取系统动画设置。
 
-SwiftUI 语义与 Compose 项目语义的映射如下：
+视觉语义与 Compose 项目实现的映射如下：
 
-| 规范语义       | SwiftUI 参照                    | XNote Android 实现                  |
-| -------------- | ------------------------------- | -------------------------------------- |
-| 柔和滚动边缘   | `ScrollEdgeEffectStyle.soft`    | `XNoteScrollEdgeStyle.Soft`            |
-| 清晰滚动边界   | `ScrollEdgeEffectStyle.hard`    | `XNoteScrollEdgeStyle.Hard`            |
-| 指定生效边缘   | `scrollEdgeEffectStyle(_:for:)` | `XNoteScrollEdgeEffect(edges, style)`  |
-| 页面统一接入   | View hierarchy modifier         | `XNotePageScaffold` 内置效果层         |
-| 玻璃按钮       | `.buttonStyle(.glass)`          | AndroidLiquidGlass catalog `LiquidButton`                  |
-| 手机底部标签栏 | `TabView` / bottom tabs         | AndroidLiquidGlass catalog `LiquidBottomTabs` / `LiquidBottomTab` |
-| 自定义玻璃形状 | `glassEffect(_:in:)`            | AndroidLiquidGlass 的项目级 Shape 适配                     |
+| 规范语义       | 视觉参照                    | XNote Android 实现                                  |
+| -------------- | --------------------------- | --------------------------------------------------- |
+| 渐进模糊边缘   | iOS 27 页面边缘遮罩         | AndroidLiquidGlass catalog Progressive blur         |
+| 指定生效边缘   | 顶部 / 底部                 | `XNoteProgressiveBlur(edges, alwaysVisibleEdges)`   |
+| 页面统一接入   | View hierarchy modifier     | `XNotePageScaffold` 内置效果层                       |
+| 玻璃按钮       | `.buttonStyle(.glass)`      | AndroidLiquidGlass catalog `LiquidButton`           |
+| 手机底部标签栏 | `TabView` / bottom tabs     | AndroidLiquidGlass catalog `LiquidBottomTabs` / `LiquidBottomTab` |
+| 自定义玻璃形状 | `glassEffect(_:in:)`        | AndroidLiquidGlass 的项目级 Shape 适配               |
 
-## 3. 页面骨架与 Scroll Edge
+## 3. 页面骨架与 Progressive blur
 
 ### 3.1 统一页面骨架
 
@@ -57,19 +56,18 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 系统状态栏、导航栏和安全区域。
 - 页面背景和明暗主题。
 - Header、底部导航、底部工具区和浮动操作区的层级。
-- `ScrollEdgeEffectStyle` 的顶部与底部效果。
+- Progressive blur 的顶部与底部效果。
 - Toast Host、全局加载态和页面级错误态。
 - 手机、横屏和平板的内容宽度与边距。
 
 弹窗、Popup 和下拉菜单不视为页面，不单独套用页面 Scaffold；它们自身存在可滚动内容时，必须在内部滚动容器接入相同的边缘效果。
 
-### 3.2 Scroll Edge 规则
+### 3.2 Progressive blur 规则
 
-- 所有页面必须声明顶部边缘效果，默认使用 `Soft`。
-- 存在固定底部导航、编辑工具栏、输入框或悬浮操作区时，同时声明底部边缘效果。
-- 内容未溢出、无法继续向对应方向滚动时，边缘效果自动隐藏，不保留无意义的模糊或阴影。
-- 内容滚动到固定 Header 或底部控件下方时，效果平滑出现；离开边缘后平滑消失。
-- 普通列表、设置页和统计页使用 `Soft`；高密度编辑工具区或需要明确分隔的固定控件可使用 `Hard`。
+- 所有二级页面必须同时声明顶部和底部边缘，且不依赖内容是否已经滚动而隐藏。
+- 一级页面存在固定底部导航、编辑工具栏、输入框或悬浮操作区时，同时声明底部边缘；其余边缘可以根据滚动能力显隐。
+- 顶部遮罩从固定 Header 下沿向内容区渐隐，底部遮罩从系统导航栏或固定底部控件上沿向内容区渐隐。
+- 所有页面使用同一套高度、模糊半径、Tint 强度和 Alpha Mask。
 - 边缘效果只负责层级过渡，不能额外占据布局高度，也不能遮挡标题、首行内容、滚动条或底部最后一项。
 - 长列表、网格、富文本编辑器、Markdown 编辑器、阅读模式和对话消息区均遵循同一规则。
 
@@ -90,7 +88,7 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 - 中间标题必须是当前页面的标题，单行显示并保持视觉居中；过长时尾部省略。
 - 右侧按页面功能放置零至两个按钮，使用公共 Liquid Glass 图标按钮或胶囊按钮。
 - 右侧没有功能时保留与左侧按钮等宽的布局占位，确保标题不偏移；占位不可点击，也不暴露无障碍语义。
-- Header 固定在页面顶部，并与页面的顶部 `ScrollEdgeEffectStyle` 协同工作。
+- Header 固定在页面顶部，并与页面的顶部 Progressive blur 协同工作。
 
 ### 4.2 尺寸与间距
 
@@ -108,9 +106,9 @@ SwiftUI 语义与 Compose 项目语义的映射如下：
 
 普通笔记编辑页和 Markdown 编辑页不在 Header 中间显示固定页面标题。笔记标题属于文档内容，统一置于正文顶部并可编辑；Header 中间保持空白，可仅展示短暂的保存状态，但不能与笔记标题形成重复标题。
 
-编辑页仍必须使用统一的左侧圆形 SVG 返回按钮、右侧功能按钮和顶部 Scroll Edge。
+编辑页仍必须使用统一的左侧圆形 SVG 返回按钮、右侧功能按钮和顶部 Progressive blur。
 
-普通笔记的段落样式、行内样式、清单、对齐、表格和折叠命令只能通过 `XNoteRichTextToolbar` 发出。格式工具栏贴在键盘上方或底部插入工具区之上，必须触发底部 Scroll Edge，不得与“添加图片”“画笔”“Agent”操作混成同一组无分区按钮。
+普通笔记的段落样式、行内样式、清单、对齐、表格和折叠命令只能通过 `XNoteRichTextToolbar` 发出。格式工具栏贴在键盘上方或底部插入工具区之上，必须保留底部 Progressive blur，不得与“添加图片”“画笔”“Agent”操作混成同一组无分区按钮。
 
 ### 4.4 页面标题与右侧功能
 
@@ -209,16 +207,15 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 已有官方 catalog 组件必须优先使用：
 
-- 手机一级导航直接使用 `LiquidBottomTabs` 和 `LiquidBottomTab`，保留官方容器、选中滑块、拖拽、回弹、高光与色散实现。
+- 手机一级导航直接使用 `LiquidBottomTabs` 和 `LiquidBottomTab`，保留官方默认容器、选中滑块、拖拽、回弹、高光与色散配方。
 - Bottom Tabs 选中胶囊的几何中心必须始终与当前 tab 的图标和文字中心重合；按压放大、拖拽形变和色散不得改变中心锚点或产生累计偏移。
-- Bottom Tabs 悬停或取得焦点时，目标 tab 显示轻微折射、低密度主题色光晕和前景软化，作为不改变选中项的预激活反馈。
-- Bottom Tabs 按压时，当前选中项的中性基础内容层与主题色内容层共享中心放大；滑块从 56 dp 放大到约 78 dp，并增强透镜、高光与内阴影，不得让灰色图标或文字残留在原位。
+- Bottom Tabs 按压时，当前选中项的中性基础内容层与主题色内容层共享中心放大；48 dp 滑块沿官方比例放大到约 67 dp，并增强透镜、高光与内阴影，不得让灰色图标或文字残留在原位。
 - Bottom Tabs 的整条玻璃容器都是滑块手势区；手指在任意位置按下时滑块必须立即移动到触点，横向拖拽时逐帧直接跟随手指，松手后再以阻尼弹簧吸附到最近的 tab；普通轻触仍由目标 tab 的可访问点击语义处理。
-- 拖拽中的主题色内容层必须只通过滑块实体的几何范围曝光。滑块边缘横切图标或文字时，覆盖部分高亮、外露部分保持低透明度线框，交界必须沿同一个连续曲线路径进行亚像素裁切。
+- 拖拽中的主题色内容层必须只通过滑块实体的几何范围曝光。滑块边缘横切图标或文字时，覆盖部分高亮、外露部分保持中性线框，交界必须沿同一个连续曲线路径进行亚像素裁切。
 - 拖拽时滑块按速度产生轴向拉伸；释放后使用官方 catalog 弹簧回中，并输出一次遵循系统设置的确认触觉。
-- Bottom Tabs 玻璃容器高度固定为 64 dp，选中滑块静止高度固定为 56 dp；调用方保留顶部 8 dp、底部 16 dp 外部间距，使玻璃容器明显高于系统导航安全区。
+- Bottom Tabs 外层导航占位保持 88 dp；玻璃容器高度为 56 dp、选中滑块静止高度为 48 dp，调用方使用顶部 12 dp、底部 20 dp 间距，使整体布局高度不变。
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
-- 二次轻触已激活 tab 时不改变横向选中位置；图标执行一次向心挤压与衰减回弹，并由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈。“减少动画”开启时改为即时重置。
+- 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
@@ -289,7 +286,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 | 公共组件                 | 职责                                                 | 禁止行为                       |
 | ------------------------ | ---------------------------------------------------- | ------------------------------ |
-| `XNotePageScaffold`      | 页面骨架、安全区域、Header、Scroll Edge、Toast Host  | 承载业务数据请求               |
+| `XNotePageScaffold`      | 页面骨架、安全区域、Header、Progressive blur、Toast Host | 承载业务数据请求            |
 | `XNoteHeader`            | 二级页面返回、标题和右侧操作                         | 页面自定义高度或返回图标       |
 | `LiquidButton`          | 官方 catalog 按钮材质与交互                          | 页面私有玻璃参数               |
 | `LiquidBottomTabs`      | 官方 catalog 手机底部导航、选中滑块与拖拽交互        | 自写 tabbar 样式或选中动画      |
@@ -365,7 +362,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 手机页面水平边距默认 16 dp，平板默认 24 dp；阅读和编辑内容可以设置最大内容宽度并居中。
 - 页面分组使用留白优先于重阴影，圆角只用于明确的容器或交互区域，并统一使用 60% 平滑圆角。
 - 页面切换、抽屉、Popup 与按钮反馈使用短而克制的动画，避免持续漂浮、强烈弹跳或大范围折射。
-- 内容滚动时 Header 保持稳定，Scroll Edge 负责表达固定层与内容层的关系。
+- 内容滚动时 Header 保持稳定，Progressive blur 负责表达固定层与内容层的关系。
 - 支持系统返回手势、预测性返回、键盘避让和横竖屏切换。
 
 ## 10. 页面适配
@@ -374,8 +371,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 - 二级页面使用单栏结构和顶部 Header。
 - 长选择、图片来源和筛选优先使用底部抽屉。
-- 底部导航、编辑工具区和输入区均触发底部 Scroll Edge。
-- Bottom Tabs 保留顶部 8 dp、底部 16 dp 外部间距，玻璃容器高度为 64 dp，选中滑块静止高度为 56 dp，整体明显高于系统导航安全区。
+- 二级页面顶部和底部常驻 Progressive blur；底部导航、编辑工具区和输入区也声明对应边缘。
+- Bottom Tabs 外层占位保持 88 dp，内部顶部 12 dp、底部 20 dp，玻璃容器高度为 56 dp，选中滑块静止高度为 48 dp。
 - 浮动按钮不得遮挡列表最后一项，页面 Scaffold 负责补足底部内容间距。
 
 ### 10.2 平板
@@ -398,20 +395,19 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 每个页面交付前至少验证：
 
-- 页面由 `XNotePageScaffold` 承载，并接入所需顶部与底部 Scroll Edge。
+- 页面由 `XNotePageScaffold` 承载；二级页面顶部与底部均存在 AndroidLiquidGlass Progressive blur。
 - 二级页面使用统一 Header、圆形 Liquid Glass 返回按钮和唯一的 SVG 返回图标。
 - 所有界面矢量图标均能追溯到当前固定版本的 Lucide 官方资源，文件命名、24 × 24 视口、2 单位圆端描边和颜色语义符合图标规范。
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
-- 手机一级导航直接来自 `LiquidBottomTabs` / `LiquidBottomTab`，不存在自写 tabbar 样式或选中滑块。
+- 手机一级导航使用 `LiquidBottomTabs` / `LiquidBottomTab` 的官方默认材质配方，仅扩展主题色切割层与项目导航回调。
 - Bottom Tabs 在静止、按压放大和拖拽状态下，选中胶囊均以当前 tab 中心为锚点，不向任一侧产生非交互预期的偏移。
 - Bottom Tabs 按压时，选中项的中性基础图标与文字随滑块中心放大，另外两个未选中项不会随之缩放。
 - 从 Bottom Tabs 内任意位置按下时，滑块立即移动到触点；横向拖动时滑块不设启动阈值、不使用追赶弹簧，逐帧直接跟随手指，松手后选中并吸附到最近的 tab；普通点击仍能准确切换目标。
 - 点击另一个 tab 时，滑块先唤起并从当前位置动画移动到目标，页面切换不得绕过或吞掉该滑块反馈。
-- 悬停、D-pad 或键盘焦点能够触发目标 tab 的预激活折射与微光晕，且不会提前切换页面。
 - 滑块横切未激活图标时，只有滑块实际覆盖的路径变为主题色，图标外露部分保持中性线框，裁切边缘无整图闪变或矩形穿帮。
 - 拖拽释放后滑块按官方 catalog 弹簧吸附到目标 tab，并仅输出一次确认触觉。
-- 二次轻触已激活 tab 时不发生横向位移，当前图标完成轴向脉冲，并将对应长列表滚回顶部或重置该目的地的子导航栈。
+- 二次轻触已激活 tab 时不发生横向位移，并将对应长列表滚回顶部或重置该目的地的子导航栈。
 - Bottom Tabs 的选中图标和文字在浅色模式使用 `#E09F3E`，在深色模式使用 `#FFD60A`，且不存在组件私有强调色。
 - 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
@@ -426,10 +422,10 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ## 13. 技术参考
 
-- [Apple SwiftUI：ScrollEdgeEffectStyle](https://developer.apple.com/documentation/swiftui/scrolledgeeffectstyle)
 - [Apple SwiftUI：Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
 - [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)
 - [AndroidLiquidGlass LiquidBottomTabs 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/65ab177e90e5c1d8c62e70cf7755841982da65f6/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/components/LiquidBottomTabs.kt)
+- [AndroidLiquidGlass Progressive blur 官方 catalog 源码](https://github.com/Kyant0/AndroidLiquidGlass/blob/kmp/app/src/commonMain/kotlin/com/kyant/backdrop/catalog/destinations/ProgressiveBlurContent.kt)
 - [Apple SwiftUI：RoundedRectangle continuous corner style](https://developer.apple.com/documentation/swiftui/roundedrectangle/init%28cornerradius%3Astyle%3A%29)
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)

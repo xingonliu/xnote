@@ -15,7 +15,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.util.fastCoerceIn
 import com.kyant.backdrop.RuntimeShader
 import com.kyant.backdrop.asComposeShader
-import com.kyant.backdrop.isRuntimeShaderSupported
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -41,24 +40,20 @@ class InteractiveHighlight(
         Offset.VisibilityThreshold,
     )
     private var startPosition = Offset.Zero
-    private val shader = if (isRuntimeShaderSupported()) {
-        RuntimeShader(
-            """
-                uniform float2 size;
-                layout(color) uniform half4 color;
-                uniform float radius;
-                uniform float2 position;
+    private val shader = RuntimeShader(
+        """
+            uniform float2 size;
+            layout(color) uniform half4 color;
+            uniform float radius;
+            uniform float2 position;
 
-                half4 main(float2 coord) {
-                    float dist = distance(coord, position);
-                    float intensity = smoothstep(radius, radius * 0.5, dist);
-                    return color * intensity;
-                }
-            """.trimIndent(),
-        )
-    } else {
-        null
-    }
+            half4 main(float2 coord) {
+                float dist = distance(coord, position);
+                float intensity = smoothstep(radius, radius * 0.5, dist);
+                return color * intensity;
+            }
+        """.trimIndent(),
+    )
 
     // -- Derived Values
 
@@ -71,32 +66,25 @@ class InteractiveHighlight(
     val modifier: Modifier = Modifier.drawWithContent {
         val progress = pressProgressAnimation.value
         if (progress > 0f) {
-            if (shader != null) {
-                drawRect(
-                    Color.White.copy(0.08f * progress),
-                    blendMode = BlendMode.Plus,
-                )
-                shader.apply {
-                    val highlightPosition = position(size, positionAnimation.value)
-                    setFloatUniform("size", size.width, size.height)
-                    setColorUniform("color", Color.White.copy(0.15f * progress))
-                    setFloatUniform("radius", size.minDimension * 1.5f)
-                    setFloatUniform(
-                        "position",
-                        highlightPosition.x.fastCoerceIn(0f, size.width),
-                        highlightPosition.y.fastCoerceIn(0f, size.height),
-                    )
-                }
-                drawRect(
-                    ShaderBrush(shader.asComposeShader()),
-                    blendMode = BlendMode.Plus,
-                )
-            } else {
-                drawRect(
-                    Color.White.copy(0.25f * progress),
-                    blendMode = BlendMode.Plus,
+            drawRect(
+                Color.White.copy(0.08f * progress),
+                blendMode = BlendMode.Plus,
+            )
+            shader.apply {
+                val highlightPosition = position(size, positionAnimation.value)
+                setFloatUniform("size", size.width, size.height)
+                setColorUniform("color", Color.White.copy(0.15f * progress))
+                setFloatUniform("radius", size.minDimension * 1.5f)
+                setFloatUniform(
+                    "position",
+                    highlightPosition.x.fastCoerceIn(0f, size.width),
+                    highlightPosition.y.fastCoerceIn(0f, size.height),
                 )
             }
+            drawRect(
+                ShaderBrush(shader.asComposeShader()),
+                blendMode = BlendMode.Plus,
+            )
         }
         drawContent()
     }

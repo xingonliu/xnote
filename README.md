@@ -9,11 +9,10 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - Kotlin/Compose Compiler 2.3.21、Compose BOM 2026.08.00。
 - Room 3.0.2、`BundledSQLiteDriver`（SQLite 2.7.0，用于 FTS5）、DataStore Preferences 1.2.1、WorkManager 2.11.2、kotlinx.serialization JSON 1.11.0、kotlinx.coroutines Android/Test 1.11.0。
 - AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1` 均固定版本。
-- 手机一级导航直接采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab`，按钮采用同源 `LiquidButton`；组件源码固定到上游提交 `65ab177`，仅补充 XNote 所需的尺寸、禁用态和无障碍输入。
+- 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方；玻璃本体为 56 dp、滑块为 48 dp，外层导航占位保持 88 dp，并用滑块路径切割出主题色图标与文字。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
-- Liquid Glass 没有低版本或低性能替代材质；Android 13 是完整透镜效果的最低系统边界。
 - 界面矢量图标统一来自 Lucide `1.34.0`，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
-- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host，以及随滚动能力自动显隐的顶部/底部 `Soft` / `Hard` Scroll Edge。
+- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass Progressive blur；所有二级页面的内容边界常驻顶部和底部渐进模糊遮罩。
 - `XNoteHeader`、Dialog、Drawer、Toast、Popup、Dropdown、加载/空/错误状态与富文本工具栏均由公共设计系统提供；系统动画倍率为 0 时取消弹性、形变和过渡动画。
 - 笔记首页、笔记本详情与普通笔记编辑页已接通本地笔记库：可创建笔记本、从编辑页 Header 选择归属、编写完整富文本（含表格与标题折叠）、自动保存，并将笔记移入回收站。
 - 普通笔记可在移除媒体块后永久转换为 Markdown；转换事务会先保存历史版本，再按块顺序映射标题、行内样式、清单、引用、代码和 GitHub 风格表格。
@@ -54,7 +53,7 @@ app/src/main/java/com/xnote/app
 ├─ domain              # 笔记文档 JSON、领域规则、纯文本/FTS/匹配片段抽取
 ├─ design              # 主题、令牌、Shape 与库中没有的项目级玻璃适配
 │  ├─ liquidglass      # 固定版本的 AndroidLiquidGlass 官方 catalog 组件
-│  └─ 公共页面骨架、Header、Scroll Edge、浮层、状态与富文本工具栏
+│  └─ 公共页面骨架、Header、Progressive blur、浮层、状态与富文本工具栏
 ├─ feature/background  # 背景画布、公共选择器、相册导入控制与默认背景设置
 ├─ feature/notes       # 笔记首页、笔记本详情、普通笔记编辑器与 Markdown 编辑/预览
 ├─ feature/search      # 手机全屏与平板列表栏搜索

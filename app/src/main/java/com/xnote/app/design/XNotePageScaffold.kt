@@ -59,8 +59,7 @@ fun XNotePageScaffold(
     modifier: Modifier = Modifier,
     scrollEdgeState: XNoteScrollEdgeState = XNoteScrollEdgeState(),
     scrollEdges: Set<XNoteScrollEdge> = setOf(XNoteScrollEdge.Top),
-    topScrollEdgeStyle: XNoteScrollEdgeStyle = XNoteScrollEdgeStyle.Soft,
-    bottomScrollEdgeStyle: XNoteScrollEdgeStyle = XNoteScrollEdgeStyle.Soft,
+    alwaysVisibleScrollEdges: Set<XNoteScrollEdge> = emptySet(),
     topOverlayHeight: Dp = XNoteHeaderHeight,
     bottomOverlayHeight: Dp = 0.dp,
     toastHostState: SnackbarHostState? = null,
@@ -111,12 +110,11 @@ fun XNotePageScaffold(
             }
         }
 
-        XNoteScrollEdgeEffect(
+        XNoteProgressiveBlur(
             backdrop = backdrop,
             state = scrollEdgeState,
             edges = scrollEdges,
-            topStyle = topScrollEdgeStyle,
-            bottomStyle = bottomScrollEdgeStyle,
+            alwaysVisibleEdges = alwaysVisibleScrollEdges,
             topInset = statusBarHeight + topOverlayHeight,
             bottomInset = navigationBarHeight + bottomOverlayHeight,
         )

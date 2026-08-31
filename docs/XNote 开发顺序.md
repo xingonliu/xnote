@@ -25,10 +25,10 @@
 - Android 13+ / Jetpack Compose 工程、主题、令牌、60% 平滑圆角。
 - 手机 `LiquidBottomTabs`、官方 `LiquidButton`、项目级 `XNoteLiquidGlassPanel` 与平板 Navigation Rail。
 - 一级目的地外壳：笔记 / Agent / 我的；手机搜索进入全屏页，平板搜索保留 Navigation Rail 并在笔记列表栏展开。
-- `XNotePageScaffold` 统一系统安全区、页面加载/错误、Toast Host 与顶部/底部 `Soft` / `Hard` Scroll Edge。
+- `XNotePageScaffold` 统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass Progressive blur，二级页面顶部和底部遮罩常驻。
 - 标准 `XNoteHeader` 支持返回、居中标题和零至两个右侧操作；笔记首页与占位页复用公共状态组件。
 - 公共 Dialog、Drawer、Toast、Popup、Dropdown，以及加载、空、错误状态和 `XNoteRichTextToolbar` API/视觉。
-- 系统减少动画监听；关闭动画时禁用 Liquid Button、Bottom Tabs、Scroll Edge 与浮层的弹性、形变和过渡。
+- 系统减少动画监听；关闭动画时禁用 Liquid Button、Bottom Tabs、Progressive blur 与浮层的弹性、形变和过渡。
 - 笔记首页：范围选择、排序、最近编辑、列表、空状态、长按多选、新建笔记。
 - 笔记本详情：创建、重命名、删除确认、笔记数量与文字量、排序与手动拖动排序。
 - 普通笔记编辑页：Header 选择笔记本、标题、完整富文本、表格、标题折叠、自动保存、会话内撤销重做。
@@ -79,7 +79,7 @@ S1 设计系统补齐
 
 **交付：**
 
-- `XNotePageScaffold` 接入系统栏、Toast Host、页面级加载/错误，以及顶部/底部 `XNoteScrollEdgeEffect`（`Soft` / `Hard`）。
+- `XNotePageScaffold` 接入系统栏、Toast Host、页面级加载/错误，以及顶部/底部 `XNoteProgressiveBlur`。
 - `XNoteHeader` 支持左侧返回、居中标题、右侧 0–2 个功能按钮；无右侧按钮时保留等宽占位。一级目的地继续用当前外壳 Header（标题 + 搜索）；二级页面必须走标准 Header。
 - `XNoteDialog`、`XNoteDrawer`、`XNoteToastHost`、`XNotePopup`、`XNoteDropdownMenu`。
 - `XNoteLoadingState`、`XNoteEmptyState`、`XNoteErrorState`。
@@ -87,7 +87,7 @@ S1 设计系统补齐
 
 **不做：** 背景选择器、笔记画布、业务数据。
 
-**验收：** 用笔记首页和两个占位页验证 Scroll Edge、浅色/深色、减少动画、平板与手机；无页面私有圆角或私有按钮材质。
+**验收：** 用笔记首页和两个占位页验证 Progressive blur、浅色/深色、减少动画、平板与手机；无页面私有圆角或私有按钮材质。
 
 ### S2 本地数据层
 

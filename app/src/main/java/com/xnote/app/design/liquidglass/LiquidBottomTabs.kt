@@ -3,12 +3,7 @@ package com.xnote.app.design.liquidglass
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -18,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -26,7 +22,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,20 +30,17 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
@@ -80,8 +72,8 @@ import kotlin.math.sign
 // -- Constants
 
 private val BottomTabsInset = 4.dp
-private val BottomTabsHeight = 64.dp
-private val BottomTabHeight = 56.dp
+private val BottomTabsHeight = 56.dp
+private val BottomTabHeight = 48.dp
 private const val BottomTabPressedScale = 78f / 56f
 private const val BottomTabPressedContentScale = 1.2f
 
@@ -105,9 +97,9 @@ fun LiquidBottomTabs(
     val isLightTheme = colorScheme.background.luminance() > 0.5f
     val accentColor = colorScheme.primary
     val containerColor = if (isLightTheme) {
-        Color(0xFFFAFAFA).copy(0.4f)
+        Color(0xFFFAFAFA).copy(alpha = 0.4f)
     } else {
-        Color(0xFF121212).copy(0.4f)
+        Color(0xFF121212).copy(alpha = 0.4f)
     }
     val hapticView = LocalView.current
     val currentOnTabSelected by rememberUpdatedState(onTabSelected)
@@ -126,18 +118,13 @@ fun LiquidBottomTabs(
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val animationScope = rememberCoroutineScope()
         val offsetAnimation = remember { Animatable(0f) }
-        val reselectionWavePhase = remember { Animatable(1f) }
-        var currentIndex by remember(selectedTabIndex) {
+        var currentIndex by remember(selectedTabIndex, tabsCount) {
             mutableIntStateOf(selectedTabIndex().fastCoerceIn(0, tabsCount - 1))
         }
-        var gestureValue by remember(selectedTabIndex) {
+        var gestureValue by remember(selectedTabIndex, tabsCount) {
             mutableFloatStateOf(selectedTabIndex().toFloat())
         }
-        var preactivatedIndex by remember { mutableIntStateOf(currentIndex) }
-        var isPreactivationActive by remember { mutableStateOf(false) }
-        var reselectedIndex by remember { mutableIntStateOf(-1) }
-        var reselectionSerial by remember { mutableIntStateOf(0) }
-        var suppressedPointerClickIndex by remember { mutableIntStateOf(-1) }
+        var pendingPointerClickIndex by remember { mutableIntStateOf(-1) }
 
         val tabValueAtPosition: (Float) -> Float = { positionX ->
             val value = if (isLtr) {
@@ -164,26 +151,16 @@ fun LiquidBottomTabs(
                 }
             }
         }
-        val preactivationProgress by animateFloatAsState(
-            targetValue = if (isPreactivationActive) 1f else 0f,
-            animationSpec = if (hasInteractiveMotion) tween(100) else snap(),
-            label = "bottom-tab-lens-preactivation",
-        )
 
-        fun triggerReselection(index: Int) {
-            reselectedIndex = index
-            reselectionSerial += 1
-            hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            if (hasInteractiveMotion) {
-                animationScope.launch {
-                    reselectionWavePhase.snapTo(0f)
-                    reselectionWavePhase.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(480, easing = LinearOutSlowInEasing),
-                    )
-                }
+        fun selectTab(index: Int) {
+            val safeIndex = index.fastCoerceIn(0, tabsCount - 1)
+            if (safeIndex == currentIndex) {
+                hapticView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                currentOnTabReselected(safeIndex)
+            } else {
+                hapticView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                currentIndex = safeIndex
             }
-            currentOnTabReselected(index)
         }
 
         val dampedDragAnimation = remember(
@@ -202,37 +179,28 @@ fun LiquidBottomTabs(
                 initialScale = 1f,
                 pressedScale = BottomTabPressedScale,
                 onDragStarted = { position ->
+                    pendingPointerClickIndex = -1
                     gestureValue = tabValueAtPosition(position.x)
+                    updateValue(gestureValue)
                     hapticView.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                 },
                 onDragStopped = { wasDragged ->
-                    val targetIndex = if (wasDragged) {
-                        targetValue
-                    } else {
-                        gestureValue
-                    }.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+                    val targetIndex = if (wasDragged) targetValue else gestureValue
+                    val safeIndex = targetIndex.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
                     if (!wasDragged) {
-                        suppressedPointerClickIndex = targetIndex
-                        if (targetIndex == currentIndex) {
-                            triggerReselection(targetIndex)
-                            animateToValue(targetIndex.toFloat())
-                        } else {
-                            hapticView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            currentIndex = targetIndex
-                        }
+                        pendingPointerClickIndex = safeIndex
                         animationScope.launch {
                             withFrameNanos { }
                             withFrameNanos { }
-                            if (suppressedPointerClickIndex == targetIndex) {
-                                suppressedPointerClickIndex = -1
+                            if (pendingPointerClickIndex == safeIndex) {
+                                pendingPointerClickIndex = -1
+                                animateToValue(currentIndex.toFloat())
                             }
                         }
-                    } else if (targetIndex == currentIndex) {
-                        animateToValue(targetIndex.toFloat())
+                    } else if (safeIndex == currentIndex) {
+                        animateToValue(safeIndex.toFloat())
                     } else {
-                        currentIndex = targetIndex
-                    }
-                    if (wasDragged) {
+                        currentIndex = safeIndex
                         hapticView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     }
                     animationScope.launch {
@@ -255,7 +223,7 @@ fun LiquidBottomTabs(
             )
         }
 
-        LaunchedEffect(selectedTabIndex) {
+        LaunchedEffect(selectedTabIndex, tabsCount) {
             snapshotFlow { selectedTabIndex() }
                 .collectLatest { index ->
                     currentIndex = index.fastCoerceIn(0, tabsCount - 1)
@@ -291,9 +259,9 @@ fun LiquidBottomTabs(
         val indicatorValue = if (hasInteractiveMotion) {
             dampedDragAnimation.value
         } else {
-            selectedTabIndex().toFloat()
+            selectedTabIndex().toFloat().fastCoerceIn(0f, (tabsCount - 1).toFloat())
         }
-        val tabContentTransform: (Int) -> LiquidBottomTabTransform = { tabIndex ->
+        val contentTransform: (Int) -> LiquidBottomTabTransform = { tabIndex ->
             val proximity = (1f - abs(tabIndex - indicatorValue)).fastCoerceIn(0f, 1f)
             val localPress = pressProgress * proximity
             LiquidBottomTabTransform(
@@ -301,57 +269,36 @@ fun LiquidBottomTabs(
                 scaleY = lerp(1f, BottomTabPressedContentScale, localPress),
             )
         }
-
-        if (preactivationProgress > 0f) {
-            Box(
-                modifier = Modifier
-                    .clearAndSetSemantics { }
-                    .offset {
-                        IntOffset(
-                            x = (tabCenterX(preactivatedIndex.toFloat()) - tabWidth / 2f)
-                                .fastRoundToInt(),
-                            y = 0,
-                        )
-                    }
-                    .graphicsLayer { alpha = preactivationProgress }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { Capsule() },
-                        effects = {
-                            blur(3.dp.toPx())
-                            lens(6.dp.toPx(), 8.dp.toPx())
-                        },
-                        highlight = {
-                            Highlight.Default.copy(alpha = 0.28f * preactivationProgress)
-                        },
-                        onDrawSurface = {
-                            drawRect(accentColor.copy(alpha = 0.025f * preactivationProgress))
-                        },
-                    )
-                    .height(BottomTabHeight)
-                    .width(tabWidthDp),
-            )
-        }
-
-        Canvas(
-            modifier = Modifier
-                .clearAndSetSemantics { }
-                .height(BottomTabsHeight)
-                .fillMaxWidth(),
-        ) {
-            val phase = reselectionWavePhase.value
-            if (phase < 1f && reselectedIndex >= 0) {
-                val remaining = 1f - phase
-                drawCircle(
-                    color = accentColor.copy(alpha = 0.24f * remaining * remaining),
-                    radius = lerp(10.dp.toPx(), 58.dp.toPx(), phase),
-                    center = Offset(
-                        x = tabCenterX(reselectedIndex.toFloat()) + panelOffset,
-                        y = size.height / 2f - BottomTabHeight.toPx() * phase,
-                    ),
-                    style = Stroke(width = lerp(2.dp.toPx(), 0.5.dp.toPx(), phase)),
-                )
+        val indicatorRoundRect: (Size) -> RoundRect = { size ->
+            val scaleX = if (hasInteractiveMotion) {
+                val velocity = dampedDragAnimation.velocity / 10f
+                dampedDragAnimation.scaleX /
+                    (1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
+            } else {
+                1f
             }
+            val scaleY = if (hasInteractiveMotion) {
+                val velocity = dampedDragAnimation.velocity / 10f
+                dampedDragAnimation.scaleY *
+                    (1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
+            } else {
+                1f
+            }
+            val currentWidth = tabWidth * scaleX
+            val currentHeight = (size.height - tabInset * 2f) * scaleY
+            val centerX = tabCenterX(indicatorValue)
+            val centerY = size.height / 2f
+            val radius = CornerRadius(currentHeight / 2f, currentHeight / 2f)
+            RoundRect(
+                left = centerX - currentWidth / 2f,
+                top = centerY - currentHeight / 2f,
+                right = centerX + currentWidth / 2f,
+                bottom = centerY + currentHeight / 2f,
+                topLeftCornerRadius = radius,
+                topRightCornerRadius = radius,
+                bottomLeftCornerRadius = radius,
+                bottomRightCornerRadius = radius,
+            )
         }
 
         Box(
@@ -372,72 +319,16 @@ fun LiquidBottomTabs(
                     },
                     onDrawSurface = { drawRect(containerColor) },
                 )
-                .then(
-                    if (hasInteractiveMotion) interactiveHighlight.modifier else Modifier,
-                )
+                .then(if (hasInteractiveMotion) interactiveHighlight.modifier else Modifier)
                 .height(BottomTabsHeight)
                 .fillMaxWidth(),
         )
 
-        val createIndicatorRoundRect: (Size) -> RoundRect = { size ->
-            val scaleX = if (hasInteractiveMotion) {
-                val baseScale = dampedDragAnimation.scaleX
-                val velocity = dampedDragAnimation.velocity / 10f
-                baseScale / (1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
-            } else {
-                1f
-            }
-            val scaleY = if (hasInteractiveMotion) {
-                val baseScale = dampedDragAnimation.scaleY
-                val velocity = dampedDragAnimation.velocity / 10f
-                baseScale * (1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
-            } else {
-                1f
-            }
-            val currentTabWidth = tabWidth * scaleX
-            val currentTabHeight = (size.height - tabInset * 2f) * scaleY
-            val centerX = tabCenterX(indicatorValue)
-            val centerY = size.height / 2f
-            val left = centerX - currentTabWidth / 2f
-            val right = centerX + currentTabWidth / 2f
-            val top = centerY - currentTabHeight / 2f
-            val bottom = centerY + currentTabHeight / 2f
-            val radius = CornerRadius(currentTabHeight / 2f, currentTabHeight / 2f)
-            RoundRect(
-                left = left,
-                top = top,
-                right = right,
-                bottom = bottom,
-                topLeftCornerRadius = radius,
-                topRightCornerRadius = radius,
-                bottomLeftCornerRadius = radius,
-                bottomRightCornerRadius = radius,
-            )
-        }
-
         CompositionLocalProvider(
-            LocalLiquidBottomTabTransform provides tabContentTransform,
+            LocalLiquidBottomTabTransform provides contentTransform,
             LocalLiquidBottomTabClick provides { index ->
-                val safeIndex = index.fastCoerceIn(0, tabsCount - 1)
-                if (safeIndex == suppressedPointerClickIndex) {
-                    suppressedPointerClickIndex = -1
-                } else if (safeIndex == currentIndex) {
-                    triggerReselection(safeIndex)
-                } else {
-                    hapticView.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                    currentIndex = safeIndex
-                }
-            },
-            LocalLiquidBottomTabPreactivation provides { index, active ->
-                if (active) {
-                    preactivatedIndex = index.fastCoerceIn(0, tabsCount - 1)
-                    isPreactivationActive = true
-                } else if (preactivatedIndex == index) {
-                    isPreactivationActive = false
-                }
-            },
-            LocalLiquidBottomTabReselectionPulse provides { index ->
-                if (index == reselectedIndex) reselectionSerial else 0
+                pendingPointerClickIndex = -1
+                selectTab(index)
             },
             LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Base,
         ) {
@@ -450,10 +341,10 @@ fun LiquidBottomTabs(
                             val fullPath = Path().apply {
                                 addRect(Rect(0f, 0f, size.width, size.height))
                             }
-                            val capsulePath = Path().apply {
-                                addRoundRect(createIndicatorRoundRect(size))
+                            val indicatorPath = Path().apply {
+                                addRoundRect(indicatorRoundRect(size))
                             }
-                            op(fullPath, capsulePath, PathOperation.Difference)
+                            op(fullPath, indicatorPath, PathOperation.Difference)
                         }
                     }
                     .height(BottomTabsHeight)
@@ -480,28 +371,22 @@ fun LiquidBottomTabs(
                     backdrop = backdrop,
                     shape = { Capsule() },
                     effects = {
-                        vibrancy()
-                        blur(2.dp.toPx() * (1f - pressProgress * 0.5f))
                         lens(
-                            10.dp.toPx() * lerp(0.35f, 1f, pressProgress),
-                            14.dp.toPx() * lerp(0.35f, 1f, pressProgress),
+                            refractionHeight = 10.dp.toPx() * pressProgress,
+                            refractionAmount = 14.dp.toPx() * pressProgress,
                             chromaticAberration = true,
                         )
                     },
                     highlight = {
-                        Highlight.Default.copy(
-                            alpha = lerp(0.3f, 1f, pressProgress),
-                        )
+                        Highlight.Default.copy(alpha = pressProgress)
                     },
                     shadow = {
-                        Shadow(
-                            alpha = lerp(0.18f, 1f, pressProgress),
-                        )
+                        Shadow(alpha = pressProgress)
                     },
                     innerShadow = {
                         InnerShadow(
-                            radius = 3.dp + 6.dp * pressProgress,
-                            alpha = lerp(0.2f, 1f, pressProgress),
+                            radius = 8.dp * pressProgress,
+                            alpha = pressProgress,
                         )
                     },
                     layerBlock = {
@@ -518,14 +403,12 @@ fun LiquidBottomTabs(
                     onDrawSurface = {
                         drawRect(
                             color = if (isLightTheme) {
-                                Color.Black.copy(0.08f)
+                                Color.Black.copy(alpha = 0.1f)
                             } else {
-                                Color.White.copy(0.1f)
+                                Color.White.copy(alpha = 0.1f)
                             },
                             alpha = 1f - pressProgress,
                         )
-                        drawRect(containerColor)
-                        drawRect(accentColor.copy(alpha = 0.035f + 0.035f * pressProgress))
                         drawRect(Color.Black.copy(alpha = 0.03f * pressProgress))
                     },
                 ),
@@ -538,7 +421,7 @@ fun LiquidBottomTabs(
                     translationX = panelOffset
                     clip = true
                     shape = GenericShape { size, _ ->
-                        addRoundRect(createIndicatorRoundRect(size))
+                        addRoundRect(indicatorRoundRect(size))
                     }
                 }
                 .height(BottomTabsHeight)
@@ -548,11 +431,8 @@ fun LiquidBottomTabs(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CompositionLocalProvider(
-                LocalLiquidBottomTabTransform provides tabContentTransform,
+                LocalLiquidBottomTabTransform provides contentTransform,
                 LocalLiquidBottomTabLayer provides LiquidBottomTabLayer.Highlight,
-                LocalLiquidBottomTabReselectionPulse provides { index ->
-                    if (index == reselectedIndex) reselectionSerial else 0
-                },
             ) {
                 content()
             }
@@ -562,9 +442,7 @@ fun LiquidBottomTabs(
             modifier = Modifier
                 .height(BottomTabsHeight)
                 .fillMaxWidth()
-                .then(
-                    if (hasInteractiveMotion) interactiveHighlight.gestureModifier else Modifier,
-                )
+                .then(if (hasInteractiveMotion) interactiveHighlight.gestureModifier else Modifier)
                 .then(if (hasInteractiveMotion) dampedDragAnimation.modifier else Modifier),
         )
     }
