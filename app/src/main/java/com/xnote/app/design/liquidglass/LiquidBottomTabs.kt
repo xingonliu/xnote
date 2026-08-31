@@ -25,7 +25,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -196,28 +196,10 @@ fun LiquidBottomTabs(
                 }
         }
 
-        val interactiveHighlight = remember(animationScope) {
-            InteractiveHighlight(
-                animationScope = animationScope,
-                position = { size, _ ->
-                    val posX = if (isLtr) {
-                        tabInset + (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
-                    } else {
-                        size.width - tabInset - (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
-                    }
-                    Offset(
-                        posX,
-                        size.height / 2f,
-                    )
-                },
-            )
-        }
-
         Box(
             modifier = Modifier
                 .height(BottomTabsHeight)
                 .fillMaxWidth()
-                .then(interactiveHighlight.gestureModifier)
                 .then(dampedDragAnimation.modifier),
             contentAlignment = Alignment.CenterStart,
         ) {
@@ -234,15 +216,8 @@ fun LiquidBottomTabs(
                             blur(8.dp.toPx())
                             lens(24.dp.toPx(), 24.dp.toPx())
                         },
-                        layerBlock = {
-                            val progress = dampedDragAnimation.pressProgress
-                            val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
-                            scaleX = scale
-                            scaleY = scale
-                        },
                         onDrawSurface = { drawRect(containerColor) },
                     )
-                    .then(interactiveHighlight.modifier)
                     .height(BottomTabsHeight)
                     .fillMaxWidth()
                     .padding(BottomTabsInset),
@@ -281,7 +256,6 @@ fun LiquidBottomTabs(
                             },
                             onDrawSurface = { drawRect(containerColor) },
                         )
-                        .then(interactiveHighlight.modifier)
                         .height(BottomTabHeight)
                         .fillMaxWidth()
                         .padding(horizontal = BottomTabsInset)
@@ -316,7 +290,12 @@ fun LiquidBottomTabs(
                         },
                         shadow = {
                             val progress = dampedDragAnimation.pressProgress
-                            Shadow(alpha = progress)
+                            Shadow(
+                                radius = 10.dp * progress,
+                                color = if (isLightTheme) Color.White.copy(0.4f) else Color.White.copy(0.25f),
+                                alpha = progress,
+                                blendMode = BlendMode.Plus,
+                            )
                         },
                         innerShadow = {
                             val progress = dampedDragAnimation.pressProgress
@@ -335,11 +314,15 @@ fun LiquidBottomTabs(
                         onDrawSurface = {
                             val progress = dampedDragAnimation.pressProgress
                             drawRect(
-                                if (isLightTheme) Color.Black.copy(0.1f)
-                                else Color.White.copy(0.1f),
+                                if (isLightTheme) Color.Black.copy(0.08f)
+                                else Color.White.copy(0.08f),
                                 alpha = 1f - progress,
                             )
-                            drawRect(Color.Black.copy(alpha = 0.03f * progress))
+                            drawRect(
+                                if (isLightTheme) Color.White.copy(0.08f * progress)
+                                else Color.White.copy(0.04f * progress),
+                                blendMode = BlendMode.Plus,
+                            )
                         },
                     )
                     .height(BottomTabHeight)
