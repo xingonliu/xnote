@@ -108,8 +108,6 @@ fun NotesHomeScreen(
                         onClick = onOpenPicker,
                         backdrop = backdrop,
                         modifier = Modifier.testTag("xnote-notebook-picker"),
-                        height = 36.dp,
-                        contentPadding = PaddingValues(horizontal = 12.dp),
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -137,8 +135,6 @@ fun NotesHomeScreen(
                     LiquidButton(
                         onClick = onOpenSort,
                         backdrop = backdrop,
-                        height = 36.dp,
-                        contentPadding = PaddingValues(horizontal = 12.dp),
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),

@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -190,8 +189,6 @@ private fun XNoteToolbarAction(
         backdrop = backdrop,
         enabled = action !in state.disabledActions,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
-        height = XNoteMinimumTouchTarget,
-        contentPadding = PaddingValues(horizontal = 12.dp),
         modifier = Modifier.semantics { this.selected = selected },
     ) {
         Text(

@@ -13,6 +13,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -46,16 +46,19 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
+import com.kyant.shapes.RoundedRectangle
 import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Type Definitions
@@ -102,6 +105,19 @@ fun XNoteDialog(
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
     val settings = LocalXNoteInteractionSettings.current
+    val isLightTheme = !isSystemInDarkTheme()
+    val contentColor = if (isLightTheme) Color.Black else Color.White
+    val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
+    val containerColor = if (isLightTheme) {
+        Color(0xFFFAFAFA).copy(alpha = 0.6f)
+    } else {
+        Color(0xFF121212).copy(alpha = 0.4f)
+    }
+    val dimColor = if (isLightTheme) {
+        Color(0xFF29293A).copy(alpha = 0.23f)
+    } else {
+        Color(0xFF121212).copy(alpha = 0.56f)
+    }
 
     AnimatedVisibility(
         visible = visible,
@@ -109,9 +125,13 @@ fun XNoteDialog(
         enter = xNoteFadeIn(settings.reduceMotion),
         exit = xNoteFadeOut(settings.reduceMotion),
     ) {
-        XNoteOverlayContainer(onDismissRequest = onDismissRequest) {
+        XNoteOverlayContainer(
+            onDismissRequest = onDismissRequest,
+            scrimColor = dimColor,
+        ) {
             XNoteLiquidGlassPanel(
                 backdrop = backdrop,
+                shape = RoundedRectangle(48.dp),
                 modifier = Modifier
                     .align(Alignment.Center)
                     .padding(XNoteSpacingLarge)
@@ -121,33 +141,67 @@ fun XNoteDialog(
                     .semantics { paneTitle = title },
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(XNoteSpacingLarge),
-                    verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    content()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(
-                            XNoteSpacingSmall,
-                            Alignment.End,
+                        color = contentColor,
+                        modifier = Modifier.padding(
+                            start = 28.dp,
+                            top = 24.dp,
+                            end = 28.dp,
+                            bottom = 12.dp,
                         ),
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 24.dp,
+                                top = 12.dp,
+                                end = 24.dp,
+                                bottom = 12.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
+                        content = content,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 24.dp,
+                                top = 12.dp,
+                                end = 24.dp,
+                                bottom = 24.dp,
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            16.dp,
+                            Alignment.CenterHorizontally,
+                        ),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (dismissAction != null) {
                             XNoteDialogButton(
                                 action = dismissAction,
                                 backdrop = backdrop,
+                                foreground = contentColor,
+                                surfaceColor = containerColor.copy(alpha = 0.2f),
                             )
                         }
                         XNoteDialogButton(
                             action = confirmAction,
                             backdrop = backdrop,
+                            foreground = if (confirmAction.destructive) {
+                                MaterialTheme.colorScheme.onError
+                            } else {
+                                Color.White
+                            },
+                            surfaceColor = if (confirmAction.destructive) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                accentColor
+                            },
                         )
                     }
                 }
@@ -375,8 +429,6 @@ fun XNoteToastHost(
                     LiquidButton(
                         onClick = data::performAction,
                         backdrop = backdrop,
-                        height = XNoteMinimumTouchTarget,
-                        contentPadding = PaddingValues(horizontal = XNoteSpacingSmall),
                     ) {
                         Text(
                             text = label,
@@ -389,8 +441,6 @@ fun XNoteToastHost(
                     LiquidButton(
                         onClick = data::dismiss,
                         backdrop = backdrop,
-                        height = XNoteMinimumTouchTarget,
-                        contentPadding = PaddingValues(horizontal = XNoteSpacingSmall),
                     ) {
                         Text(
                             text = dismissLabel,
@@ -407,12 +457,13 @@ fun XNoteToastHost(
 @Composable
 private fun XNoteOverlayContainer(
     onDismissRequest: () -> Unit,
+    scrimColor: Color = Color.Black.copy(alpha = 0.32f),
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         XNoteDismissLayer(
             onDismissRequest = onDismissRequest,
-            scrimColor = Color.Black.copy(alpha = 0.32f),
+            scrimColor = scrimColor,
         )
         content()
     }
@@ -441,19 +492,20 @@ private fun BoxScope.XNoteDismissLayer(
 private fun RowScope.XNoteDialogButton(
     action: XNoteDialogAction,
     backdrop: Backdrop,
+    foreground: Color,
+    surfaceColor: Color,
 ) {
-    val foreground = if (action.destructive) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.primary
-    }
     LiquidButton(
-        onClick = action.onClick,
+        onClick = { if (action.enabled) action.onClick() },
         backdrop = backdrop,
-        enabled = action.enabled,
-        tint = foreground.copy(alpha = 0.14f),
-        height = XNoteMinimumTouchTarget,
-        contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
+        isInteractive = action.enabled,
+        surfaceColor = surfaceColor,
+        modifier = Modifier
+            .weight(1f)
+            .alpha(if (action.enabled) 1f else 0.64f)
+            .semantics {
+                if (!action.enabled) disabled()
+            },
     ) {
         Text(
             text = action.label,

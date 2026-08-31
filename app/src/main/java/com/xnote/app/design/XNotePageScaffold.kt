@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -165,8 +164,6 @@ fun XNoteHeader(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .size(XNoteMinimumTouchTarget),
-                height = XNoteMinimumTouchTarget,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_arrow_left),
@@ -212,8 +209,6 @@ fun XNoteHeader(
                         backdrop = backdrop,
                         enabled = action.enabled,
                         modifier = Modifier.size(XNoteMinimumTouchTarget),
-                        height = XNoteMinimumTouchTarget,
-                        contentPadding = PaddingValues(0.dp),
                     ) {
                         Icon(
                             painter = painterResource(action.iconRes),

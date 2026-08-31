@@ -239,8 +239,6 @@ private fun SearchFilterButton(
         backdrop = backdrop,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
         modifier = Modifier.semantics { this.selected = selected },
-        height = 36.dp,
-        contentPadding = PaddingValues(horizontal = 14.dp),
     ) {
         Text(
             text = label,

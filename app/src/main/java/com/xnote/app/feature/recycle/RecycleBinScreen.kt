@@ -229,8 +229,6 @@ private fun RecycleBinRow(
                 LiquidButton(
                     onClick = onRestore,
                     backdrop = backdrop,
-                    height = 32.dp,
-                    contentPadding = PaddingValues(horizontal = 12.dp),
                 ) {
                     Text(
                         text = stringResource(R.string.recycle_bin_restore),
@@ -241,9 +239,7 @@ private fun RecycleBinRow(
                 LiquidButton(
                     onClick = onPermanentlyDelete,
                     backdrop = backdrop,
-                    height = 32.dp,
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
                 ) {
                     Text(
                         text = stringResource(R.string.recycle_bin_delete_permanently),

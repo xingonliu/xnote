@@ -73,8 +73,6 @@ fun DefaultBackgroundScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(XNoteMinimumTouchTarget),
-                height = XNoteMinimumTouchTarget,
-                contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
             ) {
                 Text(
                     text = stringResource(R.string.background_restore_initial),

@@ -108,8 +108,6 @@ fun NotebookDetailScreen(
                 LiquidButton(
                     onClick = onOpenSort,
                     backdrop = backdrop,
-                    height = 36.dp,
-                    contentPadding = PaddingValues(horizontal = 12.dp),
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),

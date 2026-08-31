@@ -2,7 +2,6 @@ package com.xnote.app.feature.recycle
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -216,8 +215,6 @@ private fun RecycleSelectionBar(
             onClick = onRestore,
             backdrop = backdrop,
             enabled = restoreEnabled,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Text(
                 text = stringResource(R.string.recycle_bin_restore),
@@ -228,8 +225,6 @@ private fun RecycleSelectionBar(
             onClick = onPermanentlyDelete,
             backdrop = backdrop,
             enabled = restoreEnabled,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Text(
                 text = stringResource(R.string.recycle_bin_delete_permanently),
@@ -239,8 +234,6 @@ private fun RecycleSelectionBar(
         LiquidButton(
             onClick = onCancel,
             backdrop = backdrop,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Text(
                 text = stringResource(R.string.action_cancel),

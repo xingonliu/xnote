@@ -46,7 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -847,9 +846,6 @@ private fun XNoteNavigationRailItem(
             this.selected = selected
         },
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
-        height = 72.dp,
-        contentPadding = PaddingValues(0.dp),
-        role = Role.Tab,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

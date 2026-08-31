@@ -3,7 +3,6 @@ package com.xnote.app.design.liquidglass
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.height
@@ -13,13 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
@@ -36,8 +32,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.tanh
 
-// Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
-// XNote adds enabled, size and shape inputs without changing the upstream material recipe.
+// Copied from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
+// XNote only gates the upstream interaction feedback when reduced motion is enabled.
 
 // -- Composables
 
@@ -46,14 +42,9 @@ fun LiquidButton(
     onClick: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
     isInteractive: Boolean = true,
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
-    shape: Shape = Capsule(),
-    height: Dp = 48.dp,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
-    role: Role = Role.Button,
     content: @Composable RowScope.() -> Unit,
 ) {
     val interactionSettings = LocalXNoteInteractionSettings.current
@@ -61,14 +52,13 @@ fun LiquidButton(
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(animationScope = animationScope)
     }
-    val hasInteractiveMotion = enabled && isInteractive && !interactionSettings.reduceMotion
+    val hasInteractiveMotion = isInteractive && !interactionSettings.reduceMotion
 
     Row(
         modifier
-            .alpha(if (enabled) 1f else 0.64f)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { shape },
+                shape = { Capsule() },
                 effects = {
                     vibrancy()
                     blur(2.dp.toPx())
@@ -111,8 +101,7 @@ fun LiquidButton(
             .clickable(
                 interactionSource = null,
                 indication = if (hasInteractiveMotion) null else LocalIndication.current,
-                enabled = enabled,
-                role = role,
+                role = Role.Button,
                 onClick = onClick,
             )
             .then(
@@ -124,8 +113,8 @@ fun LiquidButton(
                     Modifier
                 },
             )
-            .height(height)
-            .padding(contentPadding),
+            .height(48.dp)
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = content,

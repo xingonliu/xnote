@@ -1,7 +1,6 @@
 package com.xnote.app.feature.notes
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,8 +57,6 @@ internal fun MarkdownEditorToolbarBar(
             modifier = Modifier
                 .size(XNoteMinimumTouchTarget)
                 .testTag("xnote-markdown-done"),
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(0.dp),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_lucide_check),
@@ -84,8 +81,6 @@ private fun MarkdownHistoryButton(
         backdrop = backdrop,
         enabled = enabled,
         modifier = Modifier.size(XNoteMinimumTouchTarget),
-        height = XNoteMinimumTouchTarget,
-        contentPadding = PaddingValues(0.dp),
     ) {
         Icon(
             painter = painterResource(iconRes),

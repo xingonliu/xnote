@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -19,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -187,13 +187,11 @@ fun BoxScope.NotesChrome(
                     )
                     .testTag("xnote-create-note")
                     .size(XNoteMinimumTouchTarget),
-                height = XNoteMinimumTouchTarget,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_lucide_plus),
                     contentDescription = stringResource(R.string.action_create_note),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = Color.White,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -297,8 +295,6 @@ fun BoxScope.NotesChrome(
                     },
                     backdrop = backdrop,
                     modifier = Modifier.size(XNoteMinimumTouchTarget),
-                    height = XNoteMinimumTouchTarget,
-                    contentPadding = PaddingValues(0.dp),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_lucide_chevron_right),
@@ -703,8 +699,6 @@ private fun EditorToolbarBar(
             backdrop = backdrop,
             enabled = session.canUndo,
             modifier = Modifier.size(XNoteMinimumTouchTarget),
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(0.dp),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_lucide_undo_2),
@@ -718,8 +712,6 @@ private fun EditorToolbarBar(
             backdrop = backdrop,
             enabled = session.canRedo,
             modifier = Modifier.size(XNoteMinimumTouchTarget),
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(0.dp),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_lucide_redo_2),
@@ -784,16 +776,12 @@ private fun SelectionBar(
         LiquidButton(
             onClick = onMove,
             backdrop = backdrop,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Text(stringResource(R.string.notes_move_to_notebook), color = MaterialTheme.colorScheme.onSurface)
         }
         LiquidButton(
             onClick = onTrash,
             backdrop = backdrop,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall), verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -808,8 +796,6 @@ private fun SelectionBar(
         LiquidButton(
             onClick = onCancel,
             backdrop = backdrop,
-            height = XNoteMinimumTouchTarget,
-            contentPadding = PaddingValues(horizontal = XNoteSpacingMedium),
         ) {
             Text(stringResource(R.string.notes_cancel_selection), color = MaterialTheme.colorScheme.onSurface)
         }
