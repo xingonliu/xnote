@@ -45,6 +45,7 @@ data class XNoteHeaderAction(
     val onClick: () -> Unit,
     val enabled: Boolean = true,
     val tint: Color? = null,
+    val popupAnchor: XNotePopupAnchor? = null,
 )
 
 // -- Composables
@@ -208,7 +209,12 @@ fun XNoteHeader(
                         onClick = action.onClick,
                         backdrop = backdrop,
                         enabled = action.enabled,
-                        modifier = Modifier.size(XNoteHeaderHeight),
+                        modifier = Modifier
+                            .size(XNoteHeaderHeight)
+                            .then(
+                                action.popupAnchor?.let { Modifier.xNotePopupAnchor(it) }
+                                    ?: Modifier,
+                            ),
                     ) {
                         Icon(
                             painter = painterResource(action.iconRes),

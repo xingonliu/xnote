@@ -25,8 +25,10 @@ import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteMinimumTouchTarget
+import com.xnote.app.design.XNotePopupPlacement
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.Note
 import kotlinx.coroutines.launch
@@ -48,6 +50,7 @@ fun BoxScope.RecycleBinChrome(
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val moreMenuAnchor = rememberXNotePopupAnchor()
     val restoredMessage = stringResource(R.string.recycle_bin_restored)
     XNoteHeader(
         title = stringResource(R.string.recycle_bin_title),
@@ -82,6 +85,7 @@ fun BoxScope.RecycleBinChrome(
                     iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                     contentDescription = stringResource(R.string.action_more),
                     onClick = { ui.moreVisible = true },
+                    popupAnchor = moreMenuAnchor,
                 ),
             )
         },
@@ -128,8 +132,8 @@ fun BoxScope.RecycleBinChrome(
             ),
         ),
         backdrop = backdrop,
-        alignment = Alignment.TopEnd,
-        modifier = Modifier.padding(top = 72.dp, end = XNoteSpacingMedium),
+        anchor = moreMenuAnchor,
+        placement = XNotePopupPlacement.BelowEnd,
     )
 
     XNoteDialog(

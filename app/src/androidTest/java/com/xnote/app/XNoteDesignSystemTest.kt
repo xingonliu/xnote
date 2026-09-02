@@ -1,7 +1,9 @@
 package com.xnote.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -10,6 +12,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -18,11 +21,13 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteDialog
@@ -34,12 +39,15 @@ import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteDarkPrimaryColor
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNotePageState
+import com.xnote.app.design.XNotePopupPlacement
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
 import com.xnote.app.design.XNoteRichTextToolbarState
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.design.rememberXNoteScrollEdgeState
+import com.xnote.app.design.rememberXNotePopupAnchor
+import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import org.junit.Assert.assertEquals
@@ -201,6 +209,54 @@ class XNoteDesignSystemTest {
             assertTrue(dropdownSelected)
             assertTrue(dialogConfirmed)
         }
+    }
+
+    @Test
+    fun dropdownWrapsContentAndUsesItsAnchorPosition() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val backdrop = rememberLayerBackdrop()
+                val menuAnchor = rememberXNotePopupAnchor()
+                XNotePageScaffold(
+                    backdrop = backdrop,
+                    content = {},
+                    overlay = {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(48.dp)
+                                .xNotePopupAnchor(menuAnchor)
+                                .testTag("dropdown-anchor"),
+                        )
+                        XNoteDropdownMenu(
+                            expanded = true,
+                            onDismissRequest = {},
+                            items = listOf(
+                                XNoteDropdownMenuItem(
+                                    label = "短项",
+                                    onClick = {},
+                                ),
+                            ),
+                            backdrop = backdrop,
+                            anchor = menuAnchor,
+                            placement = XNotePopupPlacement.BelowStart,
+                            modifier = Modifier.testTag("dropdown-panel"),
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
+        val anchorBounds = composeRule.onNodeWithTag("dropdown-anchor")
+            .fetchSemanticsNode().boundsInRoot
+        val popupBounds = composeRule.onNodeWithTag("dropdown-panel")
+            .fetchSemanticsNode().boundsInRoot
+
+        assertTrue(popupBounds.width < rootBounds.width / 2f)
+        assertTrue(kotlin.math.abs(popupBounds.left - anchorBounds.left) < 2f)
+        assertTrue(popupBounds.top > anchorBounds.bottom)
     }
 
     @Test

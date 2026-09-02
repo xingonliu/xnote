@@ -70,10 +70,12 @@ import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNoteNavigationRailIconSize
+import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.rememberXNoteScrollEdgeState
+import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.design.rememberXNoteToastHostState
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
@@ -162,6 +164,7 @@ fun XNoteApp(
     }
     val backdrop = rememberLayerBackdrop()
     val toastHostState = rememberXNoteToastHostState()
+    val sortMenuAnchor = rememberXNotePopupAnchor()
     val notesListState = rememberLazyListState()
     val notebookListState = rememberLazyListState()
     val editorScrollState = rememberScrollState()
@@ -439,6 +442,7 @@ fun XNoteApp(
                     recentQueries = recentQueries,
                     trashedNotes = trashedNotes,
                     recycleBinUiState = recycleBinUiState,
+                    sortMenuAnchor = sortMenuAnchor,
                     toastHostState = toastHostState,
                     onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
                     onCreateNote = ::createNote,
@@ -535,6 +539,7 @@ fun XNoteApp(
                         isTablet = isTablet,
                         editorSession = editorSession,
                         editorBackground = editorBackground,
+                        sortMenuAnchor = sortMenuAnchor,
                         toastHostState = toastHostState,
                         onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
                         onCreateNote = ::createNote,
@@ -595,6 +600,7 @@ private fun DestinationContent(
     recentQueries: List<String>,
     trashedNotes: List<Note>,
     recycleBinUiState: RecycleBinUiState,
+    sortMenuAnchor: XNotePopupAnchor,
     toastHostState: androidx.compose.material3.SnackbarHostState,
     onOpenNote: (String) -> Unit,
     onCreateNote: (String?) -> Unit,
@@ -687,6 +693,7 @@ private fun DestinationContent(
                 onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
                 onOpenPicker = { uiState.pickerVisible = true },
                 onOpenSort = { uiState.sortMenuVisible = true },
+                sortMenuAnchor = sortMenuAnchor,
                 onCreateNote = {
                     val notebookId = when (val scope = uiState.scope) {
                         NotesScope.All, NotesScope.Unfiled -> null
@@ -710,6 +717,7 @@ private fun DestinationContent(
                 },
                 onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
                 onOpenSort = { uiState.sortMenuVisible = true },
+                sortMenuAnchor = sortMenuAnchor,
                 modifier = modifier,
             )
             is NotesRoute.Editor -> editorSession?.let { session ->

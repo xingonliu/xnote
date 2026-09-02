@@ -39,8 +39,10 @@ import com.xnote.app.design.XNoteGroupCard
 import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMaximumContentWidth
+import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
@@ -63,6 +65,7 @@ fun NotesHomeScreen(
     onEnterSelection: (String) -> Unit,
     onOpenPicker: () -> Unit,
     onOpenSort: () -> Unit,
+    sortMenuAnchor: XNotePopupAnchor,
     onCreateNote: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -136,6 +139,7 @@ fun NotesHomeScreen(
                     LiquidButton(
                         onClick = onOpenSort,
                         backdrop = backdrop,
+                        modifier = Modifier.xNotePopupAnchor(sortMenuAnchor),
                     ) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),

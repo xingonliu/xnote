@@ -415,7 +415,7 @@ Liquid Glass 用于：
 - 后续组件先核对官方 catalog；已有 `LiquidToggle`、`LiquidSlider` 等实现时直接采用，只有不存在对应组件时才创建基于 AndroidLiquidGlass 的项目级适配。
 - 项目级适配不得重复实现库已有的 Backdrop、Lens、Blur、Vibrancy、高光或阴影能力；当前只为 catalog 缺少的 Panel 与竖向 Navigation Rail 保留适配层。
 - 被录制的页面内容和玻璃 Overlay 分层，玻璃组件不进入自身的背景录制。
-- 需要玻璃效果的浮层优先在同一个 Compose Host 内绘制，不承诺跨 Window 的 Popup 或 Dialog 背景采样。
+- 需要玻璃效果的浮层优先在同一个 Compose Host 内绘制，不承诺跨 Window 的 Popup 或 Dialog 背景采样；Popup 与下拉菜单按触发控件的真实边界定位，在安全区内自动翻转，宽度随单行内容确定，仅面板执行锚点缩放与淡入淡出。
 - 第一阶段完整支持圆形、胶囊和圆角矩形。
 - 普通自定义 Shape 可以用于裁剪和 Tint，但不默认承诺基于精确 SDF 的透镜法线。
 - 文本和图标作为前景内容绘制，不进入背景模糊层。

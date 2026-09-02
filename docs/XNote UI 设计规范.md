@@ -230,8 +230,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - `LiquidButton` 固定使用官方 `Capsule`、48 dp 高度、16 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`；页面不得传入私有高度、形状、内容内边距或高光参数。
-- Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 同时固定使用官方 48 dp `RoundedRectangle`、遮罩色和内容间距。
-- Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。
+- Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog、Popup 和 DropdownMenu 固定使用官方 48 dp `RoundedRectangle`，Dialog 另行复用官方遮罩色和内容间距。
+- Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
@@ -283,7 +283,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ### 7.2 组件与实现约束
 
-- Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。直接复用的 AndroidLiquidGlass Dialog 使用官方 `RoundedRectangle(48.dp)`，不再套用项目级 Shape。
+- Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。直接复用的 AndroidLiquidGlass Dialog、Popup 与 DropdownMenu 使用官方 `RoundedRectangle(48.dp)`，不再套用项目级 Shape。
 - 禁止业务页面直接使用普通 `RoundedCornerShape`、局部 Bézier Path 或各自实现的 superellipse。
 - 背景填充、内容裁剪、描边、阴影、Liquid Glass 背景采样、按压反馈和焦点轮廓必须复用同一个 Shape Path，不能出现边缘错位。
 - 圆角半径由组件尺寸令牌决定；调整半径时仍保持 60% 平滑度，禁止通过改变平滑度模拟不同层级。
@@ -318,6 +318,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteEmptyState`        | 空数据说明与下一步操作                               | 使用无操作价值的装饰图         |
 | `XNoteErrorState`        | 错误原因、重试和恢复入口                             | 只显示错误码                   |
 | `XNoteRichTextToolbar`   | 普通笔记段落样式、行内样式、清单、对齐、表格与折叠   | 页面私有格式栏或直接改文档模型 |
+
+Popup 与 DropdownMenu 必须在同一 Compose Host 内按触发控件的真实边界定位：默认保留 8 dp 间距，优先在指定方向出现，空间不足时在锚点另一侧翻转，并始终限制在系统安全区内。DropdownMenu 宽度由最长菜单项的单行内容和内边距决定，最大 360 dp，不得填满可用宽度或强制固定最小宽度。面板使用 180 ms 锚点原点缩放与淡入/淡出，启用“减少动画”时直接显隐；全屏关闭层不参与该动画。
 
 所有包含圆角的公共组件必须使用 `XNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
 

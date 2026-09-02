@@ -106,6 +106,7 @@ fun XNoteRichTextToolbar(
     onAction: (XNoteRichTextAction) -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
+    popupAnchors: Map<XNoteRichTextAction, XNotePopupAnchor> = emptyMap(),
 ) {
     XNoteLiquidGlassPanel(
         backdrop = backdrop,
@@ -126,6 +127,7 @@ fun XNoteRichTextToolbar(
                 state = state,
                 backdrop = backdrop,
                 onAction = onAction,
+                popupAnchor = popupAnchors[XNoteRichTextAction.ParagraphStyle],
             )
             XNoteToolbarDivider()
             XNoteToolbarActionGroup(
@@ -133,6 +135,7 @@ fun XNoteRichTextToolbar(
                 state = state,
                 backdrop = backdrop,
                 onAction = onAction,
+                popupAnchors = popupAnchors,
             )
             XNoteToolbarDivider()
             XNoteToolbarActionGroup(
@@ -140,6 +143,7 @@ fun XNoteRichTextToolbar(
                 state = state,
                 backdrop = backdrop,
                 onAction = onAction,
+                popupAnchors = popupAnchors,
             )
             XNoteToolbarDivider()
             XNoteToolbarActionGroup(
@@ -147,6 +151,7 @@ fun XNoteRichTextToolbar(
                 state = state,
                 backdrop = backdrop,
                 onAction = onAction,
+                popupAnchors = popupAnchors,
             )
         }
     }
@@ -158,6 +163,7 @@ private fun RowScope.XNoteToolbarActionGroup(
     state: XNoteRichTextToolbarState,
     backdrop: Backdrop,
     onAction: (XNoteRichTextAction) -> Unit,
+    popupAnchors: Map<XNoteRichTextAction, XNotePopupAnchor>,
 ) {
     actions.forEach { action ->
         XNoteToolbarAction(
@@ -166,6 +172,7 @@ private fun RowScope.XNoteToolbarActionGroup(
             state = state,
             backdrop = backdrop,
             onAction = onAction,
+            popupAnchor = popupAnchors[action],
         )
     }
 }
@@ -177,6 +184,7 @@ private fun XNoteToolbarAction(
     state: XNoteRichTextToolbarState,
     backdrop: Backdrop,
     onAction: (XNoteRichTextAction) -> Unit,
+    popupAnchor: XNotePopupAnchor?,
 ) {
     val selected = action in state.selectedActions
     val foreground = if (selected) {
@@ -189,7 +197,11 @@ private fun XNoteToolbarAction(
         backdrop = backdrop,
         enabled = action !in state.disabledActions,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
-        modifier = Modifier.semantics { this.selected = selected },
+        modifier = Modifier
+            .semantics { this.selected = selected }
+            .then(
+                popupAnchor?.let { Modifier.xNotePopupAnchor(it) } ?: Modifier,
+            ),
     ) {
         Text(
             text = label,

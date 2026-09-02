@@ -41,11 +41,14 @@ import com.xnote.app.design.XNoteIconSizeLarge
 import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteParagraphStyle
+import com.xnote.app.design.XNotePopupAnchor
+import com.xnote.app.design.XNotePopupPlacement
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.XNoteTextField
+import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
@@ -78,6 +81,7 @@ fun BoxScope.NotesChrome(
     isTablet: Boolean,
     editorSession: NoteEditorSession?,
     editorBackground: BackgroundKey,
+    sortMenuAnchor: XNotePopupAnchor,
     toastHostState: SnackbarHostState,
     onOpenNotebook: (String) -> Unit,
     onCreateNote: (notebookId: String?) -> Unit,
@@ -85,6 +89,9 @@ fun BoxScope.NotesChrome(
 ) {
     val scope = rememberCoroutineScope()
     val drawerPlacement = if (isTablet) XNoteDrawerPlacement.End else XNoteDrawerPlacement.Bottom
+    val moreMenuAnchor = rememberXNotePopupAnchor()
+    val paragraphMenuAnchor = rememberXNotePopupAnchor()
+    val tableMenuAnchor = rememberXNotePopupAnchor()
     val currentNotebook = (route as? NotesRoute.Notebook)?.let { opened ->
         notebooks.firstOrNull { it.id == opened.notebookId }
     }
@@ -103,6 +110,7 @@ fun BoxScope.NotesChrome(
                         iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                         contentDescription = stringResource(R.string.action_more),
                         onClick = { ui.moreVisible = true },
+                        popupAnchor = moreMenuAnchor,
                     ),
                 ),
                 horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
@@ -152,6 +160,7 @@ fun BoxScope.NotesChrome(
                                 }
                                 ui.moreVisible = true
                             },
+                            popupAnchor = moreMenuAnchor,
                         ),
                     )
                 },
@@ -225,6 +234,8 @@ fun BoxScope.NotesChrome(
                 session = editorSession,
                 ui = ui,
                 backdrop = backdrop,
+                paragraphMenuAnchor = paragraphMenuAnchor,
+                tableMenuAnchor = tableMenuAnchor,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
@@ -369,8 +380,8 @@ fun BoxScope.NotesChrome(
         onDismissRequest = { ui.sortMenuVisible = false },
         items = sortItems,
         backdrop = backdrop,
-        alignment = Alignment.TopEnd,
-        modifier = Modifier.padding(top = 72.dp, end = XNoteSpacingMedium),
+        anchor = sortMenuAnchor,
+        placement = XNotePopupPlacement.BelowEnd,
     )
 
     val moreItems = when (route) {
@@ -426,8 +437,8 @@ fun BoxScope.NotesChrome(
         onDismissRequest = { ui.moreVisible = false },
         items = moreItems,
         backdrop = backdrop,
-        alignment = Alignment.TopEnd,
-        modifier = Modifier.padding(top = 72.dp, end = XNoteSpacingMedium),
+        anchor = moreMenuAnchor,
+        placement = XNotePopupPlacement.BelowEnd,
     )
 
     XNoteDrawer(
@@ -461,8 +472,8 @@ fun BoxScope.NotesChrome(
             )
         },
         backdrop = backdrop,
-        alignment = Alignment.BottomStart,
-        modifier = Modifier.padding(bottom = 88.dp, start = XNoteSpacingMedium),
+        anchor = paragraphMenuAnchor,
+        placement = XNotePopupPlacement.AboveStart,
     )
 
     XNoteDropdownMenu(
@@ -478,8 +489,8 @@ fun BoxScope.NotesChrome(
             XNoteDropdownMenuItem(stringResource(R.string.editor_table_delete), onClick = { editorSession?.deleteTable() }, destructive = true),
         ),
         backdrop = backdrop,
-        alignment = Alignment.BottomEnd,
-        modifier = Modifier.padding(bottom = 88.dp, end = XNoteSpacingMedium),
+        anchor = tableMenuAnchor,
+        placement = XNotePopupPlacement.AboveEnd,
     )
 
     XNoteDrawer(
@@ -690,6 +701,8 @@ private fun EditorToolbarBar(
     session: NoteEditorSession,
     ui: NotesUiState,
     backdrop: Backdrop,
+    paragraphMenuAnchor: XNotePopupAnchor,
+    tableMenuAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -749,6 +762,10 @@ private fun EditorToolbarBar(
                 }
             },
             backdrop = backdrop,
+            popupAnchors = mapOf(
+                XNoteRichTextAction.ParagraphStyle to paragraphMenuAnchor,
+                XNoteRichTextAction.Table to tableMenuAnchor,
+            ),
             modifier = Modifier.weight(1f),
         )
     }

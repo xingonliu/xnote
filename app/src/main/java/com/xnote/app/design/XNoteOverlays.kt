@@ -6,6 +6,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -30,10 +33,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -43,19 +45,33 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
@@ -76,6 +92,30 @@ enum class XNoteDrawerPlacement {
     End,
 }
 
+enum class XNotePopupPlacement {
+    BelowStart,
+    BelowEnd,
+    AboveStart,
+    AboveEnd,
+}
+
+@Stable
+class XNotePopupAnchor internal constructor() {
+    internal var boundsInRoot by mutableStateOf<Rect?>(null)
+        private set
+
+    internal fun update(bounds: Rect) {
+        boundsInRoot = bounds
+    }
+}
+
+internal data class XNotePopupSafeInsets(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+)
+
 @Immutable
 data class XNoteDropdownMenuItem(
     val label: String,
@@ -89,6 +129,9 @@ data class XNoteDropdownMenuItem(
 
 @Composable
 fun rememberXNoteToastHostState(): SnackbarHostState = remember { SnackbarHostState() }
+
+@Composable
+fun rememberXNotePopupAnchor(): XNotePopupAnchor = remember { XNotePopupAnchor() }
 
 // -- Composables
 
@@ -297,35 +340,89 @@ fun BoxScope.XNotePopup(
     onDismissRequest: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    alignment: Alignment = Alignment.TopEnd,
-    offset: DpOffset = DpOffset.Zero,
+    anchor: XNotePopupAnchor? = null,
+    placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
     val settings = LocalXNoteInteractionSettings.current
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val safeDrawing = WindowInsets.safeDrawing
+    val safeInsets = XNotePopupSafeInsets(
+        left = safeDrawing.getLeft(density, layoutDirection),
+        top = safeDrawing.getTop(density),
+        right = safeDrawing.getRight(density, layoutDirection),
+        bottom = safeDrawing.getBottom(density),
+    )
+    val popupGap = with(density) { XNoteSpacingSmall.roundToPx() }
+    val edgePadding = with(density) { XNoteSpacingSmall.roundToPx() }
+    val maxPopupWidth = with(density) { 360.dp.roundToPx() }
+    val maxPopupHeight = with(density) { 480.dp.roundToPx() }
+    var hostOrigin by remember { mutableStateOf(Offset.Zero) }
 
     AnimatedVisibility(
         visible = visible,
         modifier = Modifier.fillMaxSize(),
-        enter = xNoteFadeIn(settings.reduceMotion),
-        exit = xNoteFadeOut(settings.reduceMotion),
+        enter = EnterTransition.None,
+        exit = ExitTransition.None,
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             XNoteDismissLayer(onDismissRequest = onDismissRequest)
-            XNoteLiquidGlassPanel(
-                backdrop = backdrop,
-                modifier = modifier
-                    .align(alignment)
-                    .offset(x = offset.x, y = offset.y)
-                    .sizeIn(minWidth = 180.dp, maxWidth = 360.dp)
-                    .heightIn(max = 480.dp)
-                    .xNoteOverlayInputBarrier(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(XNoteSpacingSmall),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    content = content,
+            Layout(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { hostOrigin = it.positionInRoot() },
+                content = {
+                    XNoteLiquidGlassPanel(
+                        backdrop = backdrop,
+                        shape = RoundedRectangle(48.dp),
+                        modifier = modifier
+                            .animateEnterExit(
+                                enter = xNotePopupEnter(settings.reduceMotion, placement),
+                                exit = xNotePopupExit(settings.reduceMotion, placement),
+                            )
+                            .heightIn(max = 480.dp)
+                            .xNoteOverlayInputBarrier(),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .width(IntrinsicSize.Max)
+                                .padding(XNoteSpacingSmall),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            content = content,
+                        )
+                    }
+                },
+            ) { measurables, constraints ->
+                val safeWidth = (
+                    constraints.maxWidth - safeInsets.left - safeInsets.right - edgePadding * 2
+                ).coerceAtLeast(0)
+                val safeHeight = (
+                    constraints.maxHeight - safeInsets.top - safeInsets.bottom - edgePadding * 2
+                ).coerceAtLeast(0)
+                val popupConstraints = constraints.copy(
+                    minWidth = 0,
+                    minHeight = 0,
+                    maxWidth = minOf(safeWidth, maxPopupWidth),
+                    maxHeight = minOf(safeHeight, maxPopupHeight),
                 )
+                val popup = measurables.single().measure(popupConstraints)
+                val popupOffset = calculatePopupOffset(
+                    hostWidth = constraints.maxWidth,
+                    hostHeight = constraints.maxHeight,
+                    popupWidth = popup.width,
+                    popupHeight = popup.height,
+                    anchorBoundsInRoot = anchor?.boundsInRoot,
+                    hostOriginInRoot = hostOrigin,
+                    placement = placement,
+                    safeInsets = safeInsets,
+                    popupGap = popupGap,
+                    edgePadding = edgePadding,
+                )
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    popup.place(popupOffset.x, popupOffset.y)
+                }
             }
         }
     }
@@ -338,16 +435,16 @@ fun BoxScope.XNoteDropdownMenu(
     items: List<XNoteDropdownMenuItem>,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    alignment: Alignment = Alignment.TopEnd,
-    offset: DpOffset = DpOffset.Zero,
+    anchor: XNotePopupAnchor? = null,
+    placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
 ) {
     XNotePopup(
         visible = expanded,
         onDismissRequest = onDismissRequest,
         backdrop = backdrop,
         modifier = modifier,
-        alignment = alignment,
-        offset = offset,
+        anchor = anchor,
+        placement = placement,
     ) {
         items.forEach { item ->
             val foreground = when {
@@ -382,6 +479,8 @@ fun BoxScope.XNoteDropdownMenu(
                     text = item.label,
                     style = MaterialTheme.typography.bodyLarge,
                     color = foreground.copy(alpha = if (item.enabled) 1f else 0.48f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -516,6 +615,85 @@ private fun RowScope.XNoteDialogButton(
 }
 
 // -- Functions
+
+fun Modifier.xNotePopupAnchor(anchor: XNotePopupAnchor): Modifier = onGloballyPositioned {
+    anchor.update(it.boundsInRoot())
+}
+
+internal fun calculatePopupOffset(
+    hostWidth: Int,
+    hostHeight: Int,
+    popupWidth: Int,
+    popupHeight: Int,
+    anchorBoundsInRoot: Rect?,
+    hostOriginInRoot: Offset,
+    placement: XNotePopupPlacement,
+    safeInsets: XNotePopupSafeInsets,
+    popupGap: Int,
+    edgePadding: Int,
+): IntOffset {
+    val minX = safeInsets.left + edgePadding
+    val minY = safeInsets.top + edgePadding
+    val maxX = (hostWidth - safeInsets.right - edgePadding - popupWidth).coerceAtLeast(minX)
+    val maxY = (hostHeight - safeInsets.bottom - edgePadding - popupHeight).coerceAtLeast(minY)
+    val anchor = anchorBoundsInRoot ?: return IntOffset(maxX, minY)
+    val anchorLeft = (anchor.left - hostOriginInRoot.x).toInt()
+    val anchorTop = (anchor.top - hostOriginInRoot.y).toInt()
+    val anchorRight = (anchor.right - hostOriginInRoot.x).toInt()
+    val anchorBottom = (anchor.bottom - hostOriginInRoot.y).toInt()
+    val alignEnd = placement == XNotePopupPlacement.BelowEnd ||
+        placement == XNotePopupPlacement.AboveEnd
+    val preferBelow = placement == XNotePopupPlacement.BelowStart ||
+        placement == XNotePopupPlacement.BelowEnd
+    val preferredX = if (alignEnd) anchorRight - popupWidth else anchorLeft
+    val belowY = anchorBottom + popupGap
+    val aboveY = anchorTop - popupGap - popupHeight
+    val fitsBelow = belowY <= maxY
+    val fitsAbove = aboveY >= minY
+    val preferredY = when {
+        preferBelow && (fitsBelow || !fitsAbove) -> belowY
+        preferBelow -> aboveY
+        fitsAbove || !fitsBelow -> aboveY
+        else -> belowY
+    }
+    return IntOffset(
+        x = preferredX.coerceIn(minX, maxX),
+        y = preferredY.coerceIn(minY, maxY),
+    )
+}
+
+private fun xNotePopupEnter(
+    reduceMotion: Boolean,
+    placement: XNotePopupPlacement,
+): EnterTransition = if (reduceMotion) {
+    EnterTransition.None
+} else {
+    fadeIn(tween(XNoteShortAnimationDurationMillis)) + scaleIn(
+        animationSpec = tween(XNoteShortAnimationDurationMillis),
+        initialScale = 0.92f,
+        transformOrigin = popupTransformOrigin(placement),
+    )
+}
+
+private fun xNotePopupExit(
+    reduceMotion: Boolean,
+    placement: XNotePopupPlacement,
+): ExitTransition = if (reduceMotion) {
+    ExitTransition.None
+} else {
+    fadeOut(tween(XNoteShortAnimationDurationMillis)) + scaleOut(
+        animationSpec = tween(XNoteShortAnimationDurationMillis),
+        targetScale = 0.96f,
+        transformOrigin = popupTransformOrigin(placement),
+    )
+}
+
+private fun popupTransformOrigin(placement: XNotePopupPlacement): TransformOrigin = when (placement) {
+    XNotePopupPlacement.BelowStart -> TransformOrigin(0f, 0f)
+    XNotePopupPlacement.BelowEnd -> TransformOrigin(1f, 0f)
+    XNotePopupPlacement.AboveStart -> TransformOrigin(0f, 1f)
+    XNotePopupPlacement.AboveEnd -> TransformOrigin(1f, 1f)
+}
 
 private fun Modifier.xNoteOverlayInputBarrier(): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
