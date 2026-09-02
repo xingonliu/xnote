@@ -9,21 +9,25 @@ import com.xnote.app.R
 enum class AppDestination(
     @param:StringRes val labelRes: Int,
     @param:StringRes val titleRes: Int,
-    @param:DrawableRes val iconRes: Int,
+    @param:DrawableRes val tabIconRes: Int,
+    @param:DrawableRes val navigationIconRes: Int,
 ) {
     Notes(
         labelRes = R.string.navigation_notes,
         titleRes = R.string.notes_title,
-        iconRes = R.drawable.ic_lucide_notebook_pen,
+        tabIconRes = R.drawable.ic_keyline_fill_file_text,
+        navigationIconRes = R.drawable.ic_keyline_stroke_square_pen,
     ),
     Agent(
         labelRes = R.string.navigation_agent,
         titleRes = R.string.agent_title,
-        iconRes = R.drawable.ic_lucide_sparkles,
+        tabIconRes = R.drawable.ic_keyline_fill_star,
+        navigationIconRes = R.drawable.ic_keyline_stroke_star,
     ),
     Profile(
         labelRes = R.string.navigation_profile,
         titleRes = R.string.profile_title,
-        iconRes = R.drawable.ic_lucide_user_round,
+        tabIconRes = R.drawable.ic_keyline_fill_user,
+        navigationIconRes = R.drawable.ic_keyline_stroke_user,
     ),
 }

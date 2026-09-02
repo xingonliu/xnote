@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import com.xnote.app.R
 import com.xnote.app.design.XNoteErrorState
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteMaximumContentWidth
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteRadiusSmall
@@ -237,29 +238,34 @@ private fun TextBlockEditor(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (heading) {
-            Icon(
-                painter = painterResource(
-                    if (block.collapsed) {
-                        R.drawable.ic_lucide_chevron_right
-                    } else {
-                        R.drawable.ic_lucide_chevron_down
-                    },
-                ),
-                contentDescription = stringResource(
-                    if (block.collapsed) {
-                        R.string.editor_expand_heading
-                    } else {
-                        R.string.editor_collapse_heading
-                    },
-                ),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(
                 modifier = Modifier
                     .size(XNoteMinimumTouchTarget)
                     .clickable {
                         session.select(EditorSelection(block.id))
                         session.applyAction(com.xnote.app.design.XNoteRichTextAction.ToggleHeadingCollapse)
                     },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(
+                        if (block.collapsed) {
+                            R.drawable.ic_keyline_stroke_chevron_right
+                        } else {
+                            R.drawable.ic_keyline_stroke_chevron_down
+                        },
+                    ),
+                    contentDescription = stringResource(
+                        if (block.collapsed) {
+                            R.string.editor_expand_heading
+                        } else {
+                            R.string.editor_collapse_heading
+                        },
+                    ),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(XNoteIconSizeMedium),
+                )
+            }
         }
         when (block.listMarker) {
             ListMarker.None -> Unit
@@ -267,27 +273,32 @@ private fun TextBlockEditor(
             ListMarker.Dash -> MarkerText("–")
             ListMarker.Numbered -> MarkerText("${numberedLabel ?: 1}.")
             ListMarker.Checklist -> {
-                Icon(
-                    painter = painterResource(
-                        if (block.checked) {
-                            R.drawable.ic_lucide_square_check
-                        } else {
-                            R.drawable.ic_lucide_square
-                        },
-                    ),
-                    contentDescription = stringResource(R.string.editor_checklist),
-                    tint = if (block.checked) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                Box(
                     modifier = Modifier
                         .size(XNoteMinimumTouchTarget)
                         .clickable {
                             session.select(EditorSelection(block.id))
                             session.toggleChecked()
                         },
-                )
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            if (block.checked) {
+                                R.drawable.ic_keyline_stroke_square_check
+                            } else {
+                                R.drawable.ic_keyline_stroke_square
+                            },
+                        ),
+                        contentDescription = stringResource(R.string.editor_checklist),
+                        tint = if (block.checked) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(XNoteIconSizeMedium),
+                    )
+                }
             }
         }
         RichTextField(

@@ -11,7 +11,7 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1` 均固定版本。
 - 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方；玻璃本体为 56 dp、滑块为 48 dp，外层导航占位保持 88 dp，并用滑块路径切割出主题色图标与文字。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
-- 界面矢量图标统一来自 Lucide `1.34.0`，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
+- 界面矢量图标统一来自 Keyline Icons 提交 `14cd695f` 的 Rounded 资源，以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；手机 Tabbar 使用 Fill，其余界面使用 Stroke，并通过 16/20/24/40 dp 语义令牌分级。完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
 - `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass catalog Progressive blur；所有二级页面的 Header 与页面底部常驻同一套 128 dp 渐进模糊遮罩。
 - `XNoteHeader`、Dialog、Drawer、Toast、Popup、Dropdown、加载/空/错误状态与富文本工具栏均由公共设计系统提供；系统动画倍率为 0 时取消弹性、形变和过渡动画。
 - 笔记首页、笔记本详情与普通笔记编辑页已接通本地笔记库：可创建笔记本、从编辑页 Header 选择归属、编写完整富文本（含表格与标题折叠）、自动保存，并将笔记移入回收站。

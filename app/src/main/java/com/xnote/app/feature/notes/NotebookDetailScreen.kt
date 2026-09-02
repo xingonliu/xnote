@@ -35,6 +35,7 @@ import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteEmptyState
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMaximumContentWidth
 import com.xnote.app.design.XNoteSpacingMedium
@@ -114,10 +115,10 @@ fun NotebookDetailScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+                            painter = painterResource(R.drawable.ic_keyline_stroke_grip_vertical),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(15.dp),
+                            modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                         Text(
                             text = stringResource(R.string.notes_sort),
@@ -134,7 +135,7 @@ fun NotebookDetailScreen(
                 XNoteEmptyState(
                     title = stringResource(R.string.notes_empty_notebook_title),
                     description = stringResource(R.string.notes_empty_notebook_description),
-                    iconRes = R.drawable.ic_lucide_notebook_pen,
+                    iconRes = R.drawable.ic_keyline_stroke_square_pen,
                     backdrop = backdrop,
                     modifier = Modifier
                         .fillMaxWidth()

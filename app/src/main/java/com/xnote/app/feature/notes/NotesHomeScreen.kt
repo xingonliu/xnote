@@ -36,6 +36,7 @@ import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteEmptyState
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMaximumContentWidth
 import com.xnote.app.design.XNoteSpacingMedium
@@ -114,10 +115,10 @@ fun NotesHomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_lucide_notebook_pen),
+                                painter = painterResource(R.drawable.ic_keyline_stroke_square_pen),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(XNoteIconSizeSmall),
                             )
                             Text(
                                 text = stringResource(R.string.notes_choose_notebook),
@@ -125,10 +126,10 @@ fun NotesHomeScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Icon(
-                                painter = painterResource(R.drawable.ic_lucide_chevron_down),
+                                painter = painterResource(R.drawable.ic_keyline_stroke_chevron_down),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(XNoteIconSizeSmall),
                             )
                         }
                     }
@@ -141,10 +142,10 @@ fun NotesHomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_lucide_grip_vertical),
+                                painter = painterResource(R.drawable.ic_keyline_stroke_grip_vertical),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(15.dp),
+                                modifier = Modifier.size(XNoteIconSizeSmall),
                             )
                             Text(
                                 text = stringResource(R.string.notes_sort),
@@ -175,11 +176,11 @@ fun NotesHomeScreen(
                         },
                     ),
                     iconRes = when (scope) {
-                        NotesScope.Unfiled -> R.drawable.ic_lucide_inbox
-                        else -> R.drawable.ic_lucide_notebook_pen
+                        NotesScope.Unfiled -> R.drawable.ic_keyline_stroke_inbox
+                        else -> R.drawable.ic_keyline_stroke_square_pen
                     },
                     actionLabel = stringResource(R.string.action_create_note),
-                    actionIconRes = R.drawable.ic_lucide_plus,
+                    actionIconRes = R.drawable.ic_keyline_stroke_plus,
                     onAction = onCreateNote,
                     backdrop = backdrop,
                     modifier = Modifier

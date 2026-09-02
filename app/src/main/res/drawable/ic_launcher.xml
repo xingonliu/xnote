@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "notebook-pen" v1.34.0 — ISC License: https://lucide.dev/icons/notebook-pen -->
+<!-- Keyline Icons "square-pen" rounded stroke, source 14cd695f — MIT License -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -15,21 +15,7 @@
         android:translateY="24">
         <path
             android:fillColor="#00000000"
-            android:pathData="M13.4,2H6a2,2 0,0 0,-2 2v16a2,2 0,0 0,2 2h12a2,2 0,0 0,2 -2v-7.4"
-            android:strokeColor="#FF2C281F"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round"
-            android:strokeWidth="2" />
-        <path
-            android:fillColor="#00000000"
-            android:pathData="M2,6H6M2,10H6M2,14H6M2,18H6"
-            android:strokeColor="#FF2C281F"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round"
-            android:strokeWidth="2" />
-        <path
-            android:fillColor="#00000000"
-            android:pathData="M21.378,5.626a1,1 0,1 0,-3.004 -3.004l-5.01,5.012a2,2 0,0 0,-0.506 0.854l-0.837,2.87a0.5,0.5 0,0 0,0.62 0.62l2.87,-0.837a2,2 0,0 0,0.854 -0.506z"
+            android:pathData="M12,3H6C4.34315,3 3,4.34315 3,6V18C3,19.6569 4.34315,21 6,21H18C19.6569,21 21,19.6569 21,18V12M10.5,13.5L14.6248,11.8501L20.4874,5.9874C21.1709,5.304 21.1709,4.196 20.4874,3.5126C19.804,2.8291 18.696,2.8291 18.0126,3.5126L12.1499,9.3752Z"
             android:strokeColor="#FF2C281F"
             android:strokeLineCap="round"
             android:strokeLineJoin="round"

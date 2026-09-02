@@ -3,6 +3,7 @@ package com.xnote.app.feature.notes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteMinimumTouchTarget
+import com.xnote.app.design.XNoteIconSizeMedium
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.domain.model.Note
@@ -60,7 +63,7 @@ fun NoteListRow(
         if (selectionMode) {
             Icon(
                 painter = painterResource(
-                    if (selected) R.drawable.ic_lucide_square_check else R.drawable.ic_lucide_square,
+                    if (selected) R.drawable.ic_keyline_stroke_square_check else R.drawable.ic_keyline_stroke_square,
                 ),
                 contentDescription = null,
                 tint = if (selected) {
@@ -68,7 +71,7 @@ fun NoteListRow(
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 },
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
         Column(
@@ -108,10 +111,10 @@ fun NoteListRow(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_lucide_notebook_pen),
+                        painter = painterResource(R.drawable.ic_keyline_stroke_square_pen),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(13.dp),
+                        modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                     Text(
                         text = notebookName,
@@ -131,10 +134,15 @@ fun NoteListRow(
 fun NoteReorderHandle(
     modifier: Modifier = Modifier,
 ) {
-    Icon(
-        painter = painterResource(R.drawable.ic_lucide_grip_vertical),
-        contentDescription = stringResource(R.string.notes_reorder_handle),
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(
         modifier = modifier.size(XNoteMinimumTouchTarget),
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_keyline_stroke_grip_vertical),
+            contentDescription = stringResource(R.string.notes_reorder_handle),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(XNoteIconSizeMedium),
+        )
+    }
 }

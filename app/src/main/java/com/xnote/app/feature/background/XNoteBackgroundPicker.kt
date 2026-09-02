@@ -24,6 +24,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteRadiusMedium
+import com.xnote.app.design.XNoteIconSizeMedium
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
@@ -151,10 +153,10 @@ private fun DefaultInheritanceChoice(
         }
         if (selected) {
             Icon(
-                painter = painterResource(R.drawable.ic_lucide_check),
+                painter = painterResource(R.drawable.ic_keyline_stroke_check),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
     }
@@ -210,10 +212,10 @@ private fun BackgroundChoice(
             )
             if (selected) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_lucide_check),
+                    painter = painterResource(R.drawable.ic_keyline_stroke_check),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(XNoteIconSizeSmall),
                 )
             }
         }

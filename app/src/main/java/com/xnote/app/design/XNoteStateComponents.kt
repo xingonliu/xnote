@@ -112,7 +112,7 @@ fun XNoteEmptyState(
                     painter = painterResource(iconRes),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(38.dp),
+                    modifier = Modifier.size(XNoteIconSizeHero),
                 )
             }
         }
@@ -156,7 +156,7 @@ fun XNoteEmptyState(
                             painter = painterResource(actionIconRes),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
                     Text(
@@ -196,10 +196,10 @@ fun XNoteErrorState(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_lucide_trash_2),
+                painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(XNoteIconSizeHero),
             )
         }
         Column(

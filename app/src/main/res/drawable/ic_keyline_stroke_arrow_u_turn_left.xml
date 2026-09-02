@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyline Icons "arrow-u-turn-left" rounded stroke, source 14cd695f — MIT License -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:autoMirrored="true"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M12,19H14C16.7614,19 19,16.7614 19,14C19,11.2386 16.7614,9 14,9H6M10,5L5.18766,8.60957C4.93745,8.80973 4.93745,9.19027 5.18766,9.39043L10,13"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

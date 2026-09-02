@@ -59,9 +59,9 @@ fun BoxScope.RecycleBinChrome(
             listOf(
                 XNoteHeaderAction(
                     iconRes = if (ui.selectionMode) {
-                        R.drawable.ic_lucide_check
+                        R.drawable.ic_keyline_stroke_check
                     } else {
-                        R.drawable.ic_lucide_square_check
+                        R.drawable.ic_keyline_stroke_square_check
                     },
                     contentDescription = stringResource(
                         if (ui.selectionMode) {
@@ -79,7 +79,7 @@ fun BoxScope.RecycleBinChrome(
                     },
                 ),
                 XNoteHeaderAction(
-                    iconRes = R.drawable.ic_lucide_ellipsis,
+                    iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                     contentDescription = stringResource(R.string.action_more),
                     onClick = { ui.moreVisible = true },
                 ),

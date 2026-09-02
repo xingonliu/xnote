@@ -71,12 +71,12 @@ class XNoteDesignSystemTest {
                             onBack = {},
                             actions = listOf(
                                 XNoteHeaderAction(
-                                    iconRes = R.drawable.ic_lucide_search,
+                                    iconRes = R.drawable.ic_keyline_stroke_search,
                                     contentDescription = "操作一",
                                     onClick = { clickedAction = "一" },
                                 ),
                                 XNoteHeaderAction(
-                                    iconRes = R.drawable.ic_lucide_plus,
+                                    iconRes = R.drawable.ic_keyline_stroke_plus,
                                     contentDescription = "操作二",
                                     onClick = { clickedAction = "二" },
                                 ),

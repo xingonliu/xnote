@@ -141,59 +141,67 @@ Header 内容区紧接顶部安全区，按钮在 48 dp 内容区内垂直居中
 
 危险操作不直接作为 Header 的常驻主按钮；永久删除、清空、重置等操作放入更多菜单或确认弹窗。
 
-## 5. Lucide 图标系统
+## 5. Keyline 图标系统
 
 ### 5.1 来源与版本
 
-- 应用界面中的 SVG 图标统一选自 [Lucide Icons](https://lucide.dev/icons/)，当前资产基线为 `lucide-static 1.34.0`。
-- Android 工程将 Lucide 官方 SVG 转换为等价的 `VectorDrawable`，不引入运行时图标依赖；转换时必须保留官方路径、视口和描边语义。
-- 新增或替换图标时，先从 Lucide 图标目录选择语义最接近的图标，并在资源文件头记录 Lucide 名称、版本、许可证和原始页面链接。
-- 禁止混用 Material Icons、自绘轮廓、Emoji、字体符号或其他第三方图标。Lucide 暂无合适图标时，应先补充或调整本规范，不得在业务页面创建私有替代图标。
-- Lucide 的许可证全文统一保存在仓库根目录的 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
+- 应用界面中的 SVG 图标统一选自 [Keyline Icons](https://keylineicons.com/)，当前资产基线为官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf`。
+- 全部图标固定使用 Rounded 角型。手机 Bottom Tabs 的三个图标使用 Fill；平板 Navigation Rail、Header、按钮、列表、状态组件、编辑器和启动图形全部使用 Stroke。
+- Android 工程将 Keyline 官方 `icons/<style>/<name>.svg` 转换为等价的 `VectorDrawable`，不引入运行时图标依赖；转换时必须保留官方路径、24 × 24 视口、Fill/Stroke 分类和 Rounded 语义。
+- 新增或替换图标时，先从 Keyline 图标目录选择语义最接近且具有所需样式的图标，并在资源文件头记录 Keyline 名称、Rounded 样式、来源提交和 MIT License。
+- 禁止混用 Material Icons、自绘轮廓、Emoji、字体符号或其他第三方图标。Keyline 暂无合适图标时，应先补充或调整本规范，不得在业务页面创建私有替代图标。
+- Keyline Icons 的许可证全文统一保存在仓库根目录的 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
 
 ### 5.2 几何与样式
 
 | 项目 | 统一值 |
 | ---- | ------ |
 | 原始视口 | 24 × 24 |
-| 默认描边 | 2，随图标整体等比缩放 |
+| Stroke 描边 | 2，随图标整体等比缩放 |
 | 线端 | `round` |
 | 转角 | `round` |
-| 默认填充 | `none`；仅当 Lucide 原图明确包含填充时例外 |
-| Header 与普通按钮 | 20 × 20 dp |
-| 一级导航 | 22 × 22 dp |
-| 空状态主图标 | 44 × 44 dp |
+| Bottom Tabs | Rounded Fill，28 × 28 dp |
+| 平板 Navigation Rail | Rounded Stroke，24 × 24 dp |
+| Small | 16 × 16 dp；辅助、列表元信息和紧凑控件 |
+| Medium | 20 × 20 dp；Header、普通操作、选择与编辑控件 |
+| Large | 24 × 24 dp；浮动或强调操作 |
+| Hero | 40 × 40 dp；空状态和错误状态主图标 |
 | 最小触控区域 | 44 × 44 dp |
 
-- 业务代码通过 Compose `Icon.tint` 提供前景色，对应 Lucide SVG 的 `currentColor` 语义；不得为普通、按下、选中或禁用状态复制不同颜色的矢量资源。
+- 非 Tabbar 图标尺寸必须引用 `XNoteIconSizeSmall`、`XNoteIconSizeMedium`、`XNoteIconSizeLarge` 或 `XNoteIconSizeHero`；不得在业务页面写 14、15、18、22 等局部尺寸。Bottom Tabs 与平板 Rail 分别引用专用导航尺寸令牌。
+- 触控区域与视觉图标分离：可点击控件保持至少 44 × 44 dp，内部图标按语义层级居中，不能通过放大图标本身充当触控区域。
+- 业务代码通过 Compose `Icon.tint` 提供前景色，对应 Keyline SVG 的 `currentColor` 语义；不得为普通、按下、选中或禁用状态复制不同颜色的矢量资源。
 - 不得拉伸、压扁、旋转、增删路径或单独改变某条路径的粗细。尺寸变化必须保持 24 × 24 视口的原始比例。
 - 返回、前进等方向性图标按交互语义启用 RTL 自动镜像；无方向性的图标不得镜像。
-- 图标外部的 Liquid Glass 容器、状态底色和应用启动背景不属于图标轮廓，可以使用 XNote 设计令牌；容器内的图标轮廓仍必须来自 Lucide。
+- 图标外部的 Liquid Glass 容器、状态底色和应用启动背景不属于图标轮廓，可以使用 XNote 设计令牌；容器内的图标轮廓仍必须来自 Keyline。
 
 ### 5.3 资源命名与当前映射
 
-Android 资源以 `ic_lucide_<官方名称>` 命名，将 Lucide 名称中的连字符转换为下划线。系统要求固定名称的启动资源可保留 `ic_launcher`，但文件头必须标明实际使用的 Lucide 图标。
+Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名称中的连字符转换为下划线。系统要求固定名称的启动资源保留 `ic_launcher`，文件头必须标明实际使用的 Keyline 图标。
 
-| XNote 资源 | Lucide 名称 | 用途 |
-| ---------- | ----------- | ---- |
-| `ic_lucide_notebook_pen` | `notebook-pen` | 笔记导航、笔记空状态 |
-| `ic_lucide_sparkles` | `sparkles` | Agent 导航 |
-| `ic_lucide_user_round` | `user-round` | 个人中心导航 |
-| `ic_lucide_search` | `search` | 搜索操作 |
-| `ic_lucide_arrow_left` | `arrow-left` | 返回操作 |
-| `ic_lucide_plus` | `plus` | 新建操作 |
-| `ic_lucide_ellipsis` | `ellipsis` | 更多菜单 |
-| `ic_lucide_check` | `check` | 选中确认 |
-| `ic_lucide_chevron_down` | `chevron-down` | 展开标题 |
-| `ic_lucide_chevron_right` | `chevron-right` | 打开笔记本、折叠标题 |
-| `ic_lucide_trash_2` | `trash-2` | 删除 |
-| `ic_lucide_undo_2` | `undo-2` | 撤销 |
-| `ic_lucide_redo_2` | `redo-2` | 重做 |
-| `ic_lucide_inbox` | `inbox` | 未归档 |
-| `ic_lucide_grip_vertical` | `grip-vertical` | 手动排序拖动手柄 |
-| `ic_lucide_square` | `square` | 未勾选检查项 |
-| `ic_lucide_square_check` | `square-check` | 已勾选检查项 |
-| `ic_launcher` | `notebook-pen` | 应用图标与启动页图形 |
+| XNote 资源 | Keyline 名称与样式 | 用途 |
+| ---------- | ------------------ | ---- |
+| `ic_keyline_fill_file_text` | `file-text` / Rounded Fill | 手机笔记 Tab |
+| `ic_keyline_fill_star` | `star` / Rounded Fill | 手机 Agent Tab |
+| `ic_keyline_fill_user` | `user` / Rounded Fill | 手机个人中心 Tab |
+| `ic_keyline_stroke_square_pen` | `square-pen` / Rounded Stroke | 笔记功能、空状态、平板笔记导航 |
+| `ic_keyline_stroke_star` | `star` / Rounded Stroke | Agent 功能与平板导航 |
+| `ic_keyline_stroke_user` | `user` / Rounded Stroke | 平板个人中心导航 |
+| `ic_keyline_stroke_search` | `search` / Rounded Stroke | 搜索操作 |
+| `ic_keyline_stroke_arrow_left` | `arrow-left` / Rounded Stroke | 返回操作 |
+| `ic_keyline_stroke_plus` | `plus` / Rounded Stroke | 新建操作 |
+| `ic_keyline_stroke_more_horizontal` | `more-horizontal` / Rounded Stroke | 更多菜单 |
+| `ic_keyline_stroke_check` | `check` / Rounded Stroke | 选中确认 |
+| `ic_keyline_stroke_chevron_down` | `chevron-down` / Rounded Stroke | 展开标题 |
+| `ic_keyline_stroke_chevron_right` | `chevron-right` / Rounded Stroke | 打开笔记本、折叠标题 |
+| `ic_keyline_stroke_bin` | `bin` / Rounded Stroke | 删除 |
+| `ic_keyline_stroke_arrow_u_turn_left` | `arrow-u-turn-left` / Rounded Stroke | 撤销 |
+| `ic_keyline_stroke_arrow_u_turn_right` | `arrow-u-turn-right` / Rounded Stroke | 重做 |
+| `ic_keyline_stroke_inbox` | `inbox` / Rounded Stroke | 未归档 |
+| `ic_keyline_stroke_grip_vertical` | `grip-vertical` / Rounded Stroke | 手动排序拖动手柄 |
+| `ic_keyline_stroke_square` | `square` / Rounded Stroke | 未勾选检查项 |
+| `ic_keyline_stroke_square_check` | `square-check` / Rounded Stroke | 已勾选检查项 |
+| `ic_launcher` | `square-pen` / Rounded Stroke | 应用图标与启动页图形 |
 
 ### 5.4 无障碍
 
@@ -404,7 +412,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 - 页面由 `XNotePageScaffold` 承载；二级页面顶部与底部均存在 AndroidLiquidGlass Progressive blur。
 - 二级页面使用统一 Header、圆形 Liquid Glass 返回按钮和唯一的 SVG 返回图标。
-- 所有界面矢量图标均能追溯到当前固定版本的 Lucide 官方资源，文件命名、24 × 24 视口、2 单位圆端描边和颜色语义符合图标规范。
+- 所有界面矢量图标均能追溯到固定提交的 Keyline 官方 Rounded 资源；手机 Tabbar 使用 Fill，其余图标使用 Stroke，文件命名、24 × 24 视口、尺寸层级和颜色语义符合图标规范。
 - 非编辑页的 Header 中间显示准确的页面标题，且标题在左右操作不对称时仍视觉居中。
 - 编辑页的笔记标题位于正文，不与 Header 重复。
 - 手机一级导航使用 `LiquidBottomTabs` / `LiquidBottomTab` 的官方默认材质配方，仅扩展主题色切割层与项目导航回调。
@@ -438,6 +446,6 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - [Android Developers：Compose layouts basics](https://developer.android.com/develop/ui/compose/layouts/basics)
 - [Android Developers：Compose Scaffold](https://developer.android.com/develop/ui/compose/components/scaffold)
 - [Android Developers：Compose menus](https://developer.android.com/develop/ui/compose/components/menu)
-- [Lucide Icons：图标目录](https://lucide.dev/icons/)
-- [Lucide Guide：图标基础](https://lucide.dev/guide/basics)
-- [Lucide：ISC License](https://lucide.dev/license)
+- [Keyline Icons：图标目录](https://keylineicons.com/icons)
+- [Keyline Icons：官方仓库](https://github.com/keyline-icons/keyline-icons)
+- [Keyline Icons：MIT License](https://github.com/keyline-icons/keyline-icons/blob/14cd695f3f2bbe320bbe7a01e65b251df7ba52cf/LICENSE)

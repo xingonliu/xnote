@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
@@ -75,10 +76,10 @@ fun ProfileScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_lucide_trash_2),
+                            painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
                     Column(
@@ -113,10 +114,10 @@ fun ProfileScreen(
                         }
                     }
                     Icon(
-                        painter = painterResource(R.drawable.ic_lucide_chevron_right),
+                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
                         contentDescription = stringResource(R.string.recycle_bin_open),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                 }
             }
@@ -149,10 +150,10 @@ fun ProfileScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_lucide_sparkles),
+                            painter = painterResource(R.drawable.ic_keyline_stroke_star),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
                     Column(
@@ -171,10 +172,10 @@ fun ProfileScreen(
                         )
                     }
                     Icon(
-                        painter = painterResource(R.drawable.ic_lucide_chevron_right),
+                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
                         contentDescription = stringResource(R.string.background_settings_open),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                 }
             }

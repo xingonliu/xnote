@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.XNoteMinimumTouchTarget
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.feature.notes.editor.NoteEditorSession
@@ -38,14 +39,14 @@ internal fun MarkdownEditorToolbarBar(
         MarkdownHistoryButton(
             onClick = session::undo,
             enabled = session.canUndo,
-            iconRes = R.drawable.ic_lucide_undo_2,
+            iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
             contentDescription = stringResource(R.string.action_undo),
             backdrop = backdrop,
         )
         MarkdownHistoryButton(
             onClick = session::redo,
             enabled = session.canRedo,
-            iconRes = R.drawable.ic_lucide_redo_2,
+            iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right,
             contentDescription = stringResource(R.string.action_redo),
             backdrop = backdrop,
         )
@@ -59,10 +60,10 @@ internal fun MarkdownEditorToolbarBar(
                 .testTag("xnote-markdown-done"),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_lucide_check),
+                painter = painterResource(R.drawable.ic_keyline_stroke_check),
                 contentDescription = stringResource(R.string.editor_markdown_done),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
     }
@@ -86,7 +87,7 @@ private fun MarkdownHistoryButton(
             painter = painterResource(iconRes),
             contentDescription = contentDescription,
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(XNoteIconSizeMedium),
         )
     }
 }

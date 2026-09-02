@@ -18,6 +18,13 @@ val XNoteSpacingSmall = 8.dp
 val XNoteSpacingMedium = 16.dp
 val XNoteSpacingLarge = 24.dp
 
+val XNoteIconSizeSmall = 16.dp
+val XNoteIconSizeMedium = 20.dp
+val XNoteIconSizeLarge = 24.dp
+val XNoteIconSizeHero = 40.dp
+val XNoteBottomTabIconSize = 28.dp
+val XNoteNavigationRailIconSize = 24.dp
+
 val XNoteRadiusExtraSmall = 8.dp
 val XNoteRadiusSmall = 12.dp
 val XNoteRadiusMedium = 20.dp

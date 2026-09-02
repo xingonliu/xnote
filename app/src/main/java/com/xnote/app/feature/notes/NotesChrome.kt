@@ -37,6 +37,8 @@ import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
 import com.xnote.app.design.XNoteHeaderHeight
+import com.xnote.app.design.XNoteIconSizeLarge
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
@@ -98,7 +100,7 @@ fun BoxScope.NotesChrome(
                 onBack = onPop,
                 actions = listOf(
                     XNoteHeaderAction(
-                        iconRes = R.drawable.ic_lucide_ellipsis,
+                        iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                         contentDescription = stringResource(R.string.action_more),
                         onClick = { ui.moreVisible = true },
                     ),
@@ -124,7 +126,7 @@ fun BoxScope.NotesChrome(
                     ) {
                         add(
                             XNoteHeaderAction(
-                                iconRes = R.drawable.ic_lucide_notebook_pen,
+                                iconRes = R.drawable.ic_keyline_stroke_square_pen,
                                 contentDescription = stringResource(R.string.editor_markdown_edit),
                                 onClick = editorSession::startMarkdownEditing,
                             ),
@@ -132,7 +134,7 @@ fun BoxScope.NotesChrome(
                     } else if (editorSession?.isMarkdown != true) {
                         add(
                             XNoteHeaderAction(
-                                iconRes = R.drawable.ic_lucide_notebook_pen,
+                                iconRes = R.drawable.ic_keyline_stroke_square_pen,
                                 contentDescription = stringResource(R.string.notes_choose_notebook),
                                 onClick = { ui.moveVisible = true },
                             ),
@@ -140,7 +142,7 @@ fun BoxScope.NotesChrome(
                     }
                     add(
                         XNoteHeaderAction(
-                            iconRes = R.drawable.ic_lucide_ellipsis,
+                            iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                             contentDescription = stringResource(R.string.action_more),
                             onClick = {
                                 if (editorSession?.isMarkdown == false &&
@@ -190,10 +192,10 @@ fun BoxScope.NotesChrome(
                     .size(XNoteHeaderHeight),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_lucide_plus),
+                    painter = painterResource(R.drawable.ic_keyline_stroke_plus),
                     contentDescription = stringResource(R.string.action_create_note),
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(XNoteIconSizeLarge),
                 )
             }
         } else {
@@ -270,7 +272,7 @@ fun BoxScope.NotesChrome(
                 ui.scope = NotesScope.Unfiled
                 ui.pickerVisible = false
             },
-            iconRes = R.drawable.ic_lucide_inbox,
+            iconRes = R.drawable.ic_keyline_stroke_inbox,
         )
         notebooks.forEach { notebook ->
             val stats = notebookStats[notebook.id] ?: NotebookStats(0, 0)
@@ -298,10 +300,10 @@ fun BoxScope.NotesChrome(
                     modifier = Modifier.size(XNoteMinimumTouchTarget),
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.ic_lucide_chevron_right),
+                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
                         contentDescription = stringResource(R.string.notes_open_notebook),
                         tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(XNoteIconSizeMedium),
                     )
                 }
             }
@@ -702,10 +704,10 @@ private fun EditorToolbarBar(
             modifier = Modifier.size(XNoteMinimumTouchTarget),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_lucide_undo_2),
+                painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_left),
                 contentDescription = stringResource(R.string.action_undo),
                 tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
         LiquidButton(
@@ -715,10 +717,10 @@ private fun EditorToolbarBar(
             modifier = Modifier.size(XNoteMinimumTouchTarget),
         ) {
             Icon(
-                painter = painterResource(R.drawable.ic_lucide_redo_2),
+                painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_right),
                 contentDescription = stringResource(R.string.action_redo),
                 tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
         XNoteRichTextToolbar(
@@ -786,10 +788,10 @@ private fun SelectionBar(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall), verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_lucide_trash_2),
+                    painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(XNoteIconSizeMedium),
                 )
                 Text(stringResource(R.string.notes_delete_notes), color = MaterialTheme.colorScheme.error)
             }
@@ -810,7 +812,7 @@ private fun PickerRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    iconRes: Int = R.drawable.ic_lucide_notebook_pen,
+    iconRes: Int = R.drawable.ic_keyline_stroke_square_pen,
 ) {
     Column(
         modifier = modifier
@@ -824,10 +826,10 @@ private fun PickerRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(if (selected) R.drawable.ic_lucide_check else iconRes),
+                painter = painterResource(if (selected) R.drawable.ic_keyline_stroke_check else iconRes),
                 contentDescription = null,
                 tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
             Text(
                 text = title,

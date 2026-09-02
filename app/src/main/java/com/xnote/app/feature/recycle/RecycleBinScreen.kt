@@ -33,6 +33,7 @@ import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.XNoteEmptyState
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteRadiusSmall
@@ -92,7 +93,7 @@ fun RecycleBinScreen(
                 XNoteEmptyState(
                     title = stringResource(R.string.recycle_bin_empty_title),
                     description = stringResource(R.string.recycle_bin_empty_description),
-                    iconRes = R.drawable.ic_lucide_trash_2,
+                    iconRes = R.drawable.ic_keyline_stroke_bin,
                     backdrop = backdrop,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -164,7 +165,7 @@ private fun RecycleBinRow(
             if (selectionMode) {
                 Icon(
                     painter = painterResource(
-                        if (selected) R.drawable.ic_lucide_square_check else R.drawable.ic_lucide_square,
+                        if (selected) R.drawable.ic_keyline_stroke_square_check else R.drawable.ic_keyline_stroke_square,
                     ),
                     contentDescription = null,
                     tint = if (selected) {
@@ -172,7 +173,7 @@ private fun RecycleBinRow(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     },
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }
             Text(

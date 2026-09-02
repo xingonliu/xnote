@@ -166,10 +166,10 @@ fun XNoteHeader(
                     .size(XNoteHeaderHeight),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_lucide_arrow_left),
+                    painter = painterResource(R.drawable.ic_keyline_stroke_arrow_left),
                     contentDescription = stringResource(R.string.action_back),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }
         } else {
@@ -214,7 +214,7 @@ fun XNoteHeader(
                             painter = painterResource(action.iconRes),
                             contentDescription = action.contentDescription,
                             tint = action.tint ?: MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(XNoteIconSizeMedium),
                         )
                     }
                 }

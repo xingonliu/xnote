@@ -38,6 +38,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteMaximumContentWidth
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
@@ -193,7 +194,7 @@ private fun MarkdownPreviewBlock(block: MarkdownPreviewBlock) {
         ) {
             Icon(
                 painter = painterResource(
-                    if (block.checked) R.drawable.ic_lucide_square_check else R.drawable.ic_lucide_square,
+                    if (block.checked) R.drawable.ic_keyline_stroke_square_check else R.drawable.ic_keyline_stroke_square,
                 ),
                 contentDescription = null,
                 tint = if (block.checked) {
@@ -201,7 +202,7 @@ private fun MarkdownPreviewBlock(block: MarkdownPreviewBlock) {
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(XNoteIconSizeMedium),
             )
             Text(
                 text = markdownInlineText(block.content),

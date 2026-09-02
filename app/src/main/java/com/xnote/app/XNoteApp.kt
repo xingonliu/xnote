@@ -64,10 +64,12 @@ import com.kyant.shapes.Capsule
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
+import com.xnote.app.design.XNoteBottomTabIconSize
 import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNotePageScaffold
+import com.xnote.app.design.XNoteNavigationRailIconSize
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
@@ -471,7 +473,7 @@ fun XNoteApp(
                             } else {
                                 listOf(
                                     XNoteHeaderAction(
-                                        iconRes = R.drawable.ic_lucide_trash_2,
+                                        iconRes = R.drawable.ic_keyline_stroke_bin,
                                         contentDescription = stringResource(R.string.search_clear_history),
                                         onClick = { appScope.launch { searchHistory.clear() } },
                                     ),
@@ -480,7 +482,7 @@ fun XNoteApp(
                         } else {
                             listOf(
                                 XNoteHeaderAction(
-                                    iconRes = R.drawable.ic_lucide_search,
+                                    iconRes = R.drawable.ic_keyline_stroke_search,
                                     contentDescription = stringResource(R.string.action_search),
                                     onClick = {
                                         updateNavigationState(navigationState.openSearch())
@@ -724,7 +726,7 @@ private fun DestinationContent(
         AppDestination.Agent -> PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
-            iconRes = R.drawable.ic_lucide_sparkles,
+            iconRes = R.drawable.ic_keyline_stroke_star,
             backdrop = backdrop,
             contentPadding = contentPadding,
             listState = listState,
@@ -773,7 +775,7 @@ private fun XNoteBottomNavigation(
             .padding(bottom = 16.dp),
     ) {
         AppDestination.entries.forEach { destination ->
-            val iconPainter = painterResource(destination.iconRes)
+            val iconPainter = painterResource(destination.tabIconRes)
             val label = stringResource(destination.labelRes)
             val isSelected = destination == currentDestination
             LiquidBottomTab(
@@ -788,7 +790,7 @@ private fun XNoteBottomNavigation(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(XNoteBottomTabIconSize)
                         .paint(iconPainter, colorFilter = iconColorFilter),
                 )
                 BasicText(
@@ -880,9 +882,9 @@ private fun NavigationIcon(
     tint: Color,
 ) {
     Icon(
-        painter = painterResource(destination.iconRes),
+        painter = painterResource(destination.navigationIconRes),
         contentDescription = null,
         tint = tint,
-        modifier = Modifier.size(22.dp),
+        modifier = Modifier.size(XNoteNavigationRailIconSize),
     )
 }

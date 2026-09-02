@@ -43,6 +43,7 @@ import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.XNoteEmptyState
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteSpacingMedium
@@ -124,7 +125,7 @@ fun SearchScreen(
                 XNoteEmptyState(
                     title = stringResource(R.string.search_start_title),
                     description = stringResource(R.string.search_start_description),
-                    iconRes = R.drawable.ic_lucide_search,
+                    iconRes = R.drawable.ic_keyline_stroke_search,
                     backdrop = backdrop,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -158,7 +159,7 @@ fun SearchScreen(
                 XNoteEmptyState(
                     title = stringResource(R.string.search_no_results_title),
                     description = stringResource(R.string.search_no_results_description, query),
-                    iconRes = R.drawable.ic_lucide_search,
+                    iconRes = R.drawable.ic_keyline_stroke_search,
                     backdrop = backdrop,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -269,10 +270,10 @@ private fun RecentSearchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_lucide_search),
+            painter = painterResource(R.drawable.ic_keyline_stroke_search),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(XNoteIconSizeSmall),
         )
         Text(
             text = query,

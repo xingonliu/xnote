@@ -1,21 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide "arrow-left" v1.34.0 — ISC License: https://lucide.dev/icons/arrow-left -->
+<!-- Keyline Icons "plus" rounded stroke, source 14cd695f — MIT License -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:autoMirrored="true"
     android:viewportWidth="24"
     android:viewportHeight="24">
     <path
         android:fillColor="#00000000"
-        android:pathData="M12,19L5,12 12,5"
-        android:strokeColor="#FF000000"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:strokeWidth="2" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M19,12H5"
+        android:pathData="M5,12H19M11.995,19.005V5.005"
         android:strokeColor="#FF000000"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
