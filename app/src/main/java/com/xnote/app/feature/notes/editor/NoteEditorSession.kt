@@ -224,13 +224,11 @@ class NoteEditorSession(
         composing: Boolean,
     ) {
         if (isMarkdown) return
-        if (composing) {
-            selection = target
-            return
-        }
         if (oldText == newText) {
             selection = target
-            typingMarks = currentInlines(target)?.marksAt(target.end) ?: InlineMarks()
+            if (!composing) {
+                typingMarks = currentInlines(target)?.marksAt(target.end) ?: InlineMarks()
+            }
             return
         }
         history.capture(snapshot(), key = "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
@@ -289,6 +287,7 @@ class NoteEditorSession(
                     false
                 } else {
                     mutate { it.insertTable(selection, newNoteId()) }
+                    focusBlockId = selection.blockId
                     fieldsEpoch += 1
                     true
                 }
@@ -323,30 +322,35 @@ class NoteEditorSession(
     fun insertTableRow(after: Boolean) {
         val row = selection.tableRow ?: return
         mutate { it.insertTableRow(selection, if (after) row else row - 1) }
+        focusBlockId = selection.blockId
         fieldsEpoch += 1
     }
 
     fun insertTableColumn(after: Boolean) {
         val column = selection.tableColumn ?: return
         mutate { it.insertTableColumn(selection, if (after) column else column - 1) }
+        focusBlockId = selection.blockId
         fieldsEpoch += 1
     }
 
     fun deleteTableRow() {
         val row = selection.tableRow ?: return
         mutate { it.deleteTableRow(selection, row, newNoteId()) }
+        focusBlockId = selection.blockId
         fieldsEpoch += 1
     }
 
     fun deleteTableColumn() {
         val column = selection.tableColumn ?: return
         mutate { it.deleteTableColumn(selection, column, newNoteId()) }
+        focusBlockId = selection.blockId
         fieldsEpoch += 1
     }
 
     fun deleteTable() {
         if (document.block(selection.blockId) !is TableBlock) return
         mutate { it.deleteBlock(selection.blockId, newNoteId()) }
+        focusBlockId = selection.blockId
         fieldsEpoch += 1
     }
 

@@ -23,29 +23,33 @@ import com.xnote.app.data.settings.InMemoryAppSettingsRepository
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.domain.model.SystemEpochClock
 import com.xnote.app.domain.document.InlineRun
+import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.NoteDocument
+import com.xnote.app.domain.document.TableBlock
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.RuledBuiltinBackgroundId
+import com.xnote.app.domain.text.extractPlainText
+import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 import java.io.File
 
 // -- Tests
 
 class NotesFlowTest {
-    @get:Rule
-    val composeRule = createComposeRule()
-
+    private val composeRule = createComposeRule()
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val database = XNoteDatabase.createInMemory(context)
     private val filesRoot = File(context.cacheDir, "xnote-s3-ui-${System.nanoTime()}")
@@ -54,12 +58,15 @@ class NotesFlowTest {
         files = AttachmentFileStore(filesRoot),
         clock = SystemEpochClock,
     )
-
-    @After
-    fun tearDown() {
-        database.close()
-        filesRoot.deleteRecursively()
+    private val cleanupRule = object : TestWatcher() {
+        override fun finished(description: Description) {
+            database.close()
+            filesRoot.deleteRecursively()
+        }
     }
+
+    @get:Rule
+    val rules: RuleChain = RuleChain.outerRule(cleanupRule).around(composeRule)
 
     @Test
     fun createNotePersistsTitleAndBodyAfterReturningHome() {
@@ -81,6 +88,24 @@ class NotesFlowTest {
         }
         composeRule.onNodeWithText("会议记录").assertIsDisplayed()
         composeRule.onNodeWithText("今天讨论进度", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun composingTextIsPersistedWhenTheEditorFlushes() = runTest {
+        val note = library.createRichNote(null)
+        val session = NoteEditorSession(library, note.id, this)
+        session.load()
+        val block = session.document.blocks.filterIsInstance<TextBlock>().first()
+
+        session.onPlainTextChange(
+            target = EditorSelection(blockId = block.id, start = 2, end = 2),
+            oldText = "",
+            newText = "尾字",
+            composing = true,
+        )
+        session.flushSave()
+
+        assertEquals("尾字", extractPlainText(requireNotNull(library.getNote(note.id))))
     }
 
     @Test
@@ -165,6 +190,48 @@ class NotesFlowTest {
         composeRule.onNodeWithTag("xnote-editor-title").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-body").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("撤销").assertIsDisplayed()
+    }
+
+    @Test
+    fun richTextToolbarAppliesInlineStyleAndEditsATable() = runTest {
+        val note = library.createRichNote(null)
+        library.saveNote(note.copy(title = "工具栏测试"))
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithText("工具栏测试").performClick()
+        composeRule.onNodeWithTag("xnote-editor-body").performTextInput("plain")
+        composeRule.onNodeWithText("粗体").performClick()
+        composeRule.onNodeWithTag("xnote-editor-body").performTextInput("bold")
+        composeRule.onNodeWithText("表格").performScrollTo().performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("单元格").fetchSemanticsNodes().size == 4
+        }
+        composeRule.onNodeWithText("表格").performScrollTo().performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("下方插入行").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("下方插入行").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("单元格").fetchSemanticsNodes().size == 6
+        }
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        val saved = requireNotNull(library.getNote(note.id))
+        val text = requireNotNull(saved.document).blocks.filterIsInstance<TextBlock>().first()
+        val table = saved.document.blocks.filterIsInstance<TableBlock>().single()
+        assertEquals("plainbold", text.inlines.joinToString(separator = "") { it.text })
+        assertEquals("plain", text.inlines.first().text)
+        assertEquals("bold", text.inlines.last().text)
+        assertTrue(text.inlines.last().bold)
+        assertEquals(3, table.rows.size)
+        assertTrue(table.rows.all { it.cells.size == 2 })
     }
 
     @Test
@@ -354,5 +421,27 @@ class NotesFlowTest {
         composeRule.waitUntil(5_000) {
             runBlocking { library.getNote(note.id)?.backgroundKey == null }
         }
+    }
+
+    @Test
+    fun editorBackgroundPickerDismissesTheKeyboardAndShowsEveryPreset() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library)
+            }
+        }
+
+        composeRule.onNodeWithTag("xnote-create-note").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-body").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-editor-body").performTextInput("keyboard")
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("笔记背景").performClick()
+
+        composeRule.onNodeWithText("暖白纸").assertIsDisplayed()
+        composeRule.onNodeWithText("奶油纹理").assertIsDisplayed()
+        composeRule.onNodeWithText("横线纸").assertIsDisplayed()
+        composeRule.onNodeWithText("方格纸").assertIsDisplayed()
     }
 }

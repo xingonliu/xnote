@@ -18,6 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -88,6 +90,8 @@ fun BoxScope.NotesChrome(
     onPop: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val drawerPlacement = if (isTablet) XNoteDrawerPlacement.End else XNoteDrawerPlacement.Bottom
     val moreMenuAnchor = rememberXNotePopupAnchor()
     val paragraphMenuAnchor = rememberXNotePopupAnchor()
@@ -97,6 +101,10 @@ fun BoxScope.NotesChrome(
     }
     val conversionBlockedMessage = stringResource(R.string.editor_convert_markdown_blocked)
     val conversionFailedMessage = stringResource(R.string.editor_convert_markdown_failed)
+    val dismissEditorInput: () -> Unit = {
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+    }
 
     when (route) {
         NotesRoute.Home -> Unit
@@ -144,7 +152,10 @@ fun BoxScope.NotesChrome(
                             XNoteHeaderAction(
                                 iconRes = R.drawable.ic_keyline_stroke_square_pen,
                                 contentDescription = stringResource(R.string.notes_choose_notebook),
-                                onClick = { ui.moveVisible = true },
+                                onClick = {
+                                    dismissEditorInput()
+                                    ui.moveVisible = true
+                                },
                             ),
                         )
                     }
@@ -236,6 +247,7 @@ fun BoxScope.NotesChrome(
                 backdrop = backdrop,
                 paragraphMenuAnchor = paragraphMenuAnchor,
                 tableMenuAnchor = tableMenuAnchor,
+                onOpenModal = dismissEditorInput,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .imePadding()
@@ -403,7 +415,10 @@ fun BoxScope.NotesChrome(
             add(
                 XNoteDropdownMenuItem(
                     label = stringResource(R.string.editor_note_background),
-                    onClick = { ui.backgroundPickerVisible = true },
+                    onClick = {
+                        dismissEditorInput()
+                        ui.backgroundPickerVisible = true
+                    },
                 ),
             )
             if (editorSession?.isMarkdown == false) {
@@ -412,21 +427,30 @@ fun BoxScope.NotesChrome(
                         label = stringResource(R.string.editor_convert_markdown),
                         enabled = editorSession.markdownConversionBlockers.isEmpty() &&
                             !editorSession.conversionInProgress,
-                        onClick = { ui.convertMarkdownVisible = true },
+                        onClick = {
+                            dismissEditorInput()
+                            ui.convertMarkdownVisible = true
+                        },
                     ),
                 )
             }
             add(
                 XNoteDropdownMenuItem(
                     label = stringResource(R.string.notes_move_to_notebook),
-                    onClick = { ui.moveVisible = true },
+                    onClick = {
+                        dismissEditorInput()
+                        ui.moveVisible = true
+                    },
                 ),
             )
             add(
                 XNoteDropdownMenuItem(
                     label = stringResource(R.string.notes_delete_notes),
                     destructive = true,
-                    onClick = { ui.trashConfirmVisible = true },
+                    onClick = {
+                        dismissEditorInput()
+                        ui.trashConfirmVisible = true
+                    },
                 ),
             )
         }
@@ -703,6 +727,7 @@ private fun EditorToolbarBar(
     backdrop: Backdrop,
     paragraphMenuAnchor: XNotePopupAnchor,
     tableMenuAnchor: XNotePopupAnchor,
+    onOpenModal: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -749,6 +774,7 @@ private fun EditorToolbarBar(
                         ) {
                             session.applyLink(null)
                         } else {
+                            onOpenModal()
                             ui.linkDraft = current
                             ui.linkDialogVisible = true
                         }
