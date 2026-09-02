@@ -213,7 +213,7 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 
 Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的玻璃控件必须作为捕获层的同级节点绘制，不能嵌套在 `layerBackdrop` 子树中，否则 Android HWUI 可能形成循环渲染并导致 `RenderThread` 原生崩溃。
 
-AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方必须原样复用；项目只允许在不改变材质、几何和内容内边距的前提下补充禁用状态、动态遮罩、触觉反馈和无障碍行为，业务页面不得覆盖这些参数。
+AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方原则上原样复用；`LiquidButton` 仅针对近白背景的加法混合亮度饱和，将全区域按压白光从 `0.08` 降为 `0.04`，并将无 RuntimeShader 时的全区域兜底白光从 `0.25` 降为 `0.125`。项目只允许在不改变其余材质、几何和内容内边距的前提下补充禁用状态、动态遮罩、触觉反馈和无障碍行为，业务页面不得覆盖这些参数。
 
 ### 6.1 使用范围
 
@@ -229,7 +229,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
-- `LiquidButton` 固定使用官方 `Capsule`、48 dp 高度、16 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；页面不得传入私有高度、形状或内容内边距。
+- `LiquidButton` 固定使用官方 `Capsule`、48 dp 高度、16 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`；页面不得传入私有高度、形状、内容内边距或高光参数。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 同时固定使用官方 48 dp `RoundedRectangle`、遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。

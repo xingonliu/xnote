@@ -64,7 +64,7 @@ half4 main(float2 coord) {
             if (progress > 0f) {
                 if (shader != null) {
                     drawRect(
-                        Color.White.copy(0.08f * progress),
+                        Color.White.copy(0.04f * progress),
                         blendMode = BlendMode.Plus,
                     )
                     shader.apply {
@@ -84,7 +84,7 @@ half4 main(float2 coord) {
                     )
                 } else {
                     drawRect(
-                        Color.White.copy(0.25f * progress),
+                        Color.White.copy(0.125f * progress),
                         blendMode = BlendMode.Plus,
                     )
                 }
