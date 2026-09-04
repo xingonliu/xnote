@@ -8,9 +8,9 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('starts the Flutter application', (tester) async {
-    app.main();
+    await app.main();
     await tester.pumpAndSettle();
 
-    expect(find.text('XNote'), findsOneWidget);
+    expect(find.text('XNote · Glass PoC'), findsOneWidget);
   });
 }

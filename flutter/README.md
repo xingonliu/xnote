@@ -2,6 +2,8 @@
 
 XNote 的 Flutter application。当前正式验收平台是 Android 13+；其他宿主已生成，但在插件审计和平台验收前不列为正式支持平台。
 
+当前应用入口已经进入 F2 技术验证：根节点初始化 `LiquidGlassWidgets` 并启用自适应质量、系统无障碍与 Material 亮度桥接；首屏可直接切换 Glass 组件验证和编辑器验证。编辑器 PoC 包含标题、两个正文块、行内粗体、列表、可增删行列的 2×2 表格、标题折叠、450 ms 自动保存、返回或生命周期切换强制保存，以及系统 `UndoHistoryController` 驱动的撤销重做。所有玻璃表面和交互均直接组合 `liquid_glass_widgets`，没有项目自研玻璃渲染层。
+
 ## 环境
 
 - Flutter 3.41.0 或更高版本；当前工程建立于 Flutter 3.44.3 stable。

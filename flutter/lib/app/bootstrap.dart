@@ -1,10 +1,18 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'xnote_app.dart';
 
 // -- Lifecycle Hooks
 
-void bootstrap() {
+Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const XNoteApp());
+  await LiquidGlassWidgets.initialize();
+  runApp(
+    LiquidGlassWidgets.wrap(
+      child: const XNoteApp(),
+      adaptiveQuality: true,
+      brightnessResolver: Theme.maybeBrightnessOf,
+    ),
+  );
 }

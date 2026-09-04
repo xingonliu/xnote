@@ -2,4 +2,4 @@ import 'app/bootstrap.dart';
 
 // -- Lifecycle Hooks
 
-void main() => bootstrap();
+Future<void> main() => bootstrap();
