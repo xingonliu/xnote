@@ -6,6 +6,8 @@ XNote 的 Flutter application。当前正式验收平台是 Android 13+；其他
 
 F3 纯 Dart 领域层位于 `lib/domain/`，覆盖笔记本、笔记、修订、附件、设置、富文本块与严格的新 schema JSON；编辑命令、历史、Markdown 转换、可见文本、中文 FTS、搜索片段、回收站和背景规则均不依赖 Flutter、Riverpod、Drift 或平台 API。UUID 与时钟通过边界接口注入，测试可以完全确定性地控制 ID 和时间。领域测试位于 `test/domain/`。
 
+F4 数据事实源位于 `lib/data/`：Drift schema version 1 包含笔记本、笔记、修订、附件、搜索历史、设置和 FTS5 虚拟表，并启用外键、索引、事务与响应式 Stream。仓储保存笔记时在同一事务内更新新 JSON、摘要、字数和中文 FTS；删除/恢复、移动、多选、不可逆 Markdown 转换、启动回收站补扫及孤立附件元数据清理同样由事务负责。附件正文先写临时文件再原子重命名，拒绝绝对路径和目录穿越；物理孤立文件在元数据事务提交后幂等清理。
+
 ## 环境
 
 - Flutter 3.41.0 或更高版本；当前工程建立于 Flutter 3.44.3 stable。
@@ -13,6 +15,7 @@ F3 纯 Dart 领域层位于 `lib/domain/`，覆盖笔记本、笔记、修订、
 - Android minSdk 33，applicationId 与 namespace 均为 `com.xnote.app`。
 - Liquid Glass 依赖精确锁定为 `liquid_glass_widgets: 1.2.3`。
 - 实体 ID 使用精确锁定的 `uuid: 4.6.0`，领域用例通过 `IdGenerator` 接口注入。
+- 数据层使用 `drift: 2.34.4` 与 `sqlite3: 3.5.2`；生成工具锁定为与当前 Flutter SDK 兼容的 `drift_dev: 2.34.6`、`build_runner: 2.15.1`。
 
 工程创建时的工具链记录：Flutter 3.44.3 stable、Dart 3.12.2、DevTools 2.57.0、Android platform 37、JDK 21、Windows 11 与 Visual Studio Build Tools 2022。`flutter doctor -v` 验证了 Windows、Web、Android 工具链和网络资源；本机仍提示 Flutter/Dart 未加入 PATH，以及部分 Android SDK 许可证未接受，因此命令可通过 `-FlutterSdk` 显式指定 SDK，且不把本机路径写入仓库。
 

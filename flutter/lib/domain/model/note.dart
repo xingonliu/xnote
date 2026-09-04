@@ -79,6 +79,7 @@ final class Note {
     int? visibleCharacterCount,
     int? latinWordCount,
     String? summary,
+    int? createdAtEpochMilliseconds,
     int? updatedAtEpochMilliseconds,
     Object? deletedAtEpochMilliseconds = _notProvided,
     Object? originalNotebookName = _notProvided,
@@ -104,7 +105,8 @@ final class Note {
           visibleCharacterCount ?? this.visibleCharacterCount,
       latinWordCount: latinWordCount ?? this.latinWordCount,
       summary: summary ?? this.summary,
-      createdAtEpochMilliseconds: createdAtEpochMilliseconds,
+      createdAtEpochMilliseconds:
+          createdAtEpochMilliseconds ?? this.createdAtEpochMilliseconds,
       updatedAtEpochMilliseconds:
           updatedAtEpochMilliseconds ?? this.updatedAtEpochMilliseconds,
       deletedAtEpochMilliseconds:

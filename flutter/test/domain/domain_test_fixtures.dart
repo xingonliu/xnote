@@ -33,6 +33,17 @@ final class FixedClock implements Clock {
   int nowEpochMilliseconds() => value;
 }
 
+final class MutableClock implements Clock {
+  MutableClock(this.value);
+
+  int value;
+
+  // -- Functions
+
+  @override
+  int nowEpochMilliseconds() => value;
+}
+
 // -- Functions
 
 Note richNote({

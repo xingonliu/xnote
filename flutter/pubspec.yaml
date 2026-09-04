@@ -30,13 +30,17 @@ environment:
 # versions available, run `flutter pub outdated`.
 dependencies:
   cupertino_icons: ^1.0.8
+  drift: 2.34.4
   flutter:
     sdk: flutter
 
   liquid_glass_widgets: 1.2.3
+  sqlite3: 3.5.2
   uuid: 4.6.0
 
 dev_dependencies:
+  build_runner: 2.15.1
+  drift_dev: 2.34.6
   flutter_test:
     sdk: flutter
   integration_test:
