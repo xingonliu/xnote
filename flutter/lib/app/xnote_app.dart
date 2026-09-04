@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-import '../features/poc/poc_workspace.dart';
+import 'navigation/xnote_router.dart';
 import 'theme/xnote_theme.dart';
 
 // -- Type Definitions
@@ -20,6 +21,10 @@ class _XNoteAppState extends State<XNoteApp> {
   // -- State and Variables
 
   late ThemeMode _themeMode;
+  late final _router = buildXNoteRouter(
+    readThemeMode: () => _themeMode,
+    onThemeModeChanged: _handleThemeModeChanged,
+  );
 
   // -- Listeners
 
@@ -27,6 +32,7 @@ class _XNoteAppState extends State<XNoteApp> {
     setState(() {
       _themeMode = themeMode;
     });
+    _router.refresh();
   }
 
   // -- Lifecycle Hooks
@@ -39,16 +45,28 @@ class _XNoteAppState extends State<XNoteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'XNote',
       debugShowCheckedModeBanner: false,
       theme: buildXNoteTheme(Brightness.light),
       darkTheme: buildXNoteTheme(Brightness.dark),
-      themeMode: _themeMode,
-      home: PocWorkspace(
-        themeMode: _themeMode,
-        onThemeModeChanged: _handleThemeModeChanged,
+      highContrastTheme: buildXNoteTheme(
+        Brightness.light,
+        highContrast: true,
       ),
+      highContrastDarkTheme: buildXNoteTheme(
+        Brightness.dark,
+        highContrast: true,
+      ),
+      themeMode: _themeMode,
+      builder: (context, child) => GlassNavigationShell(child: child!),
+      routerConfig: _router,
     );
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
   }
 }
