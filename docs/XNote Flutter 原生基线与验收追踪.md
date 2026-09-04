@@ -12,7 +12,7 @@
 - `./gradlew.bat testDebugUnitTest lintDebug assembleDebug` 执行成功；55 个 Gradle task 中 1 个执行、54 个命中缓存或为最新状态。
 - ADB 未发现已连接设备，因此本次未重复运行 `connectedDebugAndroidTest`。用户已明确确认 S1–S6 可用，并要求不再进行原生真机回归。
 - 原生测试共 22 个 Kotlin 测试文件、115 个 `@Test`。第 8 节为每个源测试文件建立 Flutter 目标；同一行内的全部测试方法按原方法名和断言语义一对一迁移，不因实现语言变化降低覆盖。
-- Flutter SDK 已定位到 `C:\Users\Administrator\.codex\tools\flutter-3.44.3\flutter`；F1 使用该 SDK，并在创建工程前复核版本与 doctor 状态。
+- Flutter 3.44.3 stable SDK 已就绪；F1 在创建工程前复核版本与 doctor 状态，仓库不记录本机安装路径。
 
 ## 2. 当前页面与导航
 
