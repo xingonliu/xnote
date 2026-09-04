@@ -2,7 +2,9 @@
 
 XNote 的 Flutter application。当前正式验收平台是 Android 13+；其他宿主已生成，但在插件审计和平台验收前不列为正式支持平台。
 
-当前应用入口已经进入 F2 技术验证：根节点初始化 `LiquidGlassWidgets` 并启用自适应质量、系统无障碍与 Material 亮度桥接；首屏可直接切换 Glass 组件验证和编辑器验证。编辑器 PoC 包含标题、两个正文块、行内粗体、列表、可增删行列的 2×2 表格、标题折叠、450 ms 自动保存、返回或生命周期切换强制保存，以及系统 `UndoHistoryController` 驱动的撤销重做。所有玻璃表面和交互均直接组合 `liquid_glass_widgets`，没有项目自研玻璃渲染层。
+当前应用入口保留可继续演进的 F2 技术验证：根节点初始化 `LiquidGlassWidgets` 并启用自适应质量、系统无障碍与 Material 亮度桥接；首屏可直接切换 Glass 组件验证和编辑器验证。编辑器 PoC 包含标题、两个正文块、行内粗体、列表、可增删行列的 2×2 表格、标题折叠、450 ms 自动保存、返回或生命周期切换强制保存，以及系统 `UndoHistoryController` 驱动的撤销重做。所有玻璃表面和交互均直接组合 `liquid_glass_widgets`，没有项目自研玻璃渲染层。
+
+F3 纯 Dart 领域层位于 `lib/domain/`，覆盖笔记本、笔记、修订、附件、设置、富文本块与严格的新 schema JSON；编辑命令、历史、Markdown 转换、可见文本、中文 FTS、搜索片段、回收站和背景规则均不依赖 Flutter、Riverpod、Drift 或平台 API。UUID 与时钟通过边界接口注入，测试可以完全确定性地控制 ID 和时间。领域测试位于 `test/domain/`。
 
 ## 环境
 
@@ -10,6 +12,7 @@ XNote 的 Flutter application。当前正式验收平台是 Android 13+；其他
 - Dart 使用同一 Flutter SDK 自带版本；当前为 Dart 3.12.2。
 - Android minSdk 33，applicationId 与 namespace 均为 `com.xnote.app`。
 - Liquid Glass 依赖精确锁定为 `liquid_glass_widgets: 1.2.3`。
+- 实体 ID 使用精确锁定的 `uuid: 4.6.0`，领域用例通过 `IdGenerator` 接口注入。
 
 工程创建时的工具链记录：Flutter 3.44.3 stable、Dart 3.12.2、DevTools 2.57.0、Android platform 37、JDK 21、Windows 11 与 Visual Studio Build Tools 2022。`flutter doctor -v` 验证了 Windows、Web、Android 工具链和网络资源；本机仍提示 Flutter/Dart 未加入 PATH，以及部分 Android SDK 许可证未接受，因此命令可通过 `-FlutterSdk` 显式指定 SDK，且不把本机路径写入仓库。
 
