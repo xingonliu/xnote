@@ -38,6 +38,7 @@
 | 主题 | 决策 |
 | --- | --- |
 | 重构方式 | 全量 Flutter 重写，最终仓库不保留原生 Android 业务实现。 |
+| Flutter 目录 | Flutter 项目的全部文件统一放在仓库根目录的 `flutter/` 中；不得把 `lib/`、`android/`、`ios/`、`test/`、`pubspec.yaml` 或其他 Flutter 工程文件散落到仓库根目录。 |
 | 旧数据 | 不迁移、不读取、不兼容；新安装直接创建 Flutter 新数据库。 |
 | 兼容层 | 不做 Kotlin/Dart 双实现、旧格式解析、适配器或迁移开关。 |
 | Liquid Glass | 只使用 `liquid_glass_widgets`，不自行开发任何玻璃组件或效果。 |
@@ -103,11 +104,12 @@ Flutter 切换前必须完整复现：
 
 ### 5.1 Flutter 工程
 
-- 在仓库根目录创建标准 Flutter application，不创建 Add-to-App module。
+- 在仓库根目录的 `flutter/` 文件夹内创建完整的标准 Flutter application，不创建 Add-to-App module。
+- Flutter 的 Dart 源码、测试、资产、`pubspec.yaml`、锁文件和全部平台宿主必须全部位于 `flutter/` 内；仓库根目录只保留项目级文档、许可证、Agent 规则以及重构完成前的原生参考工程。
 - 建议命令：
 
 ```powershell
-flutter create . --project-name xnote --org com.xnote --platforms=android,ios,windows,macos,linux,web
+flutter create flutter --project-name xnote --org com.xnote --platforms=android,ios,windows,macos,linux,web
 ```
 
 - 创建后校正 Android `applicationId` 和 `namespace` 为 `com.xnote.app`。
@@ -156,59 +158,58 @@ flutter create . --project-name xnote --org com.xnote --platforms=android,ios,wi
 以下目录是职责边界，不要求创建空目录或占位文件：
 
 ```text
-lib/
-├─ main.dart
-├─ app/
-│  ├─ bootstrap.dart
-│  ├─ xnote_app.dart
-│  ├─ routing/
-│  └─ theme/
-├─ core/
-│  ├─ database/
-│  ├─ files/
-│  ├─ ids/
-│  ├─ time/
-│  └─ errors/
-├─ domain/
-│  ├─ model/
-│  ├─ document/
-│  ├─ markdown/
-│  ├─ rules/
-│  └─ text/
-├─ data/
-│  ├─ notes/
-│  ├─ settings/
-│  ├─ search/
-│  └─ maintenance/
-├─ design/
-│  ├─ tokens/
-│  ├─ icons/
-│  ├─ background/
-│  └─ common/
-└─ features/
-   ├─ notes/
-   ├─ editor/
-   ├─ markdown/
-   ├─ search/
-   ├─ recycle_bin/
-   ├─ profile/
-   ├─ reading/
-   ├─ export/
-   ├─ media/
-   ├─ agent/
-   └─ settings/
-
-test/
-├─ domain/
-├─ data/
-├─ design/
-└─ features/
-
-integration_test/
-├─ notes_flow_test.dart
-├─ editor_persistence_test.dart
-├─ search_recycle_test.dart
-└─ adaptive_layout_test.dart
+flutter/
+├─ lib/
+│  ├─ main.dart
+│  ├─ app/
+│  │  ├─ bootstrap.dart
+│  │  ├─ xnote_app.dart
+│  │  ├─ routing/
+│  │  └─ theme/
+│  ├─ core/
+│  │  ├─ database/
+│  │  ├─ files/
+│  │  ├─ ids/
+│  │  ├─ time/
+│  │  └─ errors/
+│  ├─ domain/
+│  │  ├─ model/
+│  │  ├─ document/
+│  │  ├─ markdown/
+│  │  ├─ rules/
+│  │  └─ text/
+│  ├─ data/
+│  │  ├─ notes/
+│  │  ├─ settings/
+│  │  ├─ search/
+│  │  └─ maintenance/
+│  ├─ design/
+│  │  ├─ tokens/
+│  │  ├─ icons/
+│  │  ├─ background/
+│  │  └─ common/
+│  └─ features/
+│     ├─ notes/
+│     ├─ editor/
+│     ├─ markdown/
+│     ├─ search/
+│     ├─ recycle_bin/
+│     ├─ profile/
+│     ├─ reading/
+│     ├─ export/
+│     ├─ media/
+│     ├─ agent/
+│     └─ settings/
+├─ test/
+│  ├─ domain/
+│  ├─ data/
+│  ├─ design/
+│  └─ features/
+└─ integration_test/
+   ├─ notes_flow_test.dart
+   ├─ editor_persistence_test.dart
+   ├─ search_recycle_test.dart
+   └─ adaptive_layout_test.dart
 ```
 
 ### 6.1 依赖方向
@@ -483,13 +484,15 @@ Future<void> main() async {
 
 **事项：**
 
-- 创建 Flutter 工程和平台宿主，设置 applicationId、minSdk、应用名、图标和主题入口。
+- 在仓库根目录的 `flutter/` 中创建 Flutter 工程和平台宿主，设置 applicationId、minSdk、应用名、图标和主题入口；不得在仓库根目录生成 Flutter 工程文件。
 - 配置 Flutter/Dart 版本约束、严格 lint、格式化、单元测试、Widget 测试和 integration_test。
 - 加入 `liquid_glass_widgets: 1.2.3` 并锁定依赖。
 - 建立 CI/本地统一命令，不引入业务页面。
 - 确认 Android debug 和 release 构建链路；记录 Flutter doctor 信息但不提交本机路径。
 
 **验证：**
+
+以下命令在 `flutter/` 目录执行：
 
 ```powershell
 dart format --output=none --set-exit-if-changed .
@@ -498,7 +501,7 @@ flutter test
 flutter build apk --debug
 ```
 
-**出口：** 空应用在 Android 13+ 启动，无分析错误，根目录工程结构稳定。
+**出口：** 空应用在 Android 13+ 启动，无分析错误，`flutter/` 工程结构稳定，仓库根目录没有散落的 Flutter 工程文件。
 
 ### F2 Liquid Glass 与富文本阻断性 PoC
 
@@ -639,7 +642,7 @@ PoC 代码只有能直接演进为正式实现时才保留；一次性实验应�
 - 旧根 Gradle 工程、Room schema、Compose 资源和 AndroidLiquidGlass catalog 源码。
 - 仅服务旧原生工程的测试、配置和说明。
 
-Flutter `android/` 宿主中由 Flutter 创建的最小 Activity 和插件配置可以保留；不得残留 Compose 产品 UI、Room 或旧数据兼容代码。
+Flutter `flutter/android/` 宿主中由 Flutter 创建的最小 Activity 和插件配置可以保留；不得残留 Compose 产品 UI、Room 或旧数据兼容代码。
 
 **文档同步：**
 
@@ -652,12 +655,14 @@ Flutter `android/` 宿主中由 Flutter 创建的最小 Activity 和插件配置
 
 ```powershell
 rg -n "AndroidLiquidGlass|androidx\.compose|androidx\.room3|XNoteLiquidGlassPanel|LiquidBottomTabs" .
+Push-Location flutter
 dart format --output=none --set-exit-if-changed .
 flutter analyze
 flutter test
 flutter test integration_test -d <android-device-id>
 flutter build apk --debug
 flutter build apk --release
+Pop-Location
 ```
 
 `rg` 只允许命中确有必要的历史提交说明；最终产品文档和业务源码不得命中旧实现名。
@@ -712,6 +717,8 @@ flutter build apk --release
 ## 13. 测试与验收矩阵
 
 ### 13.1 每个阶段的最低命令
+
+以下命令在 `flutter/` 目录执行：
 
 ```powershell
 dart format --output=none --set-exit-if-changed .
@@ -821,7 +828,7 @@ git diff -- <本阶段文件>
 
 - F0–F10 全部完成并有对应提交。
 - 当前原生 S1–S6 的功能追踪表全部通过。
-- 仓库根目录是标准 Flutter application，Android 13+ debug/release 构建成功。
+- 标准 Flutter application 完整位于仓库根目录的 `flutter/` 中，仓库根目录没有散落的 Flutter 工程文件，Android 13+ debug/release 构建成功。
 - `flutter analyze`、全部单元/Widget 测试和规定 integration_test 通过。
 - 旧 Kotlin/Compose/Room/AndroidLiquidGlass 产品实现已删除，不存在双栈或兼容入口。
 - 不存在旧数据库、DataStore、附件或 JSON 迁移代码。
