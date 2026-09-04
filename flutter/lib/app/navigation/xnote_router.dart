@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../design/tokens/xnote_tokens.dart';
+import '../../features/notes/presentation/basic_note_editor_page.dart';
+import '../../features/notes/presentation/notebook_detail_page.dart';
+import '../../features/notes/presentation/notes_home_page.dart';
 import '../../features/shell/shell_pages.dart';
 import '../../features/shell/xnote_shell.dart';
 import 'xnote_destination.dart';
@@ -53,7 +56,7 @@ GoRouter buildXNoteRouter({
                 pageBuilder: (context, state) => _page(
                   context,
                   state,
-                  const NotesShellPage(key: ValueKey<String>('notes')),
+                  const NotesHomePage(key: ValueKey<String>('notes')),
                 ),
                 routes: <RouteBase>[
                   GoRoute(
@@ -69,11 +72,11 @@ GoRouter buildXNoteRouter({
                     pageBuilder: (context, state) => _page(
                       context,
                       state,
-                      NotesRouteShellPage(
+                      NotebookDetailPage(
                         key: ValueKey<String>(
                           'notebook:${state.pathParameters['notebookId']}',
                         ),
-                        label: '笔记本',
+                        notebookId: state.pathParameters['notebookId']!,
                       ),
                     ),
                   ),
@@ -82,11 +85,11 @@ GoRouter buildXNoteRouter({
                     pageBuilder: (context, state) => _page(
                       context,
                       state,
-                      NotesRouteShellPage(
+                      BasicNoteEditorPage(
                         key: ValueKey<String>(
                           'editor:${state.pathParameters['noteId']}',
                         ),
-                        label: '编辑笔记',
+                        noteId: state.pathParameters['noteId']!,
                       ),
                     ),
                   ),
@@ -213,7 +216,7 @@ String _titleFor(String path) {
     return '笔记本';
   }
   if (path.startsWith('/notes/entries/')) {
-    return '编辑笔记';
+    return '';
   }
   if (path == XNoteDestination.agent.rootPath) {
     return 'Agent';

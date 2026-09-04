@@ -2,6 +2,10 @@
 
 XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层、S3 笔记本及普通文字笔记、S4 Markdown 单向转换、S5 回收站和搜索与 S6 笔记背景，提供统一页面骨架、公共浮层、状态组件、Room 笔记库、完整富文本编辑闭环、Markdown 编辑预览、可恢复删除、本地全文检索，以及默认背景和单篇背景覆盖；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)，Flutter 全量重写的执行顺序和 Agent 提示词见 [`docs/XNote Flutter 重构执行规划.md`](./docs/XNote%20Flutter%20重构执行规划.md)，单时间线 Agent 的分层记忆、文档记忆与上下文规则见 [`docs/XNote Agent 记忆与上下文架构.md`](./docs/XNote%20Agent%20记忆与上下文架构.md)。
 
+## Flutter 重构进度
+
+`flutter/` 已完成重构规划 F0–F6。Flutter 应用现已使用真实 Drift 本地库启动，并打通笔记首页、笔记本详情与基础文字编辑垂直闭环：支持范围和排序、最近编辑、长按多选、新建与移动笔记、笔记本统计和手动排序、重命名和删除确认，以及 450 ms 自动保存、返回强制落盘和移入回收站。Widget 测试使用依赖覆盖注入内存 Drift，不在生产代码中保留演示仓库或假数据；原生工程在最终切换阶段前继续作为功能等价参考。
+
 ## 当前基线
 
 - Android Gradle Plugin 9.3.2、Gradle 9.7.1、JDK 17 及以上。
@@ -64,4 +68,4 @@ app/src/main/java/com/xnote/app
 └─ XNoteApp.kt         # 手机/平板应用外壳
 ```
 
-S6 已完成笔记背景。下一切片从 S7 图片基础插入与变换开始，并持续复用现有背景画布、公共组件与 `NoteLibrary`。
+Flutter 重构当前完成至 F6；后续范围与验收顺序以 [Flutter 重构执行规划](./docs/XNote%20Flutter%20重构执行规划.md) 为准。

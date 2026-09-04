@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:xnote/app/dependencies/xnote_dependencies.dart';
 import 'package:xnote/app/navigation/xnote_router.dart';
+import 'package:xnote/app/providers/xnote_providers.dart';
 import 'package:xnote/app/theme/xnote_theme.dart';
+
+import '../../support/test_dependencies.dart';
 
 // -- Functions
 
@@ -16,32 +21,39 @@ void _setSurfaceSize(WidgetTester tester, Size size) {
 
 Widget _buildSubject(
   GoRouter router, {
+  required XNoteDependencies dependencies,
   ThemeMode themeMode = ThemeMode.light,
   TextScaler textScaler = TextScaler.noScaling,
   TextDirection textDirection = TextDirection.ltr,
   bool disableAnimations = false,
 }) {
-  return LiquidGlassWidgets.wrap(
-    child: MaterialApp.router(
-      theme: buildXNoteTheme(Brightness.light),
-      darkTheme: buildXNoteTheme(Brightness.dark),
-      themeMode: themeMode,
-      routerConfig: router,
-      builder: (context, child) {
-        final mediaQuery = MediaQuery.of(context).copyWith(
-          textScaler: textScaler,
-          disableAnimations: disableAnimations,
-        );
-        return MediaQuery(
-          data: mediaQuery,
-          child: Directionality(
-            textDirection: textDirection,
-            child: GlassNavigationShell(child: child!),
-          ),
-        );
-      },
+  return ProviderScope(
+    overrides: [
+      noteRepositoryProvider.overrideWithValue(dependencies.notes),
+      notebookRepositoryProvider.overrideWithValue(dependencies.notebooks),
+    ],
+    child: LiquidGlassWidgets.wrap(
+      child: MaterialApp.router(
+        theme: buildXNoteTheme(Brightness.light),
+        darkTheme: buildXNoteTheme(Brightness.dark),
+        themeMode: themeMode,
+        routerConfig: router,
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context).copyWith(
+            textScaler: textScaler,
+            disableAnimations: disableAnimations,
+          );
+          return MediaQuery(
+            data: mediaQuery,
+            child: Directionality(
+              textDirection: textDirection,
+              child: GlassNavigationShell(child: child!),
+            ),
+          );
+        },
+      ),
+      brightnessResolver: Theme.maybeBrightnessOf,
     ),
-    brightnessResolver: Theme.maybeBrightnessOf,
   );
 }
 
@@ -56,6 +68,14 @@ GoRouter _createRouter({
 }
 
 void main() {
+  late TestDependencies testDependencies;
+
+  setUp(() async {
+    testDependencies = await TestDependencies.create();
+  });
+
+  tearDown(() => testDependencies.close());
+
   testWidgets('uses bottom navigation below the 600 logical pixel breakpoint', (
     tester,
   ) async {
@@ -63,7 +83,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     await tester.pump();
 
     expect(
@@ -86,7 +108,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     await tester.pump();
 
     expect(
@@ -106,7 +130,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     await tester.pump();
 
     expect(
@@ -125,7 +151,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     await tester.tap(find.byKey(const Key('open-search')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -151,7 +179,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     router.go('/notes/notebooks/book-1');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -189,7 +219,9 @@ void main() {
     final router = _createRouter();
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(_buildSubject(router));
+    await tester.pumpWidget(
+      _buildSubject(router, dependencies: testDependencies.dependencies),
+    );
     await tester.tap(find.byKey(const Key('open-search')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -211,6 +243,7 @@ void main() {
     await tester.pumpWidget(
       _buildSubject(
         router,
+        dependencies: testDependencies.dependencies,
         textScaler: const TextScaler.linear(2),
         textDirection: TextDirection.rtl,
         disableAnimations: true,

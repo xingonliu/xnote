@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:xnote/app/dependencies/xnote_dependencies.dart';
 import 'package:xnote/app/navigation/xnote_router.dart';
+import 'package:xnote/app/providers/xnote_providers.dart';
 import 'package:xnote/app/theme/xnote_theme.dart';
+
+import '../../support/test_dependencies.dart';
 
 // -- Constants
 
@@ -20,25 +25,32 @@ void _setSurfaceSize(WidgetTester tester, Size size) {
 
 Widget _buildSubject(
   GoRouter router, {
+  required XNoteDependencies dependencies,
   required ThemeMode themeMode,
   TextScaler textScaler = TextScaler.noScaling,
 }) {
-  return RepaintBoundary(
-    key: _goldenSurfaceKey,
-    child: LiquidGlassWidgets.wrap(
-      child: MaterialApp.router(
-        theme: buildXNoteTheme(Brightness.light),
-        darkTheme: buildXNoteTheme(Brightness.dark),
-        themeMode: themeMode,
-        routerConfig: router,
-        builder: (context, child) {
-          return MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-            child: GlassNavigationShell(child: child!),
-          );
-        },
+  return ProviderScope(
+    overrides: [
+      noteRepositoryProvider.overrideWithValue(dependencies.notes),
+      notebookRepositoryProvider.overrideWithValue(dependencies.notebooks),
+    ],
+    child: RepaintBoundary(
+      key: _goldenSurfaceKey,
+      child: LiquidGlassWidgets.wrap(
+        child: MaterialApp.router(
+          theme: buildXNoteTheme(Brightness.light),
+          darkTheme: buildXNoteTheme(Brightness.dark),
+          themeMode: themeMode,
+          routerConfig: router,
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+              child: GlassNavigationShell(child: child!),
+            );
+          },
+        ),
+        brightnessResolver: Theme.maybeBrightnessOf,
       ),
-      brightnessResolver: Theme.maybeBrightnessOf,
     ),
   );
 }
@@ -51,12 +63,24 @@ GoRouter _createRouter() {
 }
 
 void main() {
+  late TestDependencies testDependencies;
+
+  setUp(() async {
+    testDependencies = await TestDependencies.create();
+  });
+
+  tearDown(() => testDependencies.close());
+
   testWidgets('matches the narrow light application shell', (tester) async {
     _setSurfaceSize(tester, const Size(390, 844));
     final router = _createRouter();
     addTearDown(router.dispose);
     await tester.pumpWidget(
-      _buildSubject(router, themeMode: ThemeMode.light),
+      _buildSubject(
+        router,
+        dependencies: testDependencies.dependencies,
+        themeMode: ThemeMode.light,
+      ),
     );
     await tester.pump(const Duration(milliseconds: 200));
 
@@ -75,6 +99,7 @@ void main() {
     await tester.pumpWidget(
       _buildSubject(
         router,
+        dependencies: testDependencies.dependencies,
         themeMode: ThemeMode.dark,
         textScaler: const TextScaler.linear(2),
       ),

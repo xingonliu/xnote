@@ -6,19 +6,6 @@ import '../../design/tokens/xnote_tokens.dart';
 
 // -- Type Definitions
 
-final class NotesShellPage extends StatelessWidget {
-  const NotesShellPage({super.key});
-
-  // -- Lifecycle Hooks
-
-  @override
-  Widget build(BuildContext context) => const XNoteEmptyState(
-        icon: XNoteIcon.notes,
-        title: '开始记录第一篇笔记',
-        message: '文字、清单与表格会在这里保持清晰有序。',
-      );
-}
-
 final class AgentShellPage extends StatelessWidget {
   const AgentShellPage({super.key});
 
@@ -150,21 +137,6 @@ final class AppearanceShellPage extends StatelessWidget {
       ],
     );
   }
-}
-
-final class NotesRouteShellPage extends StatelessWidget {
-  const NotesRouteShellPage({required this.label, super.key});
-
-  final String label;
-
-  // -- Lifecycle Hooks
-
-  @override
-  Widget build(BuildContext context) => XNoteEmptyState(
-        icon: XNoteIcon.notes,
-        title: label,
-        message: '内容将在对应笔记数据加载后显示。',
-      );
 }
 
 final class _ProfileAction extends StatelessWidget {

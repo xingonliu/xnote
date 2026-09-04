@@ -29,42 +29,6 @@ final class XNoteShell extends StatelessWidget {
   final VoidCallback onOpenSearch;
   final ValueChanged<XNoteDestination> onDestinationSelected;
 
-  // -- Lifecycle Hooks
-
-  @override
-  Widget build(BuildContext context) {
-    final wide =
-        MediaQuery.sizeOf(context).width >= xnoteAdaptiveNavigationBreakpoint;
-
-    return PopScope<void>(
-      canPop: !showBack,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && showBack) {
-          onBack();
-        }
-      },
-      child: GlassScaffold(
-        key: const Key('xnote-application-shell'),
-        background: _background(context),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        statusBarStyle: GlassStatusBarStyle.none,
-        contentAwareBrightness: true,
-        resizeToAvoidBottomInset: true,
-        appBar: _appBar(context),
-        bottomBar: !wide && showPrimaryChrome ? _bottomNavigation() : null,
-        body: wide
-            ? Row(
-                children: <Widget>[
-                  _navigationRail(),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: body),
-                ],
-              )
-            : body,
-      ),
-    );
-  }
-
   // -- Functions
 
   Widget _background(BuildContext context) {
@@ -87,7 +51,7 @@ final class XNoteShell extends StatelessWidget {
   GlassAppBar _appBar(BuildContext context) {
     return GlassAppBar(
       toolbarHeight: xnoteHeaderHeight,
-      title: Text(title),
+      title: title.isEmpty ? null : Text(title),
       leading: showBack
           ? GlassIconButton(
               icon: const XNoteIconView(icon: XNoteIcon.back),
@@ -210,6 +174,43 @@ final class XNoteShell extends StatelessWidget {
             label: Text('我的'),
           ),
         ],
+      ),
+    );
+  }
+
+  // -- Lifecycle Hooks
+
+  @override
+  Widget build(BuildContext context) {
+    final wide =
+        MediaQuery.sizeOf(context).width >= xnoteAdaptiveNavigationBreakpoint;
+
+    return PopScope<void>(
+      canPop: !showBack,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && showBack) {
+          onBack();
+        }
+      },
+      child: GlassScaffold(
+        key: const Key('xnote-application-shell'),
+        background: _background(context),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        statusBarStyle: GlassStatusBarStyle.none,
+        contentAwareBrightness: true,
+        extendBody: false,
+        resizeToAvoidBottomInset: true,
+        appBar: _appBar(context),
+        bottomBar: !wide && showPrimaryChrome ? _bottomNavigation() : null,
+        body: wide
+            ? Row(
+                children: <Widget>[
+                  _navigationRail(),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: body),
+                ],
+              )
+            : body,
       ),
     );
   }
