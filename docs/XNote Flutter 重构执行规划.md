@@ -446,7 +446,7 @@ Future<void> main() async {
 | 阶段 | 内容 | 初始状态 |
 | --- | --- | --- |
 | F0 | 原生基线、资产和行为清点 | 已完成（2026-09-04；基线命令通过，115 项旧测试已分配 Flutter 验收） |
-| F1 | Flutter 工程与质量门禁 | 未开始 |
+| F1 | Flutter 工程与质量门禁 | 进行中（2026-09-04；六平台工程、格式、分析、测试及 Android debug/release 构建通过；Android 13+ 实机启动待验收） |
 | F2 | Liquid Glass 与富文本阻断性 PoC | 未开始 |
 | F3 | 纯 Dart 领域模型和规则 | 未开始 |
 | F4 | Drift 数据、FTS5、设置和文件层 | 未开始 |

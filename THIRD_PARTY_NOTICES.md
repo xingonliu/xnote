@@ -8,6 +8,20 @@ Copyright 2025 Kyant
 
 Licensed under the Apache License, Version 2.0. A complete copy is available at [`LICENSES/Apache-2.0.txt`](./LICENSES/Apache-2.0.txt).
 
+## liquid_glass_widgets 1.2.3
+
+XNote 的 Flutter 工程使用 [`liquid_glass_widgets`](https://github.com/sdegenaar/liquid_glass_widgets) 1.2.3。该版本以 MIT License 发布。
+
+### MIT License
+
+Copyright (c) 2024–2026 Sebastian Degenaar
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## Keyline Icons
 
 XNote 使用并转换了 [Keyline Icons](https://keylineicons.com/) 官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf` 的 Rounded Stroke 与 Rounded Fill SVG 图标。原始项目使用 MIT License。

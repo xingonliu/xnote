@@ -1,0 +1,48 @@
+# XNote Flutter
+
+XNote 的 Flutter application。当前正式验收平台是 Android 13+；其他宿主已生成，但在插件审计和平台验收前不列为正式支持平台。
+
+## 环境
+
+- Flutter 3.41.0 或更高版本；当前工程建立于 Flutter 3.44.3 stable。
+- Dart 使用同一 Flutter SDK 自带版本；当前为 Dart 3.12.2。
+- Android minSdk 33，applicationId 与 namespace 均为 `com.xnote.app`。
+- Liquid Glass 依赖精确锁定为 `liquid_glass_widgets: 1.2.3`。
+
+工程创建时的工具链记录：Flutter 3.44.3 stable、Dart 3.12.2、DevTools 2.57.0、Android platform 37、JDK 21、Windows 11 与 Visual Studio Build Tools 2022。`flutter doctor -v` 验证了 Windows、Web、Android 工具链和网络资源；本机仍提示 Flutter/Dart 未加入 PATH，以及部分 Android SDK 许可证未接受，因此命令可通过 `-FlutterSdk` 显式指定 SDK，且不把本机路径写入仓库。
+
+## Liquid Glass 依赖审计
+
+- 1.2.3 的 pubspec 要求 Dart 3.5+、Flutter 3.41+，并声明 Android、iOS、Linux、macOS、Web、Windows 六个平台。
+- 包使用 MIT License，许可证全文已同步到仓库根目录的 `THIRD_PARTY_NOTICES.md`。
+- 包仓库和 1.2.3 changelog 均可用；pub.dev 已存在 1.3.0，但本阶段遵循重构规划保持 1.2.3 精确锁定，不做无依据升级。
+- Android Vulkan、iOS 和 macOS 使用完整 Impeller 路径；Android GLES 使用精简 shader 路径；Windows、Linux 和 Web 默认限制在 standard 质量。各平台宿主的存在不代表已经完成正式支持验收。
+
+## 验证
+
+在本目录运行：
+
+```powershell
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+flutter test
+flutter build apk --debug
+```
+
+也可以从仓库根目录运行统一脚本：
+
+```powershell
+.\flutter\tool\verify.ps1
+```
+
+Flutter SDK 未加入 PATH 时显式传入 SDK 根目录：
+
+```powershell
+.\flutter\tool\verify.ps1 -FlutterSdk C:\path\to\flutter
+```
+
+F1 或发布前同时验证 release APK：
+
+```powershell
+.\flutter\tool\verify.ps1 -FlutterSdk C:\path\to\flutter -Release
+```

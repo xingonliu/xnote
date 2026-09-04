@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyline Icons "square-pen" rounded stroke, source 14cd695f — MIT License -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFD45A"
+        android:pathData="M0,0H108V108H0Z" />
+    <group
+        android:scaleX="2.5"
+        android:scaleY="2.5"
+        android:translateX="24"
+        android:translateY="24">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M12,3H6C4.34315,3 3,4.34315 3,6V18C3,19.6569 4.34315,21 6,21H18C19.6569,21 21,19.6569 21,18V12M10.5,13.5L14.6248,11.8501L20.4874,5.9874C21.1709,5.304 21.1709,4.196 20.4874,3.5126C19.804,2.8291 18.696,2.8291 18.0126,3.5126L12.1499,9.3752Z"
+            android:strokeColor="#FF2C281F"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+    </group>
+</vector>
