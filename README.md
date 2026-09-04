@@ -1,6 +1,6 @@
 # XNote
 
-XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层、S3 笔记本及普通文字笔记、S4 Markdown 单向转换、S5 回收站和搜索与 S6 笔记背景，提供统一页面骨架、公共浮层、状态组件、Room 笔记库、完整富文本编辑闭环、Markdown 编辑预览、可恢复删除、本地全文检索，以及默认背景和单篇背景覆盖；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)，单时间线 Agent 的分层记忆、文档记忆与上下文规则见 [`docs/XNote Agent 记忆与上下文架构.md`](./docs/XNote%20Agent%20记忆与上下文架构.md)。
+XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记应用。当前仓库已完成 Android/Jetpack Compose 工程初始化、S1 设计系统、S2 本地数据层、S3 笔记本及普通文字笔记、S4 Markdown 单向转换、S5 回收站和搜索与 S6 笔记背景，提供统一页面骨架、公共浮层、状态组件、Room 笔记库、完整富文本编辑闭环、Markdown 编辑预览、可恢复删除、本地全文检索，以及默认背景和单篇背景覆盖；完整功能范围见 [`docs/XNote 功能清单与页面组成.md`](./docs/XNote%20功能清单与页面组成.md)，开发切片顺序见 [`docs/XNote 开发顺序.md`](./docs/XNote%20开发顺序.md)，Flutter 全量重写的执行顺序和 Agent 提示词见 [`docs/XNote Flutter 重构执行规划.md`](./docs/XNote%20Flutter%20重构执行规划.md)，单时间线 Agent 的分层记忆、文档记忆与上下文规则见 [`docs/XNote Agent 记忆与上下文架构.md`](./docs/XNote%20Agent%20记忆与上下文架构.md)。
 
 ## 当前基线
 
