@@ -69,21 +69,21 @@ class XNoteDesignSystemTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun liquidButtonUsesIosRegularControlSize() {
+    fun liquidButtonUsesCompactControlSize() {
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
                 val backdrop = rememberLayerBackdrop()
                 LiquidButton(
                     onClick = {},
                     backdrop = backdrop,
-                    modifier = Modifier.testTag("ios-regular-button"),
+                    modifier = Modifier.testTag("compact-button"),
                 ) {
                     Text("完成")
                 }
             }
         }
 
-        composeRule.onNodeWithTag("ios-regular-button")
+        composeRule.onNodeWithTag("compact-button")
             .assertHeightIsEqualTo(XNoteButtonSize)
     }
 

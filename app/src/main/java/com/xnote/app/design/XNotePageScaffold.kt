@@ -161,7 +161,8 @@ fun XNoteHeader(
                 ),
             )
             .padding(horizontal = horizontalPadding)
-            .height(XNoteHeaderHeight),
+            .height(XNoteHeaderHeight)
+            .padding(top = XNoteHeaderTopPadding),
     ) {
         if (onBack != null) {
             LiquidButton(

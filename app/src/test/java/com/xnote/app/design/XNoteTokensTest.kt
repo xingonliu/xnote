@@ -7,10 +7,12 @@ import org.junit.Test
 
 class XNoteTokensTest {
     @Test
-    fun buttonSizeMatchesIosRegularControl() {
-        assertEquals(44.0f, XNoteButtonSize.value)
+    fun buttonSizeUsesCompactControlGeometry() {
+        assertEquals(40.0f, XNoteButtonSize.value)
         assertEquals(XNoteMinimumTouchTarget, XNoteButtonSize)
-        assertEquals(12.0f, XNoteButtonHorizontalPadding.value)
+        assertEquals(8.0f, XNoteButtonHorizontalPadding.value)
+        assertEquals(15.0f, XNoteHeaderTopPadding.value)
+        assertEquals(55.0f, XNoteHeaderHeight.value)
     }
 
     @Test

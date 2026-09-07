@@ -35,8 +35,8 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 // Copied from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
-// Geometry follows iOS regular controls (44 pt height, 12 pt horizontal padding)
-// instead of the catalog's 48 × 16. Reduced motion still gates interaction feedback.
+// Geometry uses XNote's compact 40 dp height and 8 dp horizontal padding.
+// Reduced motion still gates interaction feedback.
 
 // -- Composables
 
