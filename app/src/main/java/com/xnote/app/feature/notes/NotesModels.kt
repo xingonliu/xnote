@@ -8,6 +8,10 @@ import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // -- Type Definitions
 
@@ -43,6 +47,10 @@ class NotesUiState {
     var linkDraft by mutableStateOf("")
 }
 
+// -- Constants
+
+private val noteEditorDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
+
 // -- Functions
 
 fun encodeNotesScope(scope: NotesScope): String = when (scope) {
@@ -66,6 +74,13 @@ fun formatNoteTimestamp(epochMs: Long, nowMs: Long = System.currentTimeMillis())
         DateUtils.MINUTE_IN_MILLIS,
     ).toString()
 }
+
+fun formatNoteEditorDate(
+    epochMs: Long,
+    zoneId: ZoneId = ZoneId.systemDefault(),
+): String = Instant.ofEpochMilli(epochMs)
+    .atZone(zoneId)
+    .format(noteEditorDateFormatter)
 
 fun notesMatching(notes: List<Note>, scope: NotesScope): List<Note> = when (scope) {
     NotesScope.All -> notes

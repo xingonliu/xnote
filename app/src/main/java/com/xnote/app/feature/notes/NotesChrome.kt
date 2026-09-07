@@ -124,14 +124,12 @@ fun BoxScope.NotesChrome(
             )
         }
         is NotesRoute.Editor -> {
-            val status = when (editorSession?.saveStatus) {
-                EditorSaveStatus.Saving -> stringResource(R.string.editor_saving)
-                EditorSaveStatus.Saved -> stringResource(R.string.editor_saved)
-                EditorSaveStatus.Error -> stringResource(R.string.editor_save_failed)
-                else -> ""
-            }
             XNoteHeader(
-                title = status,
+                title = if (editorSession?.saveStatus == EditorSaveStatus.Error) {
+                    stringResource(R.string.editor_save_failed)
+                } else {
+                    ""
+                },
                 backdrop = backdrop,
                 onBack = onPop,
                 actions = buildList {

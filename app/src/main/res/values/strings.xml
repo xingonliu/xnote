@@ -51,9 +51,6 @@
     <string name="action_confirm">确定</string>
     <string name="action_cancel">取消</string>
     <string name="editor_title_placeholder">标题</string>
-    <string name="editor_body_placeholder">开始书写</string>
-    <string name="editor_saving">保存中</string>
-    <string name="editor_saved">已保存</string>
     <string name="editor_save_failed">未能保存笔记</string>
     <string name="editor_missing_title">无法打开笔记</string>
     <string name="editor_missing_description">这篇笔记不存在或已进入回收站。</string>

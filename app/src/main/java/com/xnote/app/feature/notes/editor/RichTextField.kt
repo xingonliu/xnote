@@ -79,13 +79,13 @@ fun RichTextField(
     fieldsEpoch: Int,
     textStyle: TextStyle,
     textAlign: TextAlign,
-    placeholder: String,
     focused: Boolean,
     onFocused: () -> Unit,
     onTextChange: (oldText: String, newText: String, selection: TextRange, composing: Boolean) -> Unit,
     onDeleteBackwardAtStart: () -> Unit,
     modifier: Modifier = Modifier,
     fieldTestTag: String? = null,
+    placeholder: String = "",
     singleLine: Boolean = false,
 ) {
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
@@ -157,7 +157,7 @@ fun RichTextField(
         singleLine = singleLine,
         decorationBox = { inner ->
             Box {
-                if (inlines.plainText().isEmpty() && value.text.isEmpty()) {
+                if (placeholder.isNotEmpty() && inlines.plainText().isEmpty() && value.text.isEmpty()) {
                     Text(
                         text = placeholder,
                         style = textStyle,

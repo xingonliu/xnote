@@ -60,6 +60,7 @@ import com.xnote.app.domain.document.TextAlignment
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.document.numberedLabels
 import com.xnote.app.domain.document.plainText
+import com.xnote.app.feature.notes.formatNoteEditorDate
 import com.kyant.backdrop.Backdrop
 
 // -- Composables
@@ -131,6 +132,16 @@ fun NoteEditorScreen(
                 onValueChange = session::updateTitle,
                 readOnly = false,
             )
+            session.note?.let { note ->
+                Text(
+                    text = formatNoteEditorDate(note.updatedAtEpochMs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("xnote-editor-date"),
+                )
+            }
             session.document.visibleBlocks().forEachIndexed { index, block ->
                 EditorBlock(
                     block = block,
@@ -306,7 +317,6 @@ private fun TextBlockEditor(
             fieldsEpoch = session.fieldsEpoch,
             textStyle = style,
             textAlign = alignment,
-            placeholder = stringResource(R.string.editor_body_placeholder),
             focused = session.focusBlockId == block.id,
             onFocused = {
                 if (session.selection.blockId != block.id || session.selection.isTable) {
