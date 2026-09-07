@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -30,6 +31,7 @@ import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.design.LocalXNoteInteractionSettings
+import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteDialog
 import com.xnote.app.design.XNoteDialogAction
 import com.xnote.app.design.XNoteDropdownMenu
@@ -50,6 +52,7 @@ import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
+import com.xnote.app.design.liquidglass.LiquidButton
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -61,6 +64,25 @@ import org.junit.Test
 class XNoteDesignSystemTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun liquidButtonUsesIosRegularControlSize() {
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val backdrop = rememberLayerBackdrop()
+                LiquidButton(
+                    onClick = {},
+                    backdrop = backdrop,
+                    modifier = Modifier.testTag("ios-regular-button"),
+                ) {
+                    Text("完成")
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("ios-regular-button")
+            .assertHeightIsEqualTo(XNoteButtonSize)
+    }
 
     @Test
     fun headerSupportsTwoActions() {

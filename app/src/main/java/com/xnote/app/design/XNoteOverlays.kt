@@ -472,7 +472,8 @@ fun BoxScope.XNoteDropdownMenu(
                         },
                     )
                     .semantics { selected = item.selected }
-                    .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
+                    .heightIn(min = XNoteButtonSize)
+                    .padding(horizontal = XNoteSpacingMedium, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

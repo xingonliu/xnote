@@ -26,6 +26,8 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.shapes.Capsule
 import com.xnote.app.design.LocalXNoteInteractionSettings
+import com.xnote.app.design.XNoteButtonHorizontalPadding
+import com.xnote.app.design.XNoteButtonSize
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -33,7 +35,8 @@ import kotlin.math.sin
 import kotlin.math.tanh
 
 // Copied from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
-// XNote only gates the upstream interaction feedback when reduced motion is enabled.
+// Geometry follows iOS regular controls (44 pt height, 12 pt horizontal padding)
+// instead of the catalog's 48 × 16. Reduced motion still gates interaction feedback.
 
 // -- Composables
 
@@ -113,8 +116,8 @@ fun LiquidButton(
                     Modifier
                 },
             )
-            .height(48.dp)
-            .padding(horizontal = 16.dp),
+            .height(XNoteButtonSize)
+            .padding(horizontal = XNoteButtonHorizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = content,

@@ -144,10 +144,6 @@ fun XNoteEmptyState(
                 modifier = Modifier.padding(top = XNoteSpacingSmall),
             ) {
                 Row(
-                    modifier = Modifier.padding(
-                        horizontal = XNoteSpacingMedium + 4.dp,
-                        vertical = 10.dp,
-                    ),
                     horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -235,10 +231,6 @@ fun XNoteErrorState(
                     text = actionLabel,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(
-                        horizontal = XNoteSpacingMedium + 4.dp,
-                        vertical = 10.dp,
-                    ),
                 )
             }
         }

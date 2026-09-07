@@ -38,10 +38,8 @@ import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
-import com.xnote.app.design.XNoteHeaderHeight
-import com.xnote.app.design.XNoteIconSizeLarge
+import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteIconSizeMedium
-import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNotePopupPlacement
@@ -209,13 +207,13 @@ fun BoxScope.NotesChrome(
                         },
                     )
                     .testTag("xnote-create-note")
-                    .size(XNoteHeaderHeight),
+                    .size(XNoteButtonSize),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_plus),
                     contentDescription = stringResource(R.string.action_create_note),
                     tint = Color.White,
-                    modifier = Modifier.size(XNoteIconSizeLarge),
+                    modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }
         } else {
@@ -320,7 +318,7 @@ fun BoxScope.NotesChrome(
                         onOpenNotebook(notebook.id)
                     },
                     backdrop = backdrop,
-                    modifier = Modifier.size(XNoteMinimumTouchTarget),
+                    modifier = Modifier.size(XNoteButtonSize),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
@@ -361,7 +359,6 @@ fun BoxScope.NotesChrome(
                 text = stringResource(R.string.action_create_notebook),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.padding(horizontal = XNoteSpacingMedium),
             )
         }
     }
@@ -739,7 +736,7 @@ private fun EditorToolbarBar(
             onClick = session::undo,
             backdrop = backdrop,
             enabled = session.canUndo,
-            modifier = Modifier.size(XNoteMinimumTouchTarget),
+            modifier = Modifier.size(XNoteButtonSize),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_left),
@@ -752,7 +749,7 @@ private fun EditorToolbarBar(
             onClick = session::redo,
             backdrop = backdrop,
             enabled = session.canRedo,
-            modifier = Modifier.size(XNoteMinimumTouchTarget),
+            modifier = Modifier.size(XNoteButtonSize),
         ) {
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_right),

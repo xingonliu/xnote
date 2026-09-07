@@ -10,6 +10,8 @@ val XNoteDarkPrimaryColor = Color(0xFFFFD60A)
 
 val XNoteHeaderHeight = 48.dp
 val XNoteMinimumTouchTarget = 44.dp
+val XNoteButtonSize = XNoteMinimumTouchTarget
+val XNoteButtonHorizontalPadding = 12.dp
 val XNoteBottomNavigationHeight = 88.dp
 val XNoteMaximumContentWidth = 840.dp
 

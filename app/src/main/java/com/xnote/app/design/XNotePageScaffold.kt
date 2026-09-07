@@ -145,7 +145,12 @@ fun XNoteHeader(
     horizontalPadding: Dp = XNoteSpacingMedium,
 ) {
     require(actions.size <= 2) { "XNoteHeader supports at most two actions." }
-    val titlePadding = if (actions.size == 2) 112.dp else 64.dp
+    val trailingWidth = if (actions.isEmpty()) {
+        XNoteButtonSize
+    } else {
+        XNoteButtonSize * actions.size + XNoteSpacingSmall * (actions.size - 1)
+    }
+    val titlePadding = maxOf(XNoteButtonSize, trailingWidth) + XNoteSpacingMedium
 
     Box(
         modifier = modifier
@@ -164,7 +169,7 @@ fun XNoteHeader(
                 backdrop = backdrop,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(XNoteHeaderHeight),
+                    .size(XNoteButtonSize),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_arrow_left),
@@ -177,7 +182,7 @@ fun XNoteHeader(
             Spacer(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(XNoteHeaderHeight),
+                    .size(XNoteButtonSize),
             )
         }
 
@@ -196,7 +201,7 @@ fun XNoteHeader(
             Spacer(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .size(XNoteHeaderHeight),
+                    .size(XNoteButtonSize),
             )
         } else {
             Row(
@@ -210,7 +215,7 @@ fun XNoteHeader(
                         backdrop = backdrop,
                         enabled = action.enabled,
                         modifier = Modifier
-                            .size(XNoteHeaderHeight)
+                            .size(XNoteButtonSize)
                             .then(
                                 action.popupAnchor?.let { Modifier.xNotePopupAnchor(it) }
                                     ?: Modifier,

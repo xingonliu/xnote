@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.15
+> 文档版本：v0.16
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -97,13 +97,13 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 | ------------------- | ---------: | ---------: |
 | Header 内容高度     |      48 dp |      48 dp |
 | Header 水平安全边距 |      16 dp |      24 dp |
-| 圆形按钮            | 48 × 48 dp | 48 × 48 dp |
+| 圆形按钮            | 44 × 44 dp | 44 × 44 dp |
 | SVG 图标视觉尺寸    | 20 × 20 dp | 20 × 20 dp |
 | 标题与两侧最小间距  |      12 dp |      16 dp |
 
-Header 内容区紧接顶部安全区，按钮在 48 dp 内容区内垂直居中，因此按钮中心纵坐标固定为“顶部安全区高度 + 24 dp”。
+Header 内容区紧接顶部安全区，44 dp 圆形按钮在 48 dp 内容区内垂直居中，因此按钮中心纵坐标固定为“顶部安全区高度 + 24 dp”。
 
-所有按钮的最小可点击区域为 44 × 44 dp。SVG 使用 `currentColor` 语义，由组件根据普通、按下、禁用和危险状态提供前景色；业务页面不得维护不同版本的返回图标。
+所有按钮的高度、圆形按钮边长和最小可点击区域均为 44 × 44 dp，与 iOS 常规控件（44 pt）一致。SVG 使用 `currentColor` 语义，由组件根据普通、按下、禁用和危险状态提供前景色；业务页面不得维护不同版本的返回图标。
 
 ### 4.3 笔记编辑页例外
 
@@ -215,7 +215,7 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 
 Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的玻璃控件必须作为捕获层的同级节点绘制，不能嵌套在 `layerBackdrop` 子树中，否则 Android HWUI 可能形成循环渲染并导致 `RenderThread` 原生崩溃。
 
-AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方原则上原样复用；`LiquidButton` 仅针对近白背景的加法混合亮度饱和，将全区域按压白光从 `0.08` 降为 `0.04`，并将无 RuntimeShader 时的全区域兜底白光从 `0.25` 降为 `0.125`。项目只允许在不改变其余材质、几何和内容内边距的前提下补充禁用状态、动态遮罩、触觉反馈和无障碍行为，业务页面不得覆盖这些参数。
+AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方原则上原样复用；`LiquidButton` 将几何对齐到 iOS 常规控件的 44 dp 高度与 12 dp 水平内边距，并针对近白背景的加法混合亮度饱和，将全区域按压白光从 `0.08` 降为 `0.04`，将无 RuntimeShader 时的全区域兜底白光从 `0.25` 降为 `0.125`。项目只允许在上述尺寸令牌与材质配方之内补充禁用状态、动态遮罩、触觉反馈和无障碍行为，业务页面不得覆盖这些参数。
 
 ### 6.1 使用范围
 
@@ -231,7 +231,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
-- `LiquidButton` 固定使用官方 `Capsule`、48 dp 高度、16 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`；页面不得传入私有高度、形状、内容内边距或高光参数。
+- `LiquidButton` 固定使用官方 `Capsule`、iOS 常规控件的 44 dp 高度、12 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 44 × 44 dp 正圆；页面不得传入其他高度、形状、内容内边距或高光参数。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog、Popup 和 DropdownMenu 固定使用官方 48 dp `RoundedRectangle`，Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
@@ -429,7 +429,7 @@ Popup 与 DropdownMenu 必须在同一 Compose Host 内按触发控件的真实�
 - 拖拽释放后滑块按官方 catalog 弹簧吸附到目标 tab，并仅输出一次确认触觉。
 - 二次轻触已激活 tab 时不发生横向位移，并将对应长列表滚回顶部或重置该目的地的子导航栈。
 - Bottom Tabs 的选中图标和文字在浅色模式使用 `#E09F3E`，在深色模式使用 `#FFD60A`，且不存在组件私有强调色。
-- 页面中的独立按钮全部来自官方 catalog `LiquidButton`；只有 catalog 缺少的组件才允许项目级适配。
+- 页面中的独立按钮全部来自官方 catalog `LiquidButton`，高度与圆形按钮边长均为 44 dp；只有 catalog 缺少的组件才允许项目级适配。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 普通笔记编辑页的格式工具栏来自 `XNoteRichTextToolbar`，不存在页面私有格式栏。
 - 输入法组合态文本在返回、切后台和进程重启后保持完整；插入表格后再次点击“表格”可直接打开当前表格的行列操作菜单。

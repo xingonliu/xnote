@@ -16,7 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.design.XNoteMinimumTouchTarget
+import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -56,7 +56,7 @@ internal fun MarkdownEditorToolbarBar(
             backdrop = backdrop,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .size(XNoteMinimumTouchTarget)
+                .size(XNoteButtonSize)
                 .testTag("xnote-markdown-done"),
         ) {
             Icon(
@@ -81,7 +81,7 @@ private fun MarkdownHistoryButton(
         onClick = onClick,
         backdrop = backdrop,
         enabled = enabled,
-        modifier = Modifier.size(XNoteMinimumTouchTarget),
+        modifier = Modifier.size(XNoteButtonSize),
     ) {
         Icon(
             painter = painterResource(iconRes),

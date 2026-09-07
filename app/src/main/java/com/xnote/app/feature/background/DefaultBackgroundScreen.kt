@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
@@ -21,7 +20,6 @@ import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.design.XNoteMaximumContentWidth
-import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteSpacingLarge
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -70,9 +68,7 @@ fun DefaultBackgroundScreen(
                     }
                 },
                 backdrop = backdrop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(XNoteMinimumTouchTarget),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     text = stringResource(R.string.background_restore_initial),
