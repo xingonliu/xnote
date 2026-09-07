@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -70,6 +71,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -265,52 +267,44 @@ fun XNoteDrawer(
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
     val settings = LocalXNoteInteractionSettings.current
-    val enter = when {
-        settings.reduceMotion -> EnterTransition.None
-        placement == XNoteDrawerPlacement.Bottom -> slideInVertically(
-            animationSpec = tween(XNoteShortAnimationDurationMillis),
-            initialOffsetY = { it },
-        ) + fadeIn(tween(XNoteShortAnimationDurationMillis))
-        else -> slideInHorizontally(
-            animationSpec = tween(XNoteShortAnimationDurationMillis),
-            initialOffsetX = { it },
-        ) + fadeIn(tween(XNoteShortAnimationDurationMillis))
-    }
-    val exit = when {
-        settings.reduceMotion -> ExitTransition.None
-        placement == XNoteDrawerPlacement.Bottom -> slideOutVertically(
-            animationSpec = tween(XNoteShortAnimationDurationMillis),
-            targetOffsetY = { it },
-        ) + fadeOut(tween(XNoteShortAnimationDurationMillis))
-        else -> slideOutHorizontally(
-            animationSpec = tween(XNoteShortAnimationDurationMillis),
-            targetOffsetX = { it },
-        ) + fadeOut(tween(XNoteShortAnimationDurationMillis))
-    }
+    val transition = updateTransition(visible, label = "XNoteDrawer")
 
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier.fillMaxSize(),
-        enter = enter,
-        exit = exit,
-    ) {
-        XNoteOverlayContainer(onDismissRequest = onDismissRequest) {
-            val panelModifier = if (placement == XNoteDrawerPlacement.Bottom) {
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.82f)
-            } else {
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .widthIn(max = 420.dp)
-                    .fillMaxWidth()
-            }
+    Box(modifier = modifier.fillMaxSize()) {
+        transition.AnimatedVisibility(
+            visible = { it },
+            modifier = Modifier.fillMaxSize(),
+            enter = xNoteScrimEnter(settings.reduceMotion),
+            exit = xNoteScrimExit(settings.reduceMotion),
+        ) {
+            XNoteDismissLayer(
+                onDismissRequest = onDismissRequest,
+                scrimColor = Color.Black.copy(alpha = 0.32f),
+            )
+        }
 
+        val panelModifier = if (placement == XNoteDrawerPlacement.Bottom) {
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.82f)
+        } else {
+            Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .widthIn(max = 420.dp)
+                .fillMaxWidth()
+        }
+
+        transition.AnimatedVisibility(
+            visible = { it },
+            modifier = panelModifier,
+            enter = xNoteDrawerPanelEnter(settings.reduceMotion, placement),
+            exit = xNoteDrawerPanelExit(settings.reduceMotion, placement),
+        ) {
             XNoteLiquidGlassPanel(
                 backdrop = backdrop,
-                modifier = panelModifier
+                modifier = Modifier
+                    .fillMaxSize()
                     .xNoteOverlayInputBarrier()
                     .semantics { paneTitle = title },
             ) {
@@ -570,7 +564,7 @@ private fun XNoteOverlayContainer(
 }
 
 @Composable
-private fun BoxScope.XNoteDismissLayer(
+private fun XNoteDismissLayer(
     onDismissRequest: () -> Unit,
     scrimColor: Color = Color.Transparent,
 ) {
@@ -579,7 +573,7 @@ private fun BoxScope.XNoteDismissLayer(
         modifier = Modifier
             .fillMaxSize()
             .background(scrimColor)
-            .clearAndSetSemantics { }
+            .clearAndSetSemantics { testTag = "xnote-overlay-scrim" }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -660,6 +654,48 @@ internal fun calculatePopupOffset(
     return IntOffset(
         x = preferredX.coerceIn(minX, maxX),
         y = preferredY.coerceIn(minY, maxY),
+    )
+}
+
+private fun xNoteScrimEnter(reduceMotion: Boolean): EnterTransition = if (reduceMotion) {
+    EnterTransition.None
+} else {
+    fadeIn(tween(XNoteOverlayScrimDurationMillis))
+}
+
+private fun xNoteScrimExit(reduceMotion: Boolean): ExitTransition = if (reduceMotion) {
+    ExitTransition.None
+} else {
+    fadeOut(tween(XNoteOverlayScrimDurationMillis))
+}
+
+private fun xNoteDrawerPanelEnter(
+    reduceMotion: Boolean,
+    placement: XNoteDrawerPlacement,
+): EnterTransition = when {
+    reduceMotion -> EnterTransition.None
+    placement == XNoteDrawerPlacement.Bottom -> slideInVertically(
+        animationSpec = tween(XNoteOverlayScrimDurationMillis),
+        initialOffsetY = { it },
+    )
+    else -> slideInHorizontally(
+        animationSpec = tween(XNoteOverlayScrimDurationMillis),
+        initialOffsetX = { it },
+    )
+}
+
+private fun xNoteDrawerPanelExit(
+    reduceMotion: Boolean,
+    placement: XNoteDrawerPlacement,
+): ExitTransition = when {
+    reduceMotion -> ExitTransition.None
+    placement == XNoteDrawerPlacement.Bottom -> slideOutVertically(
+        animationSpec = tween(XNoteOverlayScrimDurationMillis),
+        targetOffsetY = { it },
+    )
+    else -> slideOutHorizontally(
+        animationSpec = tween(XNoteOverlayScrimDurationMillis),
+        targetOffsetX = { it },
     )
 }
 

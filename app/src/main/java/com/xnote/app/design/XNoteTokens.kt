@@ -37,3 +37,4 @@ val XNoteDividerInsetStart = 16.dp
 
 const val XNoteCornerSmoothing = 0.60f
 const val XNoteShortAnimationDurationMillis = 180
+const val XNoteOverlayScrimDurationMillis = 300

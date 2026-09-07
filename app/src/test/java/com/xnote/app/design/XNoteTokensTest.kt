@@ -12,4 +12,9 @@ class XNoteTokensTest {
         assertEquals(XNoteMinimumTouchTarget, XNoteButtonSize)
         assertEquals(12.0f, XNoteButtonHorizontalPadding.value)
     }
+
+    @Test
+    fun overlayScrimFadeUsesThreeHundredMilliseconds() {
+        assertEquals(300, XNoteOverlayScrimDurationMillis)
+    }
 }

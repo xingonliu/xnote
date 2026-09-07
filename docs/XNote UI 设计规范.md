@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.16
+> 文档版本：v0.17
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -233,7 +233,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - `LiquidButton` 固定使用官方 `Capsule`、iOS 常规控件的 44 dp 高度、12 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 44 × 44 dp 正圆；页面不得传入其他高度、形状、内容内边距或高光参数。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog、Popup 和 DropdownMenu 固定使用官方 48 dp `RoundedRectangle`，Dialog 另行复用官方遮罩色和内容间距。
-- Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。
+- Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
@@ -322,6 +322,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteRichTextToolbar`   | 普通笔记段落样式、行内样式、清单、对齐、表格与折叠   | 页面私有格式栏或直接改文档模型 |
 
 Popup 与 DropdownMenu 必须在同一 Compose Host 内按触发控件的真实边界定位：默认保留 8 dp 间距，优先在指定方向出现，空间不足时在锚点另一侧翻转，并始终限制在系统安全区内。DropdownMenu 宽度由最长菜单项的单行内容和内边距决定，最大 360 dp，不得填满可用宽度或强制固定最小宽度。面板使用 180 ms 锚点原点缩放与淡入/淡出，启用“减少动画”时直接显隐；全屏关闭层不参与该动画。
+
+Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1，面板同时从底部滑入；侧边形态的遮罩同样独立淡入，面板从末端滑入。遮罩不得随面板位移。点击遮罩或系统返回均可关闭。启用“减少动画”时遮罩与面板直接显隐。
 
 所有包含圆角的公共组件必须使用 `XNoteSmoothCornerShape` 或统一的 `Circle`、`Capsule`，不得向页面层暴露 `cornerSmoothing` 参数。
 

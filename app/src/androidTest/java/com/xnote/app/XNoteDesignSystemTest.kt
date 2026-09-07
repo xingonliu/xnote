@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -34,6 +35,8 @@ import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteDialog
 import com.xnote.app.design.XNoteDialogAction
+import com.xnote.app.design.XNoteDrawer
+import com.xnote.app.design.XNoteDrawerPlacement
 import com.xnote.app.design.XNoteDropdownMenu
 import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNoteHeader
@@ -230,6 +233,44 @@ class XNoteDesignSystemTest {
         composeRule.runOnIdle {
             assertTrue(dropdownSelected)
             assertTrue(dialogConfirmed)
+        }
+    }
+
+    @Test
+    fun drawerScrimDismissesOnClickAndIgnoresContentClicks() {
+        var visible by mutableStateOf(true)
+
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                val backdrop = rememberLayerBackdrop()
+                XNotePageScaffold(
+                    backdrop = backdrop,
+                    content = {},
+                    overlay = {
+                        XNoteDrawer(
+                            visible = visible,
+                            onDismissRequest = { visible = false },
+                            title = "选择笔记本",
+                            backdrop = backdrop,
+                            placement = XNoteDrawerPlacement.Bottom,
+                        ) {
+                            Text("全部笔记")
+                        }
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("选择笔记本").assertIsDisplayed()
+        composeRule.onNodeWithText("全部笔记").performTouchInput { click() }
+        composeRule.onNodeWithText("选择笔记本").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-overlay-scrim").performTouchInput {
+            click(percentOffset(0.5f, 0.05f))
+        }
+        composeRule.runOnIdle {
+            assertTrue(
+                composeRule.onAllNodesWithText("选择笔记本").fetchSemanticsNodes().isEmpty(),
+            )
         }
     }
 
