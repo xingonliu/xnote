@@ -12,6 +12,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
@@ -57,6 +60,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -336,6 +340,7 @@ fun BoxScope.XNotePopup(
     modifier: Modifier = Modifier,
     anchor: XNotePopupAnchor? = null,
     placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
+    shape: Shape = XNoteSmoothCornerShape(XNotePopupRadius),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
@@ -370,7 +375,7 @@ fun BoxScope.XNotePopup(
                 content = {
                     XNoteLiquidGlassPanel(
                         backdrop = backdrop,
-                        shape = RoundedRectangle(48.dp),
+                        shape = shape,
                         modifier = modifier
                             .animateEnterExit(
                                 enter = xNotePopupEnter(settings.reduceMotion, placement),
@@ -431,6 +436,7 @@ fun BoxScope.XNoteDropdownMenu(
     modifier: Modifier = Modifier,
     anchor: XNotePopupAnchor? = null,
     placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
+    shape: Shape = XNoteSmoothCornerShape(XNotePopupRadius),
 ) {
     XNotePopup(
         visible = expanded,
@@ -439,6 +445,7 @@ fun BoxScope.XNoteDropdownMenu(
         modifier = modifier,
         anchor = anchor,
         placement = placement,
+        shape = shape,
     ) {
         items.forEach { item ->
             val foreground = when {
@@ -705,9 +712,17 @@ private fun xNotePopupEnter(
 ): EnterTransition = if (reduceMotion) {
     EnterTransition.None
 } else {
-    fadeIn(tween(XNoteShortAnimationDurationMillis)) + scaleIn(
-        animationSpec = tween(XNoteShortAnimationDurationMillis),
-        initialScale = 0.92f,
+    fadeIn(
+        animationSpec = tween(
+            durationMillis = XNoteShortAnimationDurationMillis,
+            easing = FastOutSlowInEasing,
+        ),
+    ) + scaleIn(
+        animationSpec = spring(
+            dampingRatio = XNotePopupSpringDampingRatio,
+            stiffness = XNotePopupSpringStiffness,
+        ),
+        initialScale = XNotePopupInitialScale,
         transformOrigin = popupTransformOrigin(placement),
     )
 }
@@ -718,9 +733,17 @@ private fun xNotePopupExit(
 ): ExitTransition = if (reduceMotion) {
     ExitTransition.None
 } else {
-    fadeOut(tween(XNoteShortAnimationDurationMillis)) + scaleOut(
-        animationSpec = tween(XNoteShortAnimationDurationMillis),
-        targetScale = 0.96f,
+    fadeOut(
+        animationSpec = tween(
+            durationMillis = XNotePopupExitDurationMillis,
+            easing = FastOutLinearInEasing,
+        ),
+    ) + scaleOut(
+        animationSpec = tween(
+            durationMillis = XNotePopupExitDurationMillis,
+            easing = FastOutLinearInEasing,
+        ),
+        targetScale = XNotePopupExitTargetScale,
         transformOrigin = popupTransformOrigin(placement),
     )
 }
