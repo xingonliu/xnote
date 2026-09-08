@@ -8,7 +8,6 @@ import com.xnote.app.domain.document.TableCell
 import com.xnote.app.domain.document.TableRow
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.NoteKind
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -39,9 +38,7 @@ class VisibleTextStatsTest {
             id = "n-1",
             notebookId = null,
             title = "这篇标题不应计入",
-            kind = NoteKind.Rich,
             document = document,
-            markdownText = null,
             backgroundKey = null,
             sortIndex = 0L,
             visibleCharacterCount = 0,
@@ -55,27 +52,6 @@ class VisibleTextStatsTest {
         val stats = visibleTextStats(note)
         assertEquals(14, stats.characterCount)
         assertEquals(2, stats.latinWordCount)
-    }
-
-    @Test
-    fun markdownStripsSyntaxAndLeadingTitleHeading() {
-        val markdown = """
-            # 笔记标题
-            这是 **正文** 和 [链接](https://example.com)
-            ```
-            code
-            ```
-        """.trimIndent()
-        val visible = MarkdownVisibleText.extract(markdown)
-        val stats = visibleTextStats(visible)
-        assertEquals(11, stats.characterCount)
-    }
-
-    @Test
-    fun markdownKeepsEscapedSyntaxAsVisibleText() {
-        val markdown = "# 标题\n\n字面 \\* 星号与 A\\|B"
-
-        assertEquals("\n字面 * 星号与 A|B", MarkdownVisibleText.extract(markdown))
     }
 
     @Test

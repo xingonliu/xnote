@@ -103,7 +103,6 @@ import com.xnote.app.feature.notes.NotebookDetailScreen
 import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
 import com.xnote.app.feature.notes.decodeNotesScope
 import com.xnote.app.feature.notes.encodeNotesScope
-import com.xnote.app.feature.notes.editor.MarkdownEditorMode
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.notebookStatsFrom
@@ -214,6 +213,9 @@ fun XNoteApp(
     LaunchedEffect(settingsRepository) {
         settingsRepository.settings.collect { appSettings = it }
     }
+    LaunchedEffect(editorSession, appSettings.markdownShortcutsEnabled) {
+        editorSession?.markdownShortcutsEnabled = appSettings.markdownShortcutsEnabled
+    }
     LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes) {
         if (!navigationState.isSearchOpen || searchQuery.isBlank()) {
             searchResults = emptyList()
@@ -257,7 +259,7 @@ fun XNoteApp(
 
     fun createNote(notebookId: String?) {
         appScope.launch {
-            val note = noteLibrary.createRichNote(notebookId)
+            val note = noteLibrary.createNote(notebookId)
             updateNavigationState(navigationState.openEditor(note.id))
         }
     }
@@ -328,10 +330,7 @@ fun XNoteApp(
             (navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome)
         val isEditor = navigationState.destination == AppDestination.Notes &&
             navigationState.notesRoute is NotesRoute.Editor
-        val showsEditorToolbar = isEditor && (
-            editorSession?.isMarkdown != true ||
-                editorSession.markdownMode == MarkdownEditorMode.Editing
-        )
+        val showsEditorToolbar = isEditor
         val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val showsRecycleSelection = navigationState.isRecycleBinOpen &&
             recycleBinUiState.selectionMode
@@ -453,6 +452,10 @@ fun XNoteApp(
                     },
                     onOpenBackgroundSettings = {
                         updateNavigationState(navigationState.openAppearance())
+                    },
+                    markdownShortcutsEnabled = appSettings.markdownShortcutsEnabled,
+                    onMarkdownShortcutsEnabledChange = { enabled ->
+                        appScope.launch { settingsRepository.setMarkdownShortcutsEnabled(enabled) }
                     },
                 )
             },
@@ -608,6 +611,8 @@ private fun DestinationContent(
     onSearchNotebookSelected: (String?) -> Unit,
     onOpenRecycleBin: () -> Unit,
     onOpenBackgroundSettings: () -> Unit,
+    markdownShortcutsEnabled: Boolean,
+    onMarkdownShortcutsEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -742,10 +747,12 @@ private fun DestinationContent(
 
         AppDestination.Profile -> ProfileScreen(
             trashCount = trashedNotes.size,
+            markdownShortcutsEnabled = markdownShortcutsEnabled,
             contentPadding = contentPadding,
             listState = listState,
             onOpenRecycleBin = onOpenRecycleBin,
             onOpenBackgroundSettings = onOpenBackgroundSettings,
+            onMarkdownShortcutsEnabledChange = onMarkdownShortcutsEnabledChange,
             modifier = modifier,
         )
     }

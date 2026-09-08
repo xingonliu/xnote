@@ -54,7 +54,6 @@ import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
-import com.xnote.app.feature.notes.editor.MarkdownEditorMode
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.editor.toDomain
 import com.xnote.app.feature.background.XNoteBackgroundPicker
@@ -97,8 +96,6 @@ fun BoxScope.NotesChrome(
     val currentNotebook = (route as? NotesRoute.Notebook)?.let { opened ->
         notebooks.firstOrNull { it.id == opened.notebookId }
     }
-    val conversionBlockedMessage = stringResource(R.string.editor_convert_markdown_blocked)
-    val conversionFailedMessage = stringResource(R.string.editor_convert_markdown_failed)
     val dismissEditorInput: () -> Unit = {
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
@@ -132,45 +129,22 @@ fun BoxScope.NotesChrome(
                 },
                 backdrop = backdrop,
                 onBack = onPop,
-                actions = buildList {
-                    if (editorSession?.isMarkdown == true &&
-                        editorSession.markdownMode == MarkdownEditorMode.Preview
-                    ) {
-                        add(
-                            XNoteHeaderAction(
-                                iconRes = R.drawable.ic_keyline_stroke_square_pen,
-                                contentDescription = stringResource(R.string.editor_markdown_edit),
-                                onClick = editorSession::startMarkdownEditing,
-                            ),
-                        )
-                    } else if (editorSession?.isMarkdown != true) {
-                        add(
-                            XNoteHeaderAction(
-                                iconRes = R.drawable.ic_keyline_stroke_square_pen,
-                                contentDescription = stringResource(R.string.notes_choose_notebook),
-                                onClick = {
-                                    dismissEditorInput()
-                                    ui.moveVisible = true
-                                },
-                            ),
-                        )
-                    }
-                    add(
-                        XNoteHeaderAction(
-                            iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
-                            contentDescription = stringResource(R.string.action_more),
-                            onClick = {
-                                if (editorSession?.isMarkdown == false &&
-                                    editorSession.markdownConversionBlockers.isNotEmpty()
-                                ) {
-                                    scope.launch { toastHostState.showSnackbar(conversionBlockedMessage) }
-                                }
-                                ui.moreVisible = true
-                            },
-                            popupAnchor = moreMenuAnchor,
-                        ),
-                    )
-                },
+                actions = listOf(
+                    XNoteHeaderAction(
+                        iconRes = R.drawable.ic_keyline_stroke_square_pen,
+                        contentDescription = stringResource(R.string.notes_choose_notebook),
+                        onClick = {
+                            dismissEditorInput()
+                            ui.moveVisible = true
+                        },
+                    ),
+                    XNoteHeaderAction(
+                        iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
+                        contentDescription = stringResource(R.string.action_more),
+                        onClick = { ui.moreVisible = true },
+                        popupAnchor = moreMenuAnchor,
+                    ),
+                ),
                 horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
@@ -236,35 +210,20 @@ fun BoxScope.NotesChrome(
     }
 
     if (route is NotesRoute.Editor && editorSession != null) {
-        when {
-            !editorSession.isMarkdown -> EditorToolbarBar(
-                session = editorSession,
-                ui = ui,
-                backdrop = backdrop,
-                paragraphMenuAnchor = paragraphMenuAnchor,
-                tableMenuAnchor = tableMenuAnchor,
-                onOpenModal = dismissEditorInput,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
-                    .padding(bottom = XNoteSpacingSmall),
-            )
-            editorSession.markdownMode == MarkdownEditorMode.Editing -> MarkdownEditorToolbarBar(
-                session = editorSession,
-                backdrop = backdrop,
-                onDone = {
-                    scope.launch { editorSession.saveMarkdownAndPreview() }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
-                    .padding(bottom = XNoteSpacingSmall),
-            )
-        }
+        EditorToolbarBar(
+            session = editorSession,
+            ui = ui,
+            backdrop = backdrop,
+            paragraphMenuAnchor = paragraphMenuAnchor,
+            tableMenuAnchor = tableMenuAnchor,
+            onOpenModal = dismissEditorInput,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
+                .padding(bottom = XNoteSpacingSmall),
+        )
     }
 
     XNoteDrawer(
@@ -416,19 +375,6 @@ fun BoxScope.NotesChrome(
                     },
                 ),
             )
-            if (editorSession?.isMarkdown == false) {
-                add(
-                    XNoteDropdownMenuItem(
-                        label = stringResource(R.string.editor_convert_markdown),
-                        enabled = editorSession.markdownConversionBlockers.isEmpty() &&
-                            !editorSession.conversionInProgress,
-                        onClick = {
-                            dismissEditorInput()
-                            ui.convertMarkdownVisible = true
-                        },
-                    ),
-                )
-            }
             add(
                 XNoteDropdownMenuItem(
                     label = stringResource(R.string.notes_move_to_notebook),
@@ -682,35 +628,6 @@ fun BoxScope.NotesChrome(
             value = ui.linkDraft,
             onValueChange = { ui.linkDraft = it },
             placeholder = stringResource(R.string.editor_link_placeholder),
-        )
-    }
-
-    XNoteDialog(
-        visible = ui.convertMarkdownVisible,
-        onDismissRequest = { ui.convertMarkdownVisible = false },
-        title = stringResource(R.string.editor_convert_markdown_title),
-        backdrop = backdrop,
-        confirmAction = XNoteDialogAction(
-            label = stringResource(R.string.editor_convert_markdown_confirm),
-            enabled = editorSession?.conversionInProgress == false,
-            onClick = {
-                val session = editorSession ?: return@XNoteDialogAction
-                scope.launch {
-                    val converted = runCatching { session.convertToMarkdown() }.getOrDefault(false)
-                    ui.convertMarkdownVisible = false
-                    if (!converted) toastHostState.showSnackbar(conversionFailedMessage)
-                }
-            },
-        ),
-        dismissAction = XNoteDialogAction(
-            label = stringResource(R.string.action_cancel),
-            onClick = { ui.convertMarkdownVisible = false },
-        ),
-    ) {
-        Text(
-            text = stringResource(R.string.editor_convert_markdown_message),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

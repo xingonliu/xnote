@@ -12,6 +12,8 @@ interface AppSettingsRepository {
     val settings: Flow<AppSettings>
 
     suspend fun setDefaultBackground(background: BackgroundKey)
+
+    suspend fun setMarkdownShortcutsEnabled(enabled: Boolean)
 }
 
 class InMemoryAppSettingsRepository(
@@ -23,5 +25,9 @@ class InMemoryAppSettingsRepository(
 
     override suspend fun setDefaultBackground(background: BackgroundKey) {
         state.value = state.value.copy(defaultBackground = background)
+    }
+
+    override suspend fun setMarkdownShortcutsEnabled(enabled: Boolean) {
+        state.value = state.value.copy(markdownShortcutsEnabled = enabled)
     }
 }

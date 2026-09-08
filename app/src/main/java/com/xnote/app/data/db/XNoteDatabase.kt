@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
         NoteRevisionEntity::class,
         AttachmentEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {
@@ -45,6 +45,7 @@ abstract class XNoteDatabase : RoomDatabase() {
             return Room.databaseBuilder(context, XNoteDatabase::class.java, name)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
+                .fallbackToDestructiveMigration(true)
         }
     }
 }

@@ -11,9 +11,11 @@ enum class ThemeMode {
 data class AppSettings(
     val defaultBackground: BackgroundKey,
     val themeMode: ThemeMode,
+    val markdownShortcutsEnabled: Boolean,
 )
 
 fun defaultAppSettings(): AppSettings = AppSettings(
     defaultBackground = defaultBackgroundKey(),
     themeMode = ThemeMode.System,
+    markdownShortcutsEnabled = true,
 )

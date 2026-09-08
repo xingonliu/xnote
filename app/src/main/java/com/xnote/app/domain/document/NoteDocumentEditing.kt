@@ -407,7 +407,7 @@ fun TableBlock.updateCell(row: Int, column: Int, inlines: List<InlineRun>): Tabl
     return copy(rows = rows)
 }
 
-private fun NoteDocument.replaceBlock(block: NoteBlock): NoteDocument {
+fun NoteDocument.replaceBlock(block: NoteBlock): NoteDocument {
     return copy(blocks = blocks.map { current -> if (current.id == block.id) block else current })
 }
 
@@ -420,7 +420,7 @@ private fun NoteDocument.selectedTable(selection: EditorSelection): TableBlock? 
     return block(selection.blockId) as? TableBlock
 }
 
-private fun NoteDocument.selectedInlines(selection: EditorSelection): List<InlineRun>? {
+fun NoteDocument.selectedInlines(selection: EditorSelection): List<InlineRun>? {
     if (selection.isTable) {
         val table = selectedTable(selection) ?: return null
         val row = selection.tableRow ?: return null
@@ -430,7 +430,7 @@ private fun NoteDocument.selectedInlines(selection: EditorSelection): List<Inlin
     return selectedTextBlock(selection)?.inlines
 }
 
-private fun NoteDocument.replaceSelectedInlines(
+fun NoteDocument.replaceSelectedInlines(
     selection: EditorSelection,
     inlines: List<InlineRun>,
 ): NoteDocument {

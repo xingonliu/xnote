@@ -8,7 +8,6 @@ import com.xnote.app.domain.document.TableBlock
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.document.plainText
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.NoteKind
 
 // -- Type Definitions
 
@@ -47,10 +46,7 @@ fun extractPlainText(document: NoteDocument): String {
     return parts.joinToString("\n")
 }
 
-fun extractPlainText(note: Note): String = when (note.kind) {
-    NoteKind.Rich -> note.document?.let(::extractPlainText).orEmpty()
-    NoteKind.Markdown -> MarkdownVisibleText.extract(note.markdownText.orEmpty())
-}
+fun extractPlainText(note: Note): String = extractPlainText(note.document)
 
 fun summarizePlainText(plainText: String, maxLength: Int = DefaultSummaryLength): String {
     val collapsed = plainText.replace(Regex("\\s+"), " ").trim()

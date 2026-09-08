@@ -14,8 +14,9 @@ import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.EpochClock
-import com.xnote.app.domain.model.NoteKind
-import com.xnote.app.domain.model.RevisionReason
+import com.xnote.app.domain.document.EditorSelection
+import com.xnote.app.domain.document.ParagraphStyle
+import com.xnote.app.domain.document.plainText
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -54,7 +55,7 @@ class NoteLibraryInstrumentedTest {
     @Test
     fun createNotePersistsAcrossReads() = runTest {
         val notebook = library.createNotebook("工作")
-        val created = library.createRichNote(notebook.id)
+        val created = library.createNote(notebook.id)
         val saved = library.saveNote(
             created.copy(
                 title = "会议记录",
@@ -69,14 +70,13 @@ class NoteLibraryInstrumentedTest {
         assertNotNull(loaded)
         assertEquals("会议记录", loaded?.title)
         assertEquals(notebook.id, loaded?.notebookId)
-        assertEquals(NoteKind.Rich, loaded?.kind)
         assertEquals("今天讨论进度", loaded?.summary)
         assertEquals(6, loaded?.visibleCharacterCount)
     }
 
     @Test
     fun searchHitsConsecutiveChineseSubstring() = runTest {
-        val created = library.createRichNote(null)
+        val created = library.createNote(null)
         library.saveNote(
             created.copy(
                 title = "我的笔记本",
@@ -95,7 +95,7 @@ class NoteLibraryInstrumentedTest {
     fun searchReturnsOriginalSnippetFiltersNotebookAndExcludesTrash() = runTest {
         val includedNotebook = library.createNotebook("工作")
         val otherNotebook = library.createNotebook("生活")
-        val included = library.createRichNote(includedNotebook.id)
+        val included = library.createNote(includedNotebook.id)
         library.saveNote(
             included.copy(
                 title = "会议安排",
@@ -106,9 +106,9 @@ class NoteLibraryInstrumentedTest {
                 ),
             ),
         )
-        val filtered = library.createRichNote(otherNotebook.id)
+        val filtered = library.createNote(otherNotebook.id)
         library.saveNote(filtered.copy(title = "另一本笔记本"))
-        val trashed = library.createRichNote(includedNotebook.id)
+        val trashed = library.createNote(includedNotebook.id)
         library.saveNote(trashed.copy(title = "回收站笔记本"))
         library.trashNotes(listOf(trashed.id))
 
@@ -121,7 +121,7 @@ class NoteLibraryInstrumentedTest {
     @Test
     fun deleteNotebookMovesNotesToTrashAndRestoreUnfilesThem() = runTest {
         val notebook = library.createNotebook("临时本")
-        val note = library.createRichNote(notebook.id)
+        val note = library.createNote(notebook.id)
         library.deleteNotebook(notebook.id)
         assertNull(library.getNotebook(notebook.id))
         val trashed = library.getNote(note.id)
@@ -140,7 +140,7 @@ class NoteLibraryInstrumentedTest {
     @Test
     fun restoreKeepsNotebookWhenItStillExists() = runTest {
         val notebook = library.createNotebook("保留本")
-        val note = library.createRichNote(notebook.id)
+        val note = library.createNote(notebook.id)
         library.trashNotes(listOf(note.id))
         library.restoreNotes(listOf(note.id))
         assertEquals(notebook.id, library.getNote(note.id)?.notebookId)
@@ -148,7 +148,7 @@ class NoteLibraryInstrumentedTest {
 
     @Test
     fun purgeExpiredTrashDeletesUnreferencedAttachments() = runTest {
-        val created = library.createRichNote(null)
+        val created = library.createNote(null)
         val attachment = library.putAttachment(
             kind = AttachmentKind.Image,
             mimeType = "image/png",
@@ -184,7 +184,7 @@ class NoteLibraryInstrumentedTest {
             files = AttachmentFileStore(filesRoot),
             clock = clock,
         )
-        val created = firstLibrary.createRichNote(null)
+        val created = firstLibrary.createNote(null)
         firstLibrary.saveNote(created.copy(title = "冷启动仍存在"))
         firstDatabase.close()
 
@@ -206,7 +206,7 @@ class NoteLibraryInstrumentedTest {
     fun editorMoveRemainsStableAfterAnotherAutomaticSave() = runTest {
         val source = library.createNotebook("来源本")
         val destination = library.createNotebook("目标本")
-        val note = library.createRichNote(source.id)
+        val note = library.createNote(source.id)
         val session = NoteEditorSession(
             library = library,
             noteId = note.id,
@@ -224,43 +224,34 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
-    fun markdownConversionStoresRevisionAndPersistsMarkdownEdits() = runTest {
-        val created = library.createRichNote(null)
-        library.saveNote(
-            created.copy(
-                title = "转换标题",
-                document = NoteDocument(
-                    blocks = listOf(
-                        TextBlock(id = "body", inlines = listOf(InlineRun("转换正文"))),
-                    ),
-                ),
-            ),
-        )
+    fun markdownShortcutFormatsHeadingAndUndoRestoresCharactersThenPersists() = runTest {
+        val created = library.createNote(null)
         val session = NoteEditorSession(library, created.id, this)
-
         session.load()
-        assertTrue(session.convertToMarkdown())
-        assertEquals(NoteKind.Markdown, session.note?.kind)
-        assertEquals("# 转换标题\n\n转换正文", session.markdownText)
-        val revision = library.getNoteRevisions(created.id).single()
-        assertEquals(RevisionReason.ConvertToMarkdown, revision.reason)
-        assertEquals(NoteKind.Rich, revision.kind)
-        assertEquals("转换正文", (revision.document?.blocks?.single() as TextBlock).inlines.single().text)
+        val blockId = session.document.blocks.first().id
 
-        session.updateMarkdownText("# 新标题\n\n新正文")
-        assertTrue(session.saveMarkdownAndPreview())
+        session.onPlainTextChange(EditorSelection(blockId), "", "#", composing = false)
+        session.onPlainTextChange(EditorSelection(blockId), "#", "# ", composing = false)
+        val heading = session.document.blocks.first() as TextBlock
+        assertEquals(ParagraphStyle.Heading, heading.paragraphStyle)
+        assertEquals("", heading.inlines.plainText())
+
+        session.undo()
+        assertEquals("# ", (session.document.blocks.first() as TextBlock).inlines.plainText())
+        assertEquals(ParagraphStyle.Body, (session.document.blocks.first() as TextBlock).paragraphStyle)
+
+        session.redo()
+        session.flushSave()
         val saved = library.getNote(created.id)
-        assertEquals("新标题", saved?.title)
-        assertEquals("# 新标题\n\n新正文", saved?.markdownText)
-        assertNull(saved?.document)
-        assertEquals("新正文", saved?.summary)
-        assertEquals(1, library.getNoteRevisions(created.id).size)
+        val savedBlock = saved?.document?.blocks?.first() as TextBlock
+        assertEquals(ParagraphStyle.Heading, savedBlock.paragraphStyle)
+        assertEquals("", savedBlock.inlines.plainText())
     }
 
     @Test
     fun renamingNotebookKeepsAssignedNotes() = runTest {
         val notebook = library.createNotebook("原名称")
-        val note = library.createRichNote(notebook.id)
+        val note = library.createNote(notebook.id)
 
         library.renameNotebook(notebook.id, "新名称")
 
@@ -268,27 +259,30 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
-    fun blockedMarkdownConversionDoesNotWriteARevision() = runTest {
-        val created = library.createRichNote(null)
-        val withImage = library.saveNote(
-            created.copy(
-                document = NoteDocument(
-                    blocks = listOf(ImageBlock(id = "image", attachmentId = "missing")),
-                ),
-            ),
-        )
+    fun composingAndDisabledShortcutsKeepOriginalCharacters() = runTest {
+        val created = library.createNote(null)
+        val session = NoteEditorSession(library, created.id, this)
+        session.load()
+        val blockId = session.document.blocks.first().id
 
-        assertTrue(runCatching { library.convertToMarkdown(withImage.id) }.isFailure)
-        assertEquals(NoteKind.Rich, library.getNote(withImage.id)?.kind)
-        assertTrue(library.getNoteRevisions(withImage.id).isEmpty())
+        session.onPlainTextChange(EditorSelection(blockId), "", "# ", composing = true)
+        assertEquals("# ", (session.document.blocks.first() as TextBlock).inlines.plainText())
+        assertEquals(ParagraphStyle.Body, (session.document.blocks.first() as TextBlock).paragraphStyle)
+
+        session.markdownShortcutsEnabled = false
+        session.onPlainTextChange(EditorSelection(blockId), "# ", "# 标题", composing = false)
+        session.flushSave()
+        val saved = library.getNote(created.id)?.document?.blocks?.first() as TextBlock
+        assertEquals("# 标题", saved.inlines.plainText())
+        assertEquals(ParagraphStyle.Body, saved.paragraphStyle)
     }
 
     @Test
     fun reorderNotesPersistsManualOrder() = runTest {
         val notebook = library.createNotebook("排序本")
-        val first = library.createRichNote(notebook.id)
+        val first = library.createNote(notebook.id)
         clock.nowMs = 2_000L
-        val second = library.createRichNote(notebook.id)
+        val second = library.createNote(notebook.id)
         library.reorderNotes(listOf(second.id, first.id))
         val ordered = library.observeNotesInNotebook(notebook.id, com.xnote.app.domain.model.NoteListSort.Manual).first()
         assertEquals(listOf(second.id, first.id), ordered.map { it.id })
@@ -302,17 +296,15 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
-    fun noteBackgroundPersistsAcrossMovesAndMarkdownConversionThenCanReturnToInheritance() = runTest {
+    fun noteBackgroundPersistsAcrossMovesThenCanReturnToInheritance() = runTest {
         val source = library.createNotebook("来源")
         val destination = library.createNotebook("目标")
-        val note = library.createRichNote(source.id)
+        val note = library.createNote(source.id)
         val background = BackgroundKey(GridBuiltinBackgroundId)
 
         library.setNoteBackground(note.id, background)
         library.moveNotes(listOf(note.id), destination.id)
 
-        assertEquals(background, library.getNote(note.id)?.backgroundKey)
-        library.convertToMarkdown(note.id)
         assertEquals(background, library.getNote(note.id)?.backgroundKey)
         library.setNoteBackground(note.id, null)
         assertNull(library.getNote(note.id)?.backgroundKey)

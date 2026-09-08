@@ -40,9 +40,7 @@ data class NoteEntity(
     @PrimaryKey val id: String,
     val notebookId: String?,
     val title: String,
-    val kind: String,
-    val documentJson: String?,
-    val markdownText: String?,
+    val documentJson: String,
     val backgroundKey: String?,
     val sortIndex: Long,
     val visibleCharacterCount: Int,
@@ -85,10 +83,8 @@ data class NoteRevisionEntity(
     @PrimaryKey val id: String,
     val noteId: String,
     val reason: String,
-    val kind: String,
     val title: String,
-    val documentJson: String?,
-    val markdownText: String?,
+    val documentJson: String,
     val createdAtEpochMs: Long,
 )
 

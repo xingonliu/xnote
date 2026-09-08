@@ -5,11 +5,6 @@ import com.xnote.app.domain.rules.RecycleBinPolicy
 
 // -- Type Definitions
 
-enum class NoteKind {
-    Rich,
-    Markdown,
-}
-
 enum class NoteListSort {
     UpdatedAt,
     CreatedAt,
@@ -21,9 +16,7 @@ data class Note(
     val id: String,
     val notebookId: String?,
     val title: String,
-    val kind: NoteKind,
-    val document: NoteDocument?,
-    val markdownText: String?,
+    val document: NoteDocument,
     val backgroundKey: BackgroundKey?,
     val sortIndex: Long,
     val visibleCharacterCount: Int,

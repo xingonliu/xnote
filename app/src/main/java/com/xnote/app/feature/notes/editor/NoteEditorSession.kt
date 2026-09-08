@@ -14,7 +14,6 @@ import com.xnote.app.domain.document.EditorSnapshot
 import com.xnote.app.domain.document.InlineMark
 import com.xnote.app.domain.document.InlineMarks
 import com.xnote.app.domain.document.ListMarker
-import com.xnote.app.domain.document.MarkdownEditorHistory
 import com.xnote.app.domain.document.MaxTextIndent
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.ParagraphStyle
@@ -46,13 +45,10 @@ import com.xnote.app.domain.document.setParagraphStyle
 import com.xnote.app.domain.document.toggleChecked
 import com.xnote.app.domain.document.toggleCollapsed
 import com.xnote.app.domain.document.toggleQuoted
-import com.xnote.app.domain.markdown.markdownDocumentTitle
+import com.xnote.app.domain.markdown.applyMarkdownShortcut
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.newNoteId
-import com.xnote.app.domain.rules.ConversionBlocker
-import com.xnote.app.domain.rules.conversionBlockers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -71,11 +67,6 @@ enum class EditorSaveStatus {
     Error,
 }
 
-enum class MarkdownEditorMode {
-    Editing,
-    Preview,
-}
-
 class NoteEditorSession(
     private val library: NoteLibrary,
     val noteId: String,
@@ -86,10 +77,6 @@ class NoteEditorSession(
     var title by mutableStateOf("")
         private set
     var document by mutableStateOf(emptyNoteDocument())
-        private set
-    var markdownText by mutableStateOf("")
-        private set
-    var markdownMode by mutableStateOf(MarkdownEditorMode.Preview)
         private set
     var selection by mutableStateOf(EditorSelection(blockId = ""))
         private set
@@ -102,36 +89,23 @@ class NoteEditorSession(
     var fieldsEpoch by mutableIntStateOf(0)
         private set
     var focusBlockId by mutableStateOf<String?>(null)
-    var conversionInProgress by mutableStateOf(false)
-        private set
+    var markdownShortcutsEnabled by mutableStateOf(true)
 
     private val history = EditorHistory()
-    private val markdownHistory = MarkdownEditorHistory()
     private var saveJob: Job? = null
     private var lastSavedTitle = ""
     private var lastSavedDocument = emptyNoteDocument()
-    private var lastSavedMarkdown = ""
     private var editVersion = 0L
     private var savedVersion = 0L
 
     val canUndo: Boolean
-        get() = if (isMarkdown) markdownHistory.canUndo else history.canUndo
+        get() = history.canUndo
 
     val canRedo: Boolean
-        get() = if (isMarkdown) markdownHistory.canRedo else history.canRedo
-
-    val isMarkdown: Boolean
-        get() = note?.kind == NoteKind.Markdown
+        get() = history.canRedo
 
     val toolbarState: XNoteRichTextToolbarState
         get() = toolbarStateFor(document, selection, typingMarks)
-
-    val markdownConversionBlockers: Set<ConversionBlocker>
-        get() = if (isMarkdown) {
-            setOf(ConversionBlocker.AlreadyMarkdown)
-        } else {
-            conversionBlockers(document)
-        }
 
     suspend fun load() {
         val loaded = library.getNote(noteId)
@@ -141,12 +115,9 @@ class NoteEditorSession(
         }
         note = loaded
         title = loaded.title
-        document = loaded.document ?: emptyNoteDocument()
-        markdownText = loaded.markdownText.orEmpty()
-        markdownMode = MarkdownEditorMode.Preview
+        document = loaded.document
         lastSavedTitle = title
         lastSavedDocument = document
-        lastSavedMarkdown = markdownText
         val first = document.blocks.firstOrNull()
         selection = EditorSelection(blockId = first?.id.orEmpty())
         focusBlockId = (first as? TextBlock)?.id
@@ -166,55 +137,10 @@ class NoteEditorSession(
     }
 
     fun updateTitle(value: String) {
-        if (isMarkdown) return
         if (title == value) return
         history.capture(snapshot(), key = "title")
         title = value
         scheduleSave()
-    }
-
-    fun updateMarkdownText(value: String) {
-        if (!isMarkdown || markdownText == value) return
-        markdownHistory.capture(markdownText, key = "markdown")
-        markdownText = value
-        title = markdownDocumentTitle(value)
-        scheduleSave()
-    }
-
-    fun startMarkdownEditing() {
-        if (isMarkdown) markdownMode = MarkdownEditorMode.Editing
-    }
-
-    suspend fun saveMarkdownAndPreview(): Boolean {
-        if (!isMarkdown) return false
-        flushSave()
-        if (saveStatus == EditorSaveStatus.Error) return false
-        markdownMode = MarkdownEditorMode.Preview
-        return true
-    }
-
-    suspend fun convertToMarkdown(): Boolean {
-        if (isMarkdown || markdownConversionBlockers.isNotEmpty()) return false
-        conversionInProgress = true
-        return try {
-            flushSave()
-            if (saveStatus == EditorSaveStatus.Error) return false
-            val converted = library.convertToMarkdown(noteId)
-            note = converted
-            title = converted.title
-            document = emptyNoteDocument()
-            markdownText = converted.markdownText.orEmpty()
-            markdownMode = MarkdownEditorMode.Editing
-            lastSavedTitle = title
-            lastSavedDocument = document
-            lastSavedMarkdown = markdownText
-            editVersion = 0L
-            savedVersion = 0L
-            saveStatus = EditorSaveStatus.Idle
-            true
-        } finally {
-            conversionInProgress = false
-        }
     }
 
     fun onPlainTextChange(
@@ -223,7 +149,6 @@ class NoteEditorSession(
         newText: String,
         composing: Boolean,
     ) {
-        if (isMarkdown) return
         if (oldText == newText) {
             selection = target
             if (!composing) {
@@ -241,7 +166,21 @@ class NoteEditorSession(
         val structureChanged = change.document.blocks.map { it.id } != document.blocks.map { it.id }
         document = change.document
         selection = change.selection
-        if (structureChanged) {
+        val shortcut = applyMarkdownShortcut(
+            document = document,
+            selection = selection,
+            inserted = inserted,
+            enabled = markdownShortcutsEnabled,
+            composing = composing,
+        )
+        if (shortcut != null) {
+            history.capture(snapshot(), key = "markdown-shortcut")
+            document = shortcut.document
+            selection = shortcut.selection
+            fieldsEpoch += 1
+            focusBlockId = shortcut.selection.blockId
+            typingMarks = currentInlines(shortcut.selection)?.marksAt(shortcut.selection.end) ?: InlineMarks()
+        } else if (structureChanged) {
             fieldsEpoch += 1
             focusBlockId = change.selection.blockId
         }
@@ -249,7 +188,6 @@ class NoteEditorSession(
     }
 
     fun deleteBackward() {
-        if (isMarkdown) return
         history.capture(snapshot())
         val change = document.deleteBackward(selection)
         val structureChanged = change.document.blocks.map { it.id } != document.blocks.map { it.id }
@@ -263,7 +201,6 @@ class NoteEditorSession(
     }
 
     fun applyAction(action: XNoteRichTextAction): Boolean {
-        if (isMarkdown) return false
         return when (action) {
             XNoteRichTextAction.ParagraphStyle -> false
             XNoteRichTextAction.Bold -> applyMark(InlineMark.Bold)
@@ -360,19 +297,11 @@ class NoteEditorSession(
     }
 
     fun undo() {
-        if (isMarkdown) {
-            markdownHistory.undo(markdownText)?.let(::restoreMarkdown)
-            return
-        }
         val previous = history.undo(snapshot()) ?: return
         restore(previous)
     }
 
     fun redo() {
-        if (isMarkdown) {
-            markdownHistory.redo(markdownText)?.let(::restoreMarkdown)
-            return
-        }
         val next = history.redo(snapshot()) ?: return
         restore(next)
     }
@@ -421,12 +350,6 @@ class NoteEditorSession(
         scheduleSave()
     }
 
-    private fun restoreMarkdown(value: String) {
-        markdownText = value
-        title = markdownDocumentTitle(value)
-        scheduleSave()
-    }
-
     private fun snapshot(): EditorSnapshot = EditorSnapshot(
         title = title,
         document = document,
@@ -459,17 +382,11 @@ class NoteEditorSession(
     private suspend fun persist(clearSavedStatusAfterDelay: Boolean = true) {
         val current = note ?: return
         val versionToSave = editVersion
-        val titleToSave = if (current.kind == NoteKind.Markdown) {
-            markdownDocumentTitle(markdownText)
-        } else {
-            title
-        }
+        val titleToSave = title
         val documentToSave = document
-        val markdownToSave = markdownText
         if (versionToSave == savedVersion &&
             titleToSave == lastSavedTitle &&
-            documentToSave == lastSavedDocument &&
-            markdownToSave == lastSavedMarkdown
+            documentToSave == lastSavedDocument
         ) {
             if (saveStatus == EditorSaveStatus.Saving) {
                 saveStatus = EditorSaveStatus.Idle
@@ -480,15 +397,13 @@ class NoteEditorSession(
             val saved = library.saveNote(
                 current.copy(
                     title = titleToSave,
-                    document = if (current.kind == NoteKind.Rich) documentToSave else null,
-                    markdownText = if (current.kind == NoteKind.Markdown) markdownToSave else null,
+                    document = documentToSave,
                 ),
             )
             note = saved
             title = saved.title
             lastSavedTitle = saved.title
             lastSavedDocument = documentToSave
-            lastSavedMarkdown = markdownToSave
             savedVersion = versionToSave
             if (editVersion == versionToSave) {
                 saveStatus = EditorSaveStatus.Saved

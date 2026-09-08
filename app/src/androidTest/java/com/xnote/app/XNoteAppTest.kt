@@ -83,6 +83,7 @@ class XNoteAppTest {
         composeRule.onNodeWithText("我的").performClick()
 
         composeRule.onNodeWithText("回收站").assertIsDisplayed()
+        composeRule.onNodeWithText("Markdown 快捷输入").assertIsDisplayed()
         composeRule.onNode(isSelected() and hasText("我的")).assertIsSelected()
     }
 

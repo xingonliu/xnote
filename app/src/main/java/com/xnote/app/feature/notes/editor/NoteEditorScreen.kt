@@ -96,19 +96,6 @@ fun NoteEditorScreen(
         return
     }
 
-    if (session.isMarkdown) {
-        MarkdownNoteScreen(
-            session = session,
-            contentPadding = contentPadding,
-            scrollState = scrollState,
-            modifier = modifier
-                .fillMaxSize()
-                .imePadding()
-                .navigationBarsPadding(),
-        )
-        return
-    }
-
     val labels = session.document.numberedLabels()
     Column(
         modifier = modifier
@@ -130,7 +117,6 @@ fun NoteEditorScreen(
             TitleField(
                 value = session.title,
                 onValueChange = session::updateTitle,
-                readOnly = false,
             )
             session.note?.let { note ->
                 Text(
@@ -161,13 +147,11 @@ fun NoteEditorScreen(
 private fun TitleField(
     value: String,
     onValueChange: (String) -> Unit,
-    readOnly: Boolean,
 ) {
     val style = MaterialTheme.typography.headlineLarge
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        readOnly = readOnly,
         textStyle = style.copy(color = MaterialTheme.colorScheme.onBackground),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         singleLine = true,
@@ -255,7 +239,8 @@ private fun TextBlockEditor(
                     .clickable {
                         session.select(EditorSelection(block.id))
                         session.applyAction(com.xnote.app.design.XNoteRichTextAction.ToggleHeadingCollapse)
-                    },
+                    }
+                    .testTag("xnote-editor-heading-collapse"),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -334,6 +319,11 @@ private fun TextBlockEditor(
             onDeleteBackwardAtStart = {
                 session.select(EditorSelection(block.id, 0, 0))
                 session.deleteBackward()
+            },
+            selection = if (session.selection.blockId == block.id && !session.selection.isTable) {
+                TextRange(session.selection.start, session.selection.end)
+            } else {
+                null
             },
             fieldTestTag = if (isFirstTextBlock) "xnote-editor-body" else null,
             modifier = Modifier.weight(1f),
@@ -429,6 +419,11 @@ private fun TableBlockEditor(
                                     ),
                                 )
                                 session.deleteBackward()
+                            },
+                            selection = if (cellSelected) {
+                                TextRange(session.selection.start, session.selection.end)
+                            } else {
+                                null
                             },
                         )
                     }

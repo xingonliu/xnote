@@ -2,7 +2,6 @@ package com.xnote.app.domain.rules
 
 import com.xnote.app.domain.document.emptyNoteDocument
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.Notebook
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -85,9 +84,7 @@ private fun note(id: String, notebookId: String?, deletedAt: Long?): Note = Note
     id = id,
     notebookId = notebookId,
     title = "标题",
-    kind = NoteKind.Rich,
     document = emptyNoteDocument(),
-    markdownText = null,
     backgroundKey = null,
     sortIndex = 0L,
     visibleCharacterCount = 0,

@@ -13,7 +13,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
-import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
@@ -27,8 +26,8 @@ import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.TableBlock
 import com.xnote.app.domain.document.TextBlock
-import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.BackgroundKey
+import com.xnote.app.domain.model.defaultAppSettings
 import com.xnote.app.domain.model.GridBuiltinBackgroundId
 import com.xnote.app.domain.model.RuledBuiltinBackgroundId
 import com.xnote.app.domain.text.extractPlainText
@@ -92,7 +91,7 @@ class NotesFlowTest {
 
     @Test
     fun composingTextIsPersistedWhenTheEditorFlushes() = runTest {
-        val note = library.createRichNote(null)
+        val note = library.createNote(null)
         val session = NoteEditorSession(library, note.id, this)
         session.load()
         val block = session.document.blocks.filterIsInstance<TextBlock>().first()
@@ -111,7 +110,7 @@ class NotesFlowTest {
     @Test
     fun deletingANotebookRemovesItsNotesFromTheHomeList() = runTest {
         val notebook = library.createNotebook("临时本")
-        val note = library.createRichNote(notebook.id)
+        val note = library.createNote(notebook.id)
         library.saveNote(note.copy(title = "应进入回收站"))
 
         composeRule.setContent {
@@ -140,7 +139,7 @@ class NotesFlowTest {
     fun editorHeaderMovesNoteAndLaterSaveKeepsTheDestination() = runTest {
         val source = library.createNotebook("来源本")
         val destination = library.createNotebook("目标本")
-        val note = library.createRichNote(source.id)
+        val note = library.createNote(source.id)
         library.saveNote(note.copy(title = "待移动笔记"))
 
         composeRule.setContent {
@@ -194,7 +193,7 @@ class NotesFlowTest {
 
     @Test
     fun richTextToolbarAppliesInlineStyleAndEditsATable() = runTest {
-        val note = library.createRichNote(null)
+        val note = library.createNote(null)
         library.saveNote(note.copy(title = "工具栏测试"))
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
@@ -235,20 +234,9 @@ class NotesFlowTest {
     }
 
     @Test
-    fun convertToMarkdownEditsPreviewsAndReturnsToEditing() {
-        var noteId = ""
+    fun markdownShortcutTurnsHeadingPrefixIntoHeadingAndUndoRestoresCharacters() {
         runTest {
-            val created = library.createRichNote(null)
-            noteId = library.saveNote(
-                created.copy(
-                    title = "转换测试",
-                    document = NoteDocument(
-                        blocks = listOf(
-                            TextBlock(id = "body", inlines = listOf(InlineRun("预览正文"))),
-                        ),
-                    ),
-                ),
-            ).id
+            library.saveNote(library.createNote(null).copy(title = "快捷输入"))
         }
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
@@ -256,38 +244,41 @@ class NotesFlowTest {
             }
         }
 
-        composeRule.onNodeWithText("转换测试").performClick()
+        composeRule.onNodeWithText("快捷输入").performClick()
+        composeRule.onNodeWithTag("xnote-editor-body").performTextInput("# ")
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-heading-collapse").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-editor-heading-collapse").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("撤销").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithTag("xnote-editor-heading-collapse").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("xnote-editor-body").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("更多").performClick()
-        composeRule.onNodeWithText("转换为 Markdown").performClick()
-        composeRule.onNodeWithText("永久转换").performClick()
-        composeRule.waitUntil(5_000) {
-            composeRule.onAllNodesWithTag("xnote-markdown-editor").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithTag("xnote-markdown-editor").assertIsDisplayed()
-        runTest {
-            assertEquals("# 转换测试\n\n预览正文", library.getNote(noteId)?.markdownText)
-        }
-        composeRule.onNodeWithTag("xnote-markdown-editor")
-            .performTextReplacement("# 编辑后标题\n\n编辑后的正文")
-        composeRule.onNodeWithTag("xnote-markdown-done").performClick()
-        composeRule.waitUntil(5_000) {
-            composeRule.onAllNodesWithTag("xnote-markdown-preview").fetchSemanticsNodes().isNotEmpty()
-        }
-        composeRule.onNodeWithText("编辑后的正文").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("编辑 Markdown").performClick()
-        composeRule.onNodeWithTag("xnote-markdown-editor").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("转换为 Markdown").fetchSemanticsNodes().isEmpty())
+    }
 
-        runTest {
-            assertEquals(NoteKind.Markdown, library.getNote(noteId)?.kind)
-            assertEquals("编辑后标题", library.getNote(noteId)?.title)
-            assertEquals("# 编辑后标题\n\n编辑后的正文", library.getNote(noteId)?.markdownText)
-            assertEquals(1, library.getNoteRevisions(noteId).size)
+    @Test
+    fun profileMarkdownShortcutSwitchIsVisibleAndCanBeTurnedOff() {
+        val settings = InMemoryAppSettingsRepository(defaultAppSettings())
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = true) {
+                XNoteApp(noteLibrary = library, settings = settings)
+            }
+        }
+
+        composeRule.onNodeWithText("我的").performClick()
+        composeRule.onNodeWithText("Markdown 快捷输入").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-markdown-shortcuts-switch").performClick()
+        composeRule.waitUntil(5_000) {
+            runBlocking { settings.settings.first().markdownShortcutsEnabled.not() }
         }
     }
 
     @Test
     fun searchFindsChineseBodyTextAndOpensTheNote() = runTest {
-        val note = library.createRichNote(null)
+        val note = library.createNote(null)
         library.saveNote(
             note.copy(
                 title = "发布安排",
@@ -317,8 +308,8 @@ class NotesFlowTest {
     @Test
     fun recycleBinMultiSelectRestoresNotes() = runTest {
         val notebook = library.createNotebook("恢复目标")
-        val first = library.createRichNote(notebook.id)
-        val second = library.createRichNote(notebook.id)
+        val first = library.createNote(notebook.id)
+        val second = library.createNote(notebook.id)
         library.saveNote(first.copy(title = "待恢复一"))
         library.saveNote(second.copy(title = "待恢复二"))
         library.trashNotes(listOf(first.id, second.id))
@@ -343,8 +334,8 @@ class NotesFlowTest {
 
     @Test
     fun recycleBinPermanentlyDeletesOneNoteAndCanClearTheRest() = runTest {
-        val first = library.saveNote(library.createRichNote(null).copy(title = "永久删除目标"))
-        val second = library.saveNote(library.createRichNote(null).copy(title = "清空目标"))
+        val first = library.saveNote(library.createNote(null).copy(title = "永久删除目标"))
+        val second = library.saveNote(library.createNote(null).copy(title = "清空目标"))
         library.trashNotes(listOf(first.id, second.id))
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
@@ -394,7 +385,7 @@ class NotesFlowTest {
     @Test
     fun editorBackgroundOverrideCanReturnToDefaultInheritance() {
         val note = runBlocking {
-            library.saveNote(library.createRichNote(null).copy(title = "背景测试"))
+            library.saveNote(library.createNote(null).copy(title = "背景测试"))
         }
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {

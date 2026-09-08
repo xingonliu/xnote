@@ -3,6 +3,7 @@ package com.xnote.app.data.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -23,6 +24,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 
 private val DefaultBackgroundKey = stringPreferencesKey("default_background_key")
 private val ThemeModeKey = stringPreferencesKey("theme_mode")
+private val MarkdownShortcutsKey = booleanPreferencesKey("markdown_shortcuts_enabled")
 
 // -- Type Definitions
 
@@ -41,6 +43,12 @@ class AppSettingsStore(
         }
     }
 
+    override suspend fun setMarkdownShortcutsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[MarkdownShortcutsKey] = enabled
+        }
+    }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { preferences ->
             preferences[ThemeModeKey] = mode.storageValue()
@@ -55,6 +63,7 @@ private fun Preferences.toAppSettings(): AppSettings {
         defaultBackground = parseBackgroundKey(this[DefaultBackgroundKey])
             ?: defaultBackgroundKey(),
         themeMode = this[ThemeModeKey].toThemeMode(),
+        markdownShortcutsEnabled = this[MarkdownShortcutsKey] ?: true,
     )
 }
 

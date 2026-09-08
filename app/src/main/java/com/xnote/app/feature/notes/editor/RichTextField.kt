@@ -87,6 +87,7 @@ fun RichTextField(
     fieldTestTag: String? = null,
     placeholder: String = "",
     singleLine: Boolean = false,
+    selection: TextRange? = null,
 ) {
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val linkColor = MaterialTheme.colorScheme.primary
@@ -94,7 +95,13 @@ fun RichTextField(
         inlines.toAnnotatedString(highlightColor, linkColor)
     }
     var value by remember(fieldsEpoch) {
-        mutableStateOf(TextFieldValue(annotated, TextRange(annotated.text.length)))
+        val caret = selection?.let { range ->
+            TextRange(
+                range.start.coerceIn(0, annotated.length),
+                range.end.coerceIn(0, annotated.length),
+            )
+        } ?: TextRange(annotated.length)
+        mutableStateOf(TextFieldValue(annotated, caret))
     }
     val focusRequester = remember { FocusRequester() }
 

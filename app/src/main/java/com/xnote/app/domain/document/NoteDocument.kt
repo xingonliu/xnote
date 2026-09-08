@@ -36,4 +36,4 @@ fun NoteDocument.attachmentIds(): Set<String> {
     return ids
 }
 
-fun Note.referencedAttachmentIds(): Set<String> = document?.attachmentIds().orEmpty()
+fun Note.referencedAttachmentIds(): Set<String> = document.attachmentIds()

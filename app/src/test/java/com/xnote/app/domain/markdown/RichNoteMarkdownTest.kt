@@ -102,12 +102,6 @@ println(answer)
     }
 
     @Test
-    fun markdownTitleComesOnlyFromTheLeadingLevelOneHeading() {
-        assertEquals("格式标题", markdownDocumentTitle("# **格式**标题 #\n正文"))
-        assertEquals("", markdownDocumentTitle("## 小标题\n正文"))
-    }
-
-    @Test
     fun emptyTitleDoesNotCreateAVisibleHashHeading() {
         val document = NoteDocument(
             blocks = listOf(TextBlock(id = "body", inlines = listOf(InlineRun("正文")))),

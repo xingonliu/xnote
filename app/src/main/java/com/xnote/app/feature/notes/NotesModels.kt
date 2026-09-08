@@ -40,7 +40,6 @@ class NotesUiState {
     var paragraphMenuVisible by mutableStateOf(false)
     var tableMenuVisible by mutableStateOf(false)
     var linkDialogVisible by mutableStateOf(false)
-    var convertMarkdownVisible by mutableStateOf(false)
     var backgroundPickerVisible by mutableStateOf(false)
     var createNotebookName by mutableStateOf("")
     var renameDraft by mutableStateOf("")

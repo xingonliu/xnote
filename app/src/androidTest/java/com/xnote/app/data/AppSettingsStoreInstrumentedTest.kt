@@ -32,4 +32,18 @@ class AppSettingsStoreInstrumentedTest {
             store.setDefaultBackground(defaultBackgroundKey())
         }
     }
+
+    @Test
+    fun markdownShortcutsDefaultOnAndPersistAcrossStoreInstances() = runTest {
+        val store = AppSettingsStore(context)
+        try {
+            assertEquals(true, store.settings.first().markdownShortcutsEnabled)
+            store.setMarkdownShortcutsEnabled(false)
+
+            val reopened = AppSettingsStore(context)
+            assertEquals(false, reopened.settings.first().markdownShortcutsEnabled)
+        } finally {
+            store.setMarkdownShortcutsEnabled(true)
+        }
+    }
 }

@@ -7,7 +7,6 @@ import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.Note
-import com.xnote.app.domain.model.NoteKind
 import com.xnote.app.domain.model.NoteRevision
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.RevisionReason
@@ -35,9 +34,7 @@ fun NoteEntity.toDomain(): Note = Note(
     id = id,
     notebookId = notebookId,
     title = title,
-    kind = kind.toNoteKind(),
-    document = documentJson?.let(::decodeNoteDocument),
-    markdownText = markdownText,
+    document = decodeNoteDocument(documentJson),
     backgroundKey = parseBackgroundKey(backgroundKey),
     sortIndex = sortIndex,
     visibleCharacterCount = visibleCharacterCount,
@@ -53,9 +50,7 @@ fun Note.toEntity(): NoteEntity = NoteEntity(
     id = id,
     notebookId = notebookId,
     title = title,
-    kind = kind.storageValue(),
-    documentJson = document?.encodeToJson(),
-    markdownText = markdownText,
+    documentJson = document.encodeToJson(),
     backgroundKey = backgroundKey?.encode(),
     sortIndex = sortIndex,
     visibleCharacterCount = visibleCharacterCount,
@@ -71,10 +66,8 @@ fun NoteRevisionEntity.toDomain(): NoteRevision = NoteRevision(
     id = id,
     noteId = noteId,
     reason = reason.toRevisionReason(),
-    kind = kind.toNoteKind(),
     title = title,
-    document = documentJson?.let(::decodeNoteDocument),
-    markdownText = markdownText,
+    document = decodeNoteDocument(documentJson),
     createdAtEpochMs = createdAtEpochMs,
 )
 
@@ -82,10 +75,8 @@ fun NoteRevision.toEntity(): NoteRevisionEntity = NoteRevisionEntity(
     id = id,
     noteId = noteId,
     reason = reason.storageValue(),
-    kind = kind.storageValue(),
     title = title,
-    documentJson = document?.encodeToJson(),
-    markdownText = markdownText,
+    documentJson = document.encodeToJson(),
     createdAtEpochMs = createdAtEpochMs,
 )
 
@@ -113,25 +104,11 @@ fun Attachment.toEntity(): AttachmentEntity = AttachmentEntity(
     createdAtEpochMs = createdAtEpochMs,
 )
 
-fun NoteKind.storageValue(): String = when (this) {
-    NoteKind.Rich -> "rich"
-    NoteKind.Markdown -> "markdown"
-}
-
-fun String.toNoteKind(): NoteKind = when (this) {
-    "markdown" -> NoteKind.Markdown
-    else -> NoteKind.Rich
-}
-
 fun RevisionReason.storageValue(): String = when (this) {
-    RevisionReason.ConvertToMarkdown -> "convert_to_markdown"
     RevisionReason.AgentPolish -> "agent_polish"
 }
 
-fun String.toRevisionReason(): RevisionReason = when (this) {
-    "agent_polish" -> RevisionReason.AgentPolish
-    else -> RevisionReason.ConvertToMarkdown
-}
+fun String.toRevisionReason(): RevisionReason = RevisionReason.AgentPolish
 
 fun AttachmentKind.storageValue(): String = when (this) {
     AttachmentKind.Image -> "image"
@@ -145,4 +122,4 @@ fun String.toAttachmentKind(): AttachmentKind = when (this) {
     else -> AttachmentKind.Image
 }
 
-fun NoteRevision.referencedAttachmentIds(): Set<String> = document?.attachmentIds().orEmpty()
+fun NoteRevision.referencedAttachmentIds(): Set<String> = document.attachmentIds()

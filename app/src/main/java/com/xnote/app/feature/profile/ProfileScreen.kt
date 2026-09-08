@@ -15,16 +15,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.XNoteGroupCard
+import com.xnote.app.design.XNoteInsetDivider
 import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
@@ -36,10 +39,12 @@ import com.xnote.app.design.XNoteSpacingSmall
 @Composable
 fun ProfileScreen(
     trashCount: Int,
+    markdownShortcutsEnabled: Boolean,
     contentPadding: PaddingValues,
     listState: LazyListState,
     onOpenRecycleBin: () -> Unit,
     onOpenBackgroundSettings: () -> Unit,
+    onMarkdownShortcutsEnabledChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -176,6 +181,52 @@ fun ProfileScreen(
                         contentDescription = stringResource(R.string.background_settings_open),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(XNoteIconSizeSmall),
+                    )
+                }
+                XNoteInsetDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = XNoteSpacingMedium, vertical = 14.dp)
+                        .testTag("xnote-markdown-shortcuts"),
+                    horizontalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_keyline_stroke_square_pen),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(XNoteIconSizeSmall),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.editor_markdown_shortcuts_title),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Text(
+                            text = stringResource(R.string.editor_markdown_shortcuts_summary),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = markdownShortcutsEnabled,
+                        onCheckedChange = onMarkdownShortcutsEnabledChange,
+                        modifier = Modifier.testTag("xnote-markdown-shortcuts-switch"),
                     )
                 }
             }
