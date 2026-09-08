@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -129,14 +130,16 @@ fun NoteEditorScreen(
                 )
             }
             session.document.visibleBlocks().forEachIndexed { index, block ->
-                EditorBlock(
-                    block = block,
-                    session = session,
-                    numberedLabel = labels[block.id],
-                    isFirstTextBlock = index == 0 || session.document.visibleBlocks()
-                        .take(index)
-                        .none { it is TextBlock },
-                )
+                key(block.id) {
+                    EditorBlock(
+                        block = block,
+                        session = session,
+                        numberedLabel = labels[block.id],
+                        isFirstTextBlock = index == 0 || session.document.visibleBlocks()
+                            .take(index)
+                            .none { it is TextBlock },
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -188,7 +191,8 @@ private fun EditorBlock(
             isFirstTextBlock = isFirstTextBlock,
         )
         is TableBlock -> TableBlockEditor(block = block, session = session)
-        is ImageBlock, is StickerBlock, is DrawingBlock -> {
+        is ImageBlock -> NoteImageBlock(block, session)
+        is StickerBlock, is DrawingBlock -> {
             Text(
                 text = stringResource(R.string.editor_unsupported_block),
                 style = MaterialTheme.typography.bodyMedium,

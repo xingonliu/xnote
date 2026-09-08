@@ -47,6 +47,15 @@ class NoteLibrary(
     private val noteFts = database.noteFts()
     private val revisions = database.revisions()
     private val attachments = database.attachments()
+    private val sessionAttachments = java.util.concurrent.ConcurrentHashMap<String, Set<String>>()
+
+    fun retainSessionAttachments(owner: String, ids: Set<String>) {
+        sessionAttachments.compute(owner) { _, current -> current.orEmpty() + ids }
+    }
+
+    fun releaseSessionAttachments(owner: String) {
+        sessionAttachments.remove(owner)
+    }
 
     fun observeNotebooks(): Flow<List<Notebook>> {
         return notebooks.observeAll().map { entities -> entities.map { it.toDomain() } }
@@ -298,6 +307,7 @@ class NoteLibrary(
         )
         val expiredIds = notes.expiredTrash(expireBefore).map { it.id }
         permanentlyDeleteNotes(expiredIds)
+        if (expiredIds.isEmpty()) write { deleteOrphanAttachments() }
     }
 
     suspend fun saveRevision(noteId: String, reason: RevisionReason): NoteRevision {
@@ -370,6 +380,7 @@ class NoteLibrary(
         originalFileName: String? = null,
         widthPx: Int? = null,
         heightPx: Int? = null,
+        sessionOwner: String? = null,
     ): Attachment {
         val id = newNoteId()
         val relativePath = AttachmentFileStore.relativePath(id, extension)
@@ -386,8 +397,11 @@ class NoteLibrary(
             createdAtEpochMs = clock.nowMs(),
         )
         return try {
-            attachments.upsert(attachment.toEntity())
-            attachment
+            write {
+                attachments.upsert(attachment.toEntity())
+                if (sessionOwner != null) retainSessionAttachments(sessionOwner, setOf(id))
+                attachment
+            }
         } catch (error: Exception) {
             files.delete(relativePath)
             throw error
@@ -415,6 +429,7 @@ class NoteLibrary(
         val remainingNotes = notes.getAll().map { it.toDomain() }
         val remainingRevisions = revisions.getAll().map { it.toDomain() }
         val referenced = linkedSetOf<String>()
+        sessionAttachments.values.forEach { referenced += it }
         remainingNotes.forEach { referenced += it.referencedAttachmentIds() }
         remainingRevisions.forEach { referenced += it.referencedAttachmentIds() }
         val orphans = attachments.getAll().filter { it.id !in referenced }

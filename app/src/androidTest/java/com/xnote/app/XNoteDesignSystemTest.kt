@@ -267,11 +267,9 @@ class XNoteDesignSystemTest {
         composeRule.onNodeWithTag("xnote-overlay-scrim").performTouchInput {
             click(percentOffset(0.5f, 0.05f))
         }
-        composeRule.runOnIdle {
-            assertTrue(
-                composeRule.onAllNodesWithText("选择笔记本").fetchSemanticsNodes().isEmpty(),
-            )
-        }
+        assertTrue(
+            composeRule.onAllNodesWithText("选择笔记本").fetchSemanticsNodes().isEmpty(),
+        )
     }
 
     @Test

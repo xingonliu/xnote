@@ -248,6 +248,9 @@ fun XNoteApp(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    DisposableEffect(editorSession) {
+        onDispose { editorSession?.releaseAttachments() }
+    }
 
     fun updateNavigationState(newState: XNoteNavigationState) {
         destinationName = newState.destination.name

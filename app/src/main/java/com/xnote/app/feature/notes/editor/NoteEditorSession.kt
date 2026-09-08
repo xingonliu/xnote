@@ -8,7 +8,15 @@ import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbarState
+import com.xnote.app.design.XNotePopupAnchor
+import com.xnote.app.domain.document.EditorChange
 import com.xnote.app.domain.document.EditorHistory
+import com.xnote.app.domain.document.ImageBlock
+import com.xnote.app.domain.document.ImageAction
+import com.xnote.app.domain.document.insertImage
+import com.xnote.app.domain.document.editImage
+import com.xnote.app.domain.document.replaceBlock
+import com.xnote.app.domain.document.attachmentIds
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.EditorSnapshot
 import com.xnote.app.domain.document.InlineMark
@@ -72,6 +80,8 @@ class NoteEditorSession(
     val noteId: String,
     private val scope: CoroutineScope,
 ) {
+    // -- State and Variables
+
     var note by mutableStateOf<Note?>(null)
         private set
     var title by mutableStateOf("")
@@ -90,13 +100,20 @@ class NoteEditorSession(
         private set
     var focusBlockId by mutableStateOf<String?>(null)
     var markdownShortcutsEnabled by mutableStateOf(true)
+    var imageMenuId by mutableStateOf<String?>(null)
+    val attachmentOwner = newNoteId()
 
     private val history = EditorHistory()
+    private val imageAnchors = mutableMapOf<String, XNotePopupAnchor>()
     private var saveJob: Job? = null
     private var lastSavedTitle = ""
     private var lastSavedDocument = emptyNoteDocument()
     private var editVersion = 0L
     private var savedVersion = 0L
+    private var imageGesture = 0
+    private var closing = false
+
+    // -- Derived Values
 
     val canUndo: Boolean
         get() = history.canUndo
@@ -107,6 +124,11 @@ class NoteEditorSession(
     val toolbarState: XNoteRichTextToolbarState
         get() = toolbarStateFor(document, selection, typingMarks)
 
+    // -- Functions
+
+    fun imageAnchor(id: String): XNotePopupAnchor =
+        imageAnchors.getOrPut(id) { XNotePopupAnchor() }
+
     suspend fun load() {
         val loaded = library.getNote(noteId)
         if (loaded == null || loaded.isTrashed) {
@@ -116,6 +138,7 @@ class NoteEditorSession(
         note = loaded
         title = loaded.title
         document = loaded.document
+        library.retainSessionAttachments(attachmentOwner, document.attachmentIds())
         lastSavedTitle = title
         lastSavedDocument = document
         val first = document.blocks.firstOrNull()
@@ -296,6 +319,46 @@ class NoteEditorSession(
         typingMarks = currentInlines(target)?.marksAt(target.end) ?: InlineMarks()
     }
 
+    suspend fun imageFile(id: String): java.io.File? = library.getAttachment(id)?.let(library::attachmentFile)
+
+    fun attachImage(attachmentId: String, target: EditorSelection, replaceId: String?) {
+        library.retainSessionAttachments(attachmentOwner, setOf(attachmentId))
+        mutate { current ->
+            val existing = replaceId?.let { current.block(it) as? ImageBlock }
+            if (replaceId != null) {
+                if (existing == null) EditorChange(current, selection)
+                else EditorChange(
+                    current.replaceBlock(existing.copy(attachmentId = attachmentId)), EditorSelection(existing.id),
+                )
+            } else current.insertImage(target, ImageBlock(newNoteId(), attachmentId), newNoteId())
+        }
+        focusBlockId = null
+        fieldsEpoch += 1
+    }
+
+    fun editImage(id: String, action: ImageAction) {
+        mutate { it.editImage(id, action, newNoteId()) }
+        focusBlockId = null
+        fieldsEpoch += 1
+    }
+
+    fun transformImage(id: String, scale: Float, rotation: Float, x: Float, y: Float) {
+        val image = document.block(id) as? ImageBlock ?: return
+        history.capture(snapshot(), key = "image-gesture:$id:$imageGesture")
+        document = document.replaceBlock(image.copy(
+            scale = scale.coerceIn(0.2f, 3f), rotationDegrees = rotation % 360f,
+            offsetX = x.coerceIn(-120f, 120f), offsetY = y.coerceIn(-120f, 120f),
+        ))
+        scheduleSave()
+    }
+
+    fun finishImageGesture() { imageGesture += 1 }
+
+    fun releaseAttachments() {
+        closing = true
+        if (editVersion == savedVersion) library.releaseSessionAttachments(attachmentOwner)
+    }
+
     fun undo() {
         val previous = history.undo(snapshot()) ?: return
         restore(previous)
@@ -405,6 +468,7 @@ class NoteEditorSession(
             lastSavedTitle = saved.title
             lastSavedDocument = documentToSave
             savedVersion = versionToSave
+            if (closing && editVersion == savedVersion) library.releaseSessionAttachments(attachmentOwner)
             if (editVersion == versionToSave) {
                 saveStatus = EditorSaveStatus.Saved
                 if (clearSavedStatusAfterDelay) {

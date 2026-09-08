@@ -142,4 +142,27 @@
     <string name="rich_text_action_align_end">右对齐</string>
     <string name="rich_text_action_table">表格</string>
     <string name="rich_text_action_heading_collapse">标题折叠</string>
+    <string name="image_add">添加图片</string>
+    <string name="image_camera">相机</string>
+    <string name="image_gallery">相册</string>
+    <string name="image_edit">图片操作</string>
+    <string name="image_description">笔记图片</string>
+    <string name="image_loading">正在加载图片…</string>
+    <string name="image_load_failed">图片无法读取，可替换或删除</string>
+    <string name="image_importing">正在导入…</string>
+    <string name="image_import_failed">无法导入图片，请重试或选择其他图片</string>
+    <string name="image_source_unavailable">无法打开图片来源，请确认设备已安装相机或相册应用</string>
+    <string name="image_gesture">返回画布，双指缩放、旋转与移动</string>
+    <string name="image_smaller">缩小</string>
+    <string name="image_larger">放大</string>
+    <string name="image_rotate_left">向左旋转 90°</string>
+    <string name="image_rotate_right">向右旋转 90°</string>
+    <string name="image_move_up">向上移动一块</string>
+    <string name="image_move_down">向下移动一块</string>
+    <string name="image_backward">后移一层</string>
+    <string name="image_forward">前移一层</string>
+    <string name="image_reset">重置变换</string>
+    <string name="image_duplicate">复制图片</string>
+    <string name="image_delete">删除图片</string>
+    <string name="image_replace">替换图片</string>
 </resources>

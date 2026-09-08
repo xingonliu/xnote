@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,6 +16,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
@@ -66,6 +71,50 @@ class NotesFlowTest {
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(cleanupRule).around(composeRule)
+
+    @Test
+    fun imageSourceDrawerAndImageOperationsWorkInEditor() {
+        val note = runBlocking {
+            val source = File(context.cacheDir, "ui-image-${System.nanoTime()}.png")
+            val bitmap = android.graphics.Bitmap.createBitmap(640, 360, android.graphics.Bitmap.Config.ARGB_8888)
+            bitmap.eraseColor(android.graphics.Color.rgb(80, 130, 190))
+            source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+            try {
+                val attachment = com.xnote.app.data.files.importNoteImage(context, library, android.net.Uri.fromFile(source), "ui-test")
+                library.saveNote(library.createNote(null).copy(title = "图片验收", document = NoteDocument(blocks = listOf(
+                    TextBlock("before", inlines = listOf(InlineRun("图片前的正文"))),
+                    com.xnote.app.domain.document.ImageBlock("photo", attachment.id),
+                    TextBlock("after", inlines = listOf(InlineRun("图片后的正文"))),
+                ))))
+            } finally { source.delete() }
+        }
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithText("图片验收").performClick()
+        composeRule.onNodeWithTag("xnote-add-image").performClick()
+        composeRule.onNodeWithText("相机").assertIsDisplayed()
+        composeRule.onNodeWithText("相册").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-overlay-scrim").performTouchInput {
+            click(percentOffset(0.5f, 0.05f))
+        }
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("相机").fetchSemanticsNodes().isEmpty()
+        }
+        val screenshot = File(context.getExternalFilesDir(null), "s7-editor.png")
+        screenshot.outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithTag("xnote-image-photo").performScrollTo().performClick()
+        composeRule.onNodeWithText("向右旋转 90°").performScrollTo().performClick()
+        composeRule.onNodeWithTag("xnote-image-photo").performScrollTo().performClick()
+        composeRule.onNodeWithText("复制图片").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("撤销").performClick()
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty() }
+        val images = runBlocking { library.getNote(note.id)!!.document.blocks.filterIsInstance<com.xnote.app.domain.document.ImageBlock>() }
+        assertEquals(1, images.size)
+        assertEquals(90f, images.single().rotationDegrees)
+    }
 
     @Test
     fun createNotePersistsTitleAndBodyAfterReturningHome() {

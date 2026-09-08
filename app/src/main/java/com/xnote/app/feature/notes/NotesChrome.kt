@@ -55,6 +55,7 @@ import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorSession
+import com.xnote.app.feature.notes.editor.NoteImageChrome
 import com.xnote.app.feature.notes.editor.toDomain
 import com.xnote.app.feature.background.XNoteBackgroundPicker
 import com.xnote.app.navigation.NotesRoute
@@ -63,7 +64,7 @@ import kotlinx.coroutines.launch
 
 // -- Constants
 
-val XNoteEditorToolbarHeight = 64.dp
+val XNoteEditorToolbarHeight = 120.dp
 
 // -- Composables
 
@@ -222,7 +223,13 @@ fun BoxScope.NotesChrome(
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
-                .padding(bottom = XNoteSpacingSmall),
+                .padding(bottom = 64.dp),
+        )
+        NoteImageChrome(
+            session = editorSession, library = library, backdrop = backdrop, isTablet = isTablet,
+            toast = toastHostState,
+            modifier = Modifier.align(Alignment.BottomStart).imePadding().navigationBarsPadding()
+                .padding(start = if (isTablet) 24.dp else XNoteSpacingMedium, bottom = XNoteSpacingSmall),
         )
     }
 
