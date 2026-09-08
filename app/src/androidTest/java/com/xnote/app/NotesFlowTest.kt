@@ -1,6 +1,8 @@
 package com.xnote.app
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
@@ -19,6 +21,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.click
 import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
@@ -75,6 +79,44 @@ class NotesFlowTest {
     val rules: RuleChain = RuleChain.outerRule(cleanupRule).around(composeRule)
 
     @Test
+    fun longPressNoteShowsReadableSelectionActions() {
+        runBlocking {
+            repeat(18) { library.saveNote(library.createNote(null).copy(title = "长按选择验收 $it")) }
+        }
+        var fontScale by androidx.compose.runtime.mutableStateOf(1f)
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) }
+            }
+        }
+        for (scale in listOf(1f, 1.5f)) {
+            composeRule.runOnIdle { fontScale = scale }
+            composeRule.onAllNodesWithTag("xnote-note-row")[0].performScrollTo().performTouchInput { longClick() }
+            composeRule.onNodeWithText("已选 1 项").assertIsDisplayed()
+            val panel = composeRule.onNodeWithTag("xnote-note-selection-bar").fetchSemanticsNode().boundsInRoot
+            val count = composeRule.onNodeWithText("已选 1 项").fetchSemanticsNode().boundsInRoot
+            val cancel = composeRule.onNodeWithText("取消选择").fetchSemanticsNode().boundsInRoot
+            assertTrue(count.right <= cancel.left)
+            for (label in listOf("移动到笔记本", "移入回收站")) {
+                val action = composeRule.onNodeWithText(label).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+                assertTrue(action.left >= panel.left && action.right <= panel.right)
+                assertTrue(action.top >= count.bottom)
+            }
+            composeRule.onAllNodesWithTag("xnote-note-row").onLast().performScrollTo()
+            composeRule.onRoot().performTouchInput { swipeUp(startY = height * 0.6f, endY = height * 0.2f) }
+            val lastRow = composeRule.onAllNodesWithTag("xnote-note-row").onLast().fetchSemanticsNode().boundsInRoot
+            File(context.getExternalFilesDir(null), "note-selection-$scale.png").outputStream().use {
+                composeRule.onRoot().captureToImage().asAndroidBitmap()
+                    .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            assertTrue("Last row $lastRow must be above selection panel $panel", lastRow.bottom <= panel.top)
+            composeRule.onNodeWithText("取消选择").performClick()
+            composeRule.onNodeWithTag("xnote-create-note").assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun existingTableAtDocumentEndAllowsTypingAfterItAndSaving() {
         val note = runBlocking {
             library.saveNote(library.createNote(null).copy(title = "编辑修复验收", document = NoteDocument(blocks = listOf(
@@ -123,7 +165,8 @@ class NotesFlowTest {
         }
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
         composeRule.onNodeWithText("图片验收").performClick()
-        composeRule.onNodeWithTag("xnote-add-image").performClick()
+        composeRule.onNodeWithContentDescription("更多").performClick()
+        composeRule.onNodeWithText("添加图片").performClick()
         composeRule.onNodeWithText("相机").assertIsDisplayed()
         composeRule.onNodeWithText("相册").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-overlay-scrim").performTouchInput {

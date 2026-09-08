@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,12 +25,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -43,9 +43,7 @@ import com.xnote.app.design.XNoteDropdownMenu
 import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNotePopupPlacement
 import com.xnote.app.design.XNotePopup
-import com.xnote.app.design.liquidglass.LiquidButton
-import com.xnote.app.design.rememberXNotePopupAnchor
-import com.xnote.app.design.xNotePopupAnchor
+import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.ImageAction
 import com.xnote.app.domain.document.ImageBlock
@@ -54,6 +52,14 @@ import com.xnote.app.domain.model.newNoteId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+
+// -- Type Definitions
+
+@Stable
+class NoteImageUiState {
+    var addRequested by mutableStateOf(false)
+    var busy by mutableStateOf(false)
+}
 
 // -- Composables
 
@@ -64,15 +70,14 @@ fun BoxScope.NoteImageChrome(
     backdrop: Backdrop,
     isTablet: Boolean,
     toast: SnackbarHostState,
-    modifier: Modifier,
+    ui: NoteImageUiState,
+    sourceAnchor: XNotePopupAnchor,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    val sourceAnchor = rememberXNotePopupAnchor()
     var sourceVisible by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
     var replaceId by rememberSaveable(session.noteId) { mutableStateOf<String?>(null) }
     var targetBlock by rememberSaveable(session.noteId) { mutableStateOf("") }
     var targetStart by rememberSaveable(session.noteId) { mutableIntStateOf(0) }
@@ -85,7 +90,7 @@ fun BoxScope.NoteImageChrome(
             temporaryName?.let { cameraFile(context, it).delete() }
             return
         }
-        busy = true
+        ui.busy = true
         val replacement = replaceId
         val target = EditorSelection(targetBlock, targetStart, targetStart)
         scope.launch {
@@ -100,7 +105,7 @@ fun BoxScope.NoteImageChrome(
             } catch (_: Exception) {
                 toast.showSnackbar(failure)
             } finally {
-                busy = false
+                ui.busy = false
                 temporaryName?.let { cameraFile(context, it).delete() }
             }
         }
@@ -112,7 +117,7 @@ fun BoxScope.NoteImageChrome(
         if (name != null) receive(if (success) cameraUri(context, name) else null, name)
     }
     fun openSources(replacement: String?) {
-        if (busy) return
+        if (ui.busy) return
         focus.clearFocus(force = true)
         keyboard?.hide()
         session.focusBlockId = null
@@ -144,12 +149,11 @@ fun BoxScope.NoteImageChrome(
             }
         }),
     )
-    LiquidButton(
-        onClick = { openSources(null) }, backdrop = backdrop,
-        enabled = !busy && session.note != null,
-        modifier = modifier.xNotePopupAnchor(sourceAnchor).testTag("xnote-add-image"),
-    ) {
-        Text(stringResource(if (busy) R.string.image_importing else R.string.image_add), color = MaterialTheme.colorScheme.onSurface)
+    LaunchedEffect(ui.addRequested) {
+        if (ui.addRequested) {
+            openSources(null)
+            ui.addRequested = false
+        }
     }
     val selectedId = session.imageMenuId
     val selectedImage = selectedId?.let { session.document.block(it) as? ImageBlock }
@@ -179,7 +183,7 @@ fun BoxScope.NoteImageChrome(
         XNoteDropdownMenu(
             expanded = sourceVisible, onDismissRequest = { sourceVisible = false }, items = sources,
             backdrop = backdrop, anchor = if (replaceId != null) session.imageAnchor(replaceId!!) else sourceAnchor,
-            placement = XNotePopupPlacement.AboveStart,
+            placement = if (replaceId != null) XNotePopupPlacement.AboveStart else XNotePopupPlacement.BelowEnd,
         )
     } else {
         XNoteDrawer(

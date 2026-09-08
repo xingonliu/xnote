@@ -345,6 +345,8 @@ fun XNoteApp(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
         val isTablet = maxWidth >= TabletBreakpoint
         val showsPrimaryChrome = navigationState.showsPrimaryChrome ||
             (isTablet && navigationState.isSearchOpen)
@@ -367,9 +369,15 @@ fun XNoteApp(
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
+        val showsNoteSelection = navigationState.destination == AppDestination.Notes &&
+            !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen &&
+            !navigationState.isAppearanceOpen && uiState.selectedIds.isNotEmpty() &&
+            (navigationState.notesRoute is NotesRoute.Home || navigationState.notesRoute is NotesRoute.Notebook)
         val bottomOverlayHeight = when {
             showsEditorToolbar -> XNoteEditorToolbarHeight
             showsRecycleSelection -> XNoteRecycleSelectionHeight
+            showsNoteSelection -> noteSelectionBarHeight +
+                if (showsBottomNavigation) XNoteBottomNavigationHeight + XNoteSpacingSmall else XNoteSpacingMedium
             showsBottomNavigation -> XNoteBottomNavigationHeight
             else -> 0.dp
         }
@@ -553,6 +561,9 @@ fun XNoteApp(
                     navigationState.destination == AppDestination.Notes
                 ) {
                     NotesChrome(
+                        onSelectionBarHeightChanged = { height ->
+                            noteSelectionBarHeight = with(density) { height.toDp() }
+                        },
                         route = navigationState.notesRoute,
                         library = noteLibrary,
                         ui = uiState,

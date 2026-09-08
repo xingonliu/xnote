@@ -3,6 +3,7 @@ package com.xnote.app.feature.notes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,10 +15,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
@@ -29,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNoteDialog
 import com.xnote.app.design.XNoteDialogAction
 import com.xnote.app.design.XNoteDrawer
@@ -55,6 +59,7 @@ import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorSession
+import com.xnote.app.feature.notes.editor.NoteImageUiState
 import com.xnote.app.feature.notes.editor.NoteImageChrome
 import com.xnote.app.feature.notes.editor.toDomain
 import com.xnote.app.feature.background.XNoteBackgroundPicker
@@ -64,7 +69,7 @@ import kotlinx.coroutines.launch
 
 // -- Constants
 
-val XNoteEditorToolbarHeight = 120.dp
+val XNoteEditorToolbarHeight = 64.dp
 
 // -- Composables
 
@@ -87,11 +92,13 @@ fun BoxScope.NotesChrome(
     onCreateNote: (notebookId: String?) -> Unit,
     onPop: () -> Unit,
     onOpenReader: () -> Unit,
+    onSelectionBarHeightChanged: (Int) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val drawerPlacement = if (isTablet) XNoteDrawerPlacement.End else XNoteDrawerPlacement.Bottom
+    val imageUi = remember(editorSession?.noteId) { NoteImageUiState() }
     val moreMenuAnchor = rememberXNotePopupAnchor()
     val paragraphMenuAnchor = rememberXNotePopupAnchor()
     val tableMenuAnchor = rememberXNotePopupAnchor()
@@ -201,12 +208,16 @@ fun BoxScope.NotesChrome(
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .padding(
+                        start = if (isTablet && route is NotesRoute.Home) 112.dp else if (isTablet) 24.dp else XNoteSpacingMedium,
+                        end = if (isTablet) 24.dp else XNoteSpacingMedium,
                         bottom = if (route is NotesRoute.Home && !isTablet) {
                             XNoteBottomNavigationHeight + XNoteSpacingSmall
                         } else {
                             XNoteSpacingMedium
                         },
-                    ),
+                    )
+                    .onSizeChanged { onSelectionBarHeightChanged(it.height) }
+                    .testTag("xnote-note-selection-bar"),
             )
         }
     }
@@ -224,13 +235,13 @@ fun BoxScope.NotesChrome(
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
-                .padding(bottom = 64.dp),
+                .padding(bottom = XNoteSpacingSmall),
         )
         NoteImageChrome(
             session = editorSession, library = library, backdrop = backdrop, isTablet = isTablet,
             toast = toastHostState,
-            modifier = Modifier.align(Alignment.BottomStart).imePadding().navigationBarsPadding()
-                .padding(start = if (isTablet) 24.dp else XNoteSpacingMedium, bottom = XNoteSpacingSmall),
+            ui = imageUi,
+            sourceAnchor = moreMenuAnchor,
         )
     }
 
@@ -379,6 +390,11 @@ fun BoxScope.NotesChrome(
             ),
         )
         is NotesRoute.Editor -> buildList {
+            add(XNoteDropdownMenuItem(
+                label = stringResource(if (imageUi.busy) R.string.image_importing else R.string.image_add),
+                enabled = editorSession?.note != null && !imageUi.busy,
+                onClick = { imageUi.addRequested = true },
+            ))
             add(XNoteDropdownMenuItem(
                 label = stringResource(R.string.reader_open),
                 onClick = {
@@ -738,44 +754,48 @@ private fun SelectionBar(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = XNoteSpacingMedium),
-        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.notes_selection_count, count),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-        LiquidButton(
-            onClick = onMove,
-            backdrop = backdrop,
+    XNoteLiquidGlassPanel(backdrop = backdrop, modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(XNoteSpacingSmall),
+            verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
         ) {
-            Text(stringResource(R.string.notes_move_to_notebook), color = MaterialTheme.colorScheme.onSurface)
-        }
-        LiquidButton(
-            onClick = onTrash,
-            backdrop = backdrop,
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_keyline_stroke_bin),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(XNoteIconSizeMedium),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.notes_selection_count, count),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f).padding(start = XNoteSpacingSmall),
                 )
-                Text(stringResource(R.string.notes_delete_notes), color = MaterialTheme.colorScheme.error)
+                LiquidButton(onClick = onCancel, backdrop = backdrop) {
+                    Text(stringResource(R.string.notes_cancel_selection),
+                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                }
             }
-        }
-        LiquidButton(
-            onClick = onCancel,
-            backdrop = backdrop,
-        ) {
-            Text(stringResource(R.string.notes_cancel_selection), color = MaterialTheme.colorScheme.onSurface)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+                verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            ) {
+                LiquidButton(onClick = onMove, backdrop = backdrop) {
+                    Text(stringResource(R.string.notes_move_to_notebook),
+                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                }
+                LiquidButton(onClick = onTrash, backdrop = backdrop) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_keyline_stroke_bin),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(XNoteIconSizeMedium),
+                    )
+                    Text(stringResource(R.string.notes_delete_notes),
+                        color = MaterialTheme.colorScheme.error, maxLines = 1)
+                }
+            }
         }
     }
 }
