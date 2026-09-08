@@ -15,6 +15,7 @@ import com.xnote.app.domain.model.AttachmentKind
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.EpochClock
 import com.xnote.app.domain.model.Note
+import com.xnote.app.domain.model.noteComparator
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.NoteRevision
@@ -456,11 +457,4 @@ private fun Note.withDerivedText(): Note {
         latinWordCount = stats.latinWordCount,
         summary = summarizePlainText(extractPlainText(this)),
     )
-}
-
-private fun noteComparator(sort: NoteListSort): Comparator<Note> = when (sort) {
-    NoteListSort.UpdatedAt -> compareByDescending { it.updatedAtEpochMs }
-    NoteListSort.CreatedAt -> compareByDescending { it.createdAtEpochMs }
-    NoteListSort.Title -> compareBy { it.title.lowercase() }
-    NoteListSort.Manual -> compareBy { it.sortIndex }
 }

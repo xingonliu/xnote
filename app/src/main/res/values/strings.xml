@@ -165,4 +165,14 @@
     <string name="image_duplicate">复制图片</string>
     <string name="image_delete">删除图片</string>
     <string name="image_replace">替换图片</string>
+    <string name="reader_image_failed">图片无法读取</string>
+    <string name="reader_open">打开阅读模式</string>
+    <string name="reader_title">阅读模式</string>
+    <string name="reader_contents">笔记目录</string>
+    <string name="reader_edit">编辑当前笔记</string>
+    <string name="reader_previous">上一页</string>
+    <string name="reader_next">下一页</string>
+    <string name="reader_progress">%1$d / %2$d 页 · %3$d%%</string>
+    <string name="reader_empty">没有可阅读的笔记</string>
+    <string name="reader_empty_description">笔记已移走或进入回收站，请返回后重新选择。</string>
 </resources>

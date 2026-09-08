@@ -9,6 +9,11 @@ sealed interface NotesRoute {
         val notebookId: String,
     ) : NotesRoute
 
+    data class Reader(
+        val notebookId: String? = null,
+        val noteId: String? = null,
+    ) : NotesRoute
+
     data class Editor(
         val noteId: String,
     ) : NotesRoute
@@ -76,8 +81,13 @@ data class XNoteNavigationState(
         isSearchOpen = false,
         isRecycleBinOpen = false,
         isAppearanceOpen = false,
-        notesStack = notesStack.filterNot { it is NotesRoute.Editor } + NotesRoute.Editor(noteId),
+        notesStack = (if (notesRoute is NotesRoute.Editor) notesStack.dropLast(1) else notesStack) + NotesRoute.Editor(noteId),
     )
+
+    fun openReader(notebookId: String? = null, noteId: String? = null): XNoteNavigationState {
+        require((notebookId == null) != (noteId == null))
+        return copy(notesStack = notesStack + NotesRoute.Reader(notebookId, noteId))
+    }
 
     fun popNotes(): XNoteNavigationState {
         if (notesStack.isEmpty()) return this
@@ -93,6 +103,7 @@ fun encodeNotesStack(stack: List<NotesRoute>): String {
             NotesRoute.Home -> "home"
             is NotesRoute.Notebook -> "notebook:${route.notebookId}"
             is NotesRoute.Editor -> "editor:${route.noteId}"
+            is NotesRoute.Reader -> if (route.notebookId != null) "read-notebook:${route.notebookId}" else "read-note:${route.noteId}"
         }
     }
 }
@@ -103,6 +114,8 @@ fun decodeNotesStack(raw: String): List<NotesRoute> {
         when {
             token.isBlank() || token == "home" -> null
             token.startsWith("notebook:") -> NotesRoute.Notebook(token.removePrefix("notebook:"))
+            token.startsWith("read-notebook:") -> NotesRoute.Reader(notebookId = token.removePrefix("read-notebook:"))
+            token.startsWith("read-note:") -> NotesRoute.Reader(noteId = token.removePrefix("read-note:"))
             token.startsWith("editor:") -> NotesRoute.Editor(token.removePrefix("editor:"))
             else -> null
         }

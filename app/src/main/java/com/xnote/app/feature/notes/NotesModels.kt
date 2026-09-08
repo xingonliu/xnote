@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.xnote.app.domain.model.Note
+import com.xnote.app.domain.model.noteComparator
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.NotebookStats
@@ -87,14 +88,7 @@ fun notesMatching(notes: List<Note>, scope: NotesScope): List<Note> = when (scop
     is NotesScope.Notebook -> notes.filter { it.notebookId == scope.id }
 }
 
-fun sortNotes(notes: List<Note>, sort: NoteListSort): List<Note> = notes.sortedWith(
-    when (sort) {
-        NoteListSort.UpdatedAt -> compareByDescending(Note::updatedAtEpochMs)
-        NoteListSort.CreatedAt -> compareByDescending(Note::createdAtEpochMs)
-        NoteListSort.Title -> compareBy { it.title.lowercase() }
-        NoteListSort.Manual -> compareBy(Note::sortIndex)
-    },
-)
+fun sortNotes(notes: List<Note>, sort: NoteListSort): List<Note> = notes.sortedWith(noteComparator(sort))
 
 fun notebookStatsFrom(notes: List<Note>): Map<String, NotebookStats> {
     return notes

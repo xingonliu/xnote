@@ -86,6 +86,7 @@ fun BoxScope.NotesChrome(
     onOpenNotebook: (String) -> Unit,
     onCreateNote: (notebookId: String?) -> Unit,
     onPop: () -> Unit,
+    onOpenReader: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -103,7 +104,7 @@ fun BoxScope.NotesChrome(
     }
 
     when (route) {
-        NotesRoute.Home -> Unit
+        NotesRoute.Home, is NotesRoute.Reader -> Unit
         is NotesRoute.Notebook -> {
             XNoteHeader(
                 title = currentNotebook?.name.orEmpty(),
@@ -162,7 +163,7 @@ fun BoxScope.NotesChrome(
                             NotesScope.All, NotesScope.Unfiled -> null
                             is NotesScope.Notebook -> current.id
                         }
-                        is NotesRoute.Editor -> null
+                        is NotesRoute.Editor, is NotesRoute.Reader -> null
                     }
                     onCreateNote(notebookId)
                 },
@@ -360,6 +361,11 @@ fun BoxScope.NotesChrome(
     val moreItems = when (route) {
         is NotesRoute.Notebook -> listOf(
             XNoteDropdownMenuItem(
+                label = stringResource(R.string.reader_open),
+                enabled = (notebookStats[route.notebookId]?.noteCount ?: 0) > 0,
+                onClick = onOpenReader,
+            ),
+            XNoteDropdownMenuItem(
                 label = stringResource(R.string.action_rename),
                 onClick = {
                     ui.renameDraft = currentNotebook?.name.orEmpty()
@@ -373,6 +379,13 @@ fun BoxScope.NotesChrome(
             ),
         )
         is NotesRoute.Editor -> buildList {
+            add(XNoteDropdownMenuItem(
+                label = stringResource(R.string.reader_open),
+                onClick = {
+                    dismissEditorInput()
+                    onOpenReader()
+                },
+            ))
             add(
                 XNoteDropdownMenuItem(
                     label = stringResource(R.string.editor_note_background),
@@ -402,7 +415,7 @@ fun BoxScope.NotesChrome(
                 ),
             )
         }
-        NotesRoute.Home -> emptyList()
+        NotesRoute.Home, is NotesRoute.Reader -> emptyList()
     }
     XNoteDropdownMenu(
         expanded = ui.moreVisible,

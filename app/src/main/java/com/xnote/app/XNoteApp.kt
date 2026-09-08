@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -103,6 +104,8 @@ import com.xnote.app.feature.notes.NotebookDetailScreen
 import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
 import com.xnote.app.feature.notes.decodeNotesScope
 import com.xnote.app.feature.notes.encodeNotesScope
+import com.xnote.app.feature.reader.ReaderScreen
+import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.notebookStatsFrom
@@ -143,6 +146,7 @@ fun XNoteApp(
     var notebookSortName by rememberSaveable { mutableStateOf(NoteListSort.Manual.name) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchNotebookId by rememberSaveable { mutableStateOf<String?>(null) }
+    val readerStateHolder = rememberSaveableStateHolder()
     val uiState = remember { NotesUiState() }
     val recycleBinUiState = remember { RecycleBinUiState() }
     val navigationState = remember(
@@ -322,6 +326,22 @@ fun XNoteApp(
             }
             else -> popNotes()
         }
+    }
+
+    val readerRoute = navigationState.notesRoute as? NotesRoute.Reader
+    if (readerRoute != null && navigationState.destination == AppDestination.Notes) {
+        readerStateHolder.SaveableStateProvider(encodeNotesStack(navigationState.notesStack)) {
+            ReaderScreen(
+                route = readerRoute,
+                activeNotes = activeNotes,
+                sort = uiState.notebookSort,
+                library = noteLibrary,
+                defaultBackground = defaultBackground,
+                onBack = ::popNotes,
+                onEdit = { updateNavigationState(navigationState.openEditor(it)) },
+            )
+        }
+        return
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -549,6 +569,22 @@ fun XNoteApp(
                         onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
                         onCreateNote = ::createNote,
                         onPop = ::popNotes,
+                        onOpenReader = {
+                            uiState.moreVisible = false
+                            uiState.selectedIds = emptySet()
+                            appScope.launch {
+                                editorSession?.flushSave()
+                                if (editorSession?.saveStatus != EditorSaveStatus.Error) {
+                                    val nextState = when (val route = navigationState.notesRoute) {
+                                        is NotesRoute.Notebook -> navigationState.openReader(notebookId = route.notebookId)
+                                        is NotesRoute.Editor -> navigationState.openReader(noteId = route.noteId)
+                                        else -> navigationState
+                                    }
+                                    readerStateHolder.removeState(encodeNotesStack(nextState.notesStack))
+                                    updateNavigationState(nextState)
+                                }
+                            }
+                        },
                     )
                 }
 
@@ -684,6 +720,7 @@ private fun DestinationContent(
 
     when (navigationState.destination) {
         AppDestination.Notes -> when (val route = navigationState.notesRoute) {
+            is NotesRoute.Reader -> Unit
             NotesRoute.Home -> NotesHomeScreen(
                 library = noteLibrary,
                 backdrop = backdrop,
