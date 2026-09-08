@@ -246,7 +246,7 @@ class NoteEditorSession(
                 if (selection.isTable) {
                     false
                 } else {
-                    mutate { it.insertTable(selection, newNoteId()) }
+                    mutate { it.insertTable(selection, newNoteId(), newNoteId()) }
                     focusBlockId = selection.blockId
                     fieldsEpoch += 1
                     true
@@ -310,6 +310,24 @@ class NoteEditorSession(
     fun deleteTable() {
         if (document.block(selection.blockId) !is TableBlock) return
         mutate { it.deleteBlock(selection.blockId, newNoteId()) }
+        focusBlockId = selection.blockId
+        fieldsEpoch += 1
+    }
+
+    fun continueAfterBlock(blockId: String) {
+        val index = document.blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val next = document.blocks.getOrNull(index + 1) as? TextBlock
+        if (next != null) {
+            select(EditorSelection(next.id))
+        } else {
+            val paragraph = TextBlock(newNoteId())
+            mutate { current ->
+                val blocks = current.blocks.toMutableList()
+                blocks.add(index + 1, paragraph)
+                EditorChange(current.copy(blocks = blocks), EditorSelection(paragraph.id))
+            }
+        }
         focusBlockId = selection.blockId
         fieldsEpoch += 1
     }

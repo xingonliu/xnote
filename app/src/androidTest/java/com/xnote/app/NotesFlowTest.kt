@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -71,6 +73,36 @@ class NotesFlowTest {
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(cleanupRule).around(composeRule)
+
+    @Test
+    fun existingTableAtDocumentEndAllowsTypingAfterItAndSaving() {
+        val note = runBlocking {
+            library.saveNote(library.createNote(null).copy(title = "编辑修复验收", document = NoteDocument(blocks = listOf(
+                TextBlock("before", inlines = listOf(InlineRun("表格前正文"))),
+                TextBlock("number", listMarker = com.xnote.app.domain.document.ListMarker.Numbered,
+                    inlines = listOf(InlineRun("编号第一行\n编号第二行"))),
+                TextBlock("check", listMarker = com.xnote.app.domain.document.ListMarker.Checklist,
+                    inlines = listOf(InlineRun("清单第一行\n清单第二行"))),
+                com.xnote.app.domain.document.emptyTableBlock("table"),
+            ))))
+        }
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithText("编辑修复验收").performClick()
+        composeRule.onNodeWithTag("xnote-editor-continue-after-table").performScrollTo().assertIsDisplayed()
+        val screenshot = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        File(context.getExternalFilesDir(null), "editor-fixes.png").outputStream().use {
+            screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithTag("xnote-editor-continue-after-table").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNode(androidx.compose.ui.test.isFocused()).performTextInput("表格后继续输入")
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty() }
+        val saved = runBlocking { requireNotNull(library.getNote(note.id)).document }
+        assertEquals("表格后继续输入", (saved.blocks.last() as TextBlock).inlines.joinToString("") { it.text })
+        composeRule.onNodeWithText("编辑修复验收").performClick()
+        composeRule.onNodeWithText("表格后继续输入").performScrollTo().assertIsDisplayed()
+    }
 
     @Test
     fun imageSourceDrawerAndImageOperationsWorkInEditor() {
@@ -266,6 +298,7 @@ class NotesFlowTest {
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("单元格").fetchSemanticsNodes().size == 6
         }
+        composeRule.onAllNodes(hasSetTextAction()).onLast().performScrollTo().performClick().performTextInput("表格后的正文")
         composeRule.onNodeWithContentDescription("返回").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty()
@@ -274,6 +307,7 @@ class NotesFlowTest {
         val saved = requireNotNull(library.getNote(note.id))
         val text = requireNotNull(saved.document).blocks.filterIsInstance<TextBlock>().first()
         val table = saved.document.blocks.filterIsInstance<TableBlock>().single()
+        assertEquals("表格后的正文", (saved.document.blocks.last() as TextBlock).inlines.joinToString("") { it.text })
         assertEquals("plainbold", text.inlines.joinToString(separator = "") { it.text })
         assertEquals("plain", text.inlines.first().text)
         assertEquals("bold", text.inlines.last().text)

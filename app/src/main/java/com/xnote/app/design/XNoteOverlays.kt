@@ -1,6 +1,8 @@
 package com.xnote.app.design
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -56,9 +58,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -71,7 +74,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -359,6 +361,7 @@ fun BoxScope.XNotePopup(
     val maxPopupWidth = with(density) { 360.dp.roundToPx() }
     val maxPopupHeight = with(density) { 480.dp.roundToPx() }
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
+    var transformOrigin by remember { mutableStateOf(popupTransformOrigin(placement)) }
 
     AnimatedVisibility(
         visible = visible,
@@ -366,6 +369,23 @@ fun BoxScope.XNotePopup(
         enter = EnterTransition.None,
         exit = ExitTransition.None,
     ) {
+        val progress = transition.animateFloat(
+            transitionSpec = {
+                if (settings.reduceMotion) tween(0)
+                else if (targetState == EnterExitState.Visible) spring(
+                    dampingRatio = XNotePopupSpringDampingRatio,
+                    stiffness = XNotePopupSpringStiffness,
+                ) else tween(XNotePopupExitDurationMillis, easing = FastOutLinearInEasing)
+            },
+            label = "PopupExpansion",
+        ) { if (it == EnterExitState.Visible) 1f else 0f }
+        val opacity = transition.animateFloat(
+            transitionSpec = {
+                tween(if (settings.reduceMotion) 0 else if (targetState == EnterExitState.Visible)
+                    XNotePopupFadeInDurationMillis else XNotePopupExitDurationMillis)
+            },
+            label = "PopupOpacity",
+        ) { if (it == EnterExitState.Visible) 1f else 0f }
         Box(modifier = Modifier.fillMaxSize()) {
             XNoteDismissLayer(onDismissRequest = onDismissRequest)
             Layout(
@@ -377,10 +397,15 @@ fun BoxScope.XNotePopup(
                         backdrop = backdrop,
                         shape = shape,
                         modifier = modifier
-                            .animateEnterExit(
-                                enter = xNotePopupEnter(settings.reduceMotion, placement),
-                                exit = xNotePopupExit(settings.reduceMotion, placement),
-                            )
+                            .graphicsLayer {
+                                val initialX = XNotePopupInitialScale
+                                val initialY = XNotePopupInitialScaleY
+                                scaleX = initialX + (1f - initialX) * progress.value
+                                scaleY = initialY + (1f - initialY) * progress.value
+                                alpha = opacity.value
+                                this.transformOrigin = transformOrigin
+                                compositingStrategy = CompositingStrategy.ModulateAlpha
+                            }
                             .heightIn(max = 480.dp)
                             .xNoteOverlayInputBarrier(),
                     ) {
@@ -418,6 +443,10 @@ fun BoxScope.XNotePopup(
                     safeInsets = safeInsets,
                     popupGap = popupGap,
                     edgePadding = edgePadding,
+                )
+                transformOrigin = calculatePopupTransformOrigin(
+                    anchor?.boundsInRoot?.translate(-hostOrigin), popupOffset,
+                    popup.width, popup.height, placement,
                 )
                 layout(constraints.maxWidth, constraints.maxHeight) {
                     popup.place(popupOffset.x, popupOffset.y)
@@ -597,16 +626,12 @@ private fun RowScope.XNoteDialogButton(
     surfaceColor: Color,
 ) {
     LiquidButton(
-        onClick = { if (action.enabled) action.onClick() },
+        onClick = action.onClick,
         backdrop = backdrop,
-        isInteractive = action.enabled,
+        enabled = action.enabled,
         surfaceColor = surfaceColor,
         modifier = Modifier
-            .weight(1f)
-            .alpha(if (action.enabled) 1f else 0.64f)
-            .semantics {
-                if (!action.enabled) disabled()
-            },
+            .weight(1f),
     ) {
         Text(
             text = action.label,
@@ -706,45 +731,17 @@ private fun xNoteDrawerPanelExit(
     )
 }
 
-private fun xNotePopupEnter(
-    reduceMotion: Boolean,
+internal fun calculatePopupTransformOrigin(
+    anchorBounds: Rect?,
+    popupOffset: IntOffset,
+    popupWidth: Int,
+    popupHeight: Int,
     placement: XNotePopupPlacement,
-): EnterTransition = if (reduceMotion) {
-    EnterTransition.None
-} else {
-    fadeIn(
-        animationSpec = tween(
-            durationMillis = XNoteShortAnimationDurationMillis,
-            easing = FastOutSlowInEasing,
-        ),
-    ) + scaleIn(
-        animationSpec = spring(
-            dampingRatio = XNotePopupSpringDampingRatio,
-            stiffness = XNotePopupSpringStiffness,
-        ),
-        initialScale = XNotePopupInitialScale,
-        transformOrigin = popupTransformOrigin(placement),
-    )
-}
-
-private fun xNotePopupExit(
-    reduceMotion: Boolean,
-    placement: XNotePopupPlacement,
-): ExitTransition = if (reduceMotion) {
-    ExitTransition.None
-} else {
-    fadeOut(
-        animationSpec = tween(
-            durationMillis = XNotePopupExitDurationMillis,
-            easing = FastOutLinearInEasing,
-        ),
-    ) + scaleOut(
-        animationSpec = tween(
-            durationMillis = XNotePopupExitDurationMillis,
-            easing = FastOutLinearInEasing,
-        ),
-        targetScale = XNotePopupExitTargetScale,
-        transformOrigin = popupTransformOrigin(placement),
+): TransformOrigin {
+    if (anchorBounds == null || popupWidth == 0 || popupHeight == 0) return popupTransformOrigin(placement)
+    return TransformOrigin(
+        ((anchorBounds.center.x - popupOffset.x) / popupWidth).coerceIn(0f, 1f),
+        ((anchorBounds.center.y - popupOffset.y) / popupHeight).coerceIn(0f, 1f),
     )
 }
 

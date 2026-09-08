@@ -123,13 +123,23 @@ class NoteDocumentEditingTest {
     @Test
     fun insertTableAddsATwoByTwoGridAfterTheCurrentBlock() {
         val document = document(text("t1", "上文"))
-        val change = document.insertTable(EditorSelection("t1"), "table")
-        assertEquals(2, change.document.blocks.size)
+        val change = document.insertTable(EditorSelection("t1"), "table", "after")
+        assertEquals(3, change.document.blocks.size)
+        assertEquals(emptyBodyBlock("after"), change.document.blocks.last())
         val table = change.document.block("table") as TableBlock
         assertEquals(2, table.rows.size)
         assertEquals(2, table.columnCount())
         assertEquals("table", change.selection.blockId)
         assertEquals(0, change.selection.tableRow)
+    }
+
+    @Test
+    fun insertedTableReusesFollowingParagraphAndCanContinueTyping() {
+        val original = document(text("before", "上文"), text("after", "下文"))
+        val change = original.insertTable(EditorSelection("before"), "table", "unused")
+        assertEquals(listOf("before", "table", "after"), change.document.blocks.map { it.id })
+        val typed = change.document.replaceSelectedText(EditorSelection("after"), "续写", InlineMarks())
+        assertEquals("续写下文", (typed.document.block("after") as TextBlock).inlines.plainText())
     }
 
     @Test

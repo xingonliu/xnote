@@ -116,7 +116,7 @@ Header 在顶部安全区之后保留 15 dp 留白，40 dp 圆形按钮位于留
 
 Markdown 只作为格式工具栏命令的输入快捷方式，不创建独立编辑模式、预览模式或 Header 状态。快捷输入触发后在当前光标位置直接呈现结构化格式，不持续显示语法标记；第一次撤销恢复原始字符。应用不为每次成功识别弹出 Toast，首次使用说明和开关解释统一放在“外观、辅助功能与编辑”设置中。
 
-编辑页从 Header、更多菜单或格式工具栏打开阻断式 Dialog、Drawer 或表单时，必须先清除正文焦点并收起输入法，使浮层使用完整安全区；浮层打开后一次系统返回只关闭当前浮层，不能先被残留输入法消费。插入表格或改变表格结构后，格式工具栏的选择态与输入焦点必须切换到当前有效单元格或回退正文块，不能继续指向插入前的正文。
+编辑页从 Header、更多菜单或格式工具栏打开阻断式 Dialog、Drawer 或表单时，必须先清除正文焦点并收起输入法，使浮层使用完整安全区；浮层打开后一次系统返回只关闭当前浮层，不能先被残留输入法消费。插入表格后必须保留可点击输入的后续正文块；既有文档若以表格结尾或后面紧接非正文块，表格下方提供空白续写区域，点击后创建正文并聚焦，支持自动保存和撤销重做。列表数字、圆点、短横线与正文首行基线对齐，复选框对齐首行行框中心，保留点击区域并适配多行及字体缩放。插入表格或改变表格结构后，格式工具栏的选择态与输入焦点必须切换到当前有效单元格或回退正文块，不能继续指向插入前的正文。
 
 ### 4.4 页面标题与右侧功能
 
@@ -235,7 +235,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
 - `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆；页面不得传入其他高度、形状、内容内边距或高光参数。
-- Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 16 dp 平滑圆角（`XNoteSmoothCornerShape(16.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
+- 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
+- Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
 - 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
@@ -288,7 +289,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ### 7.2 组件与实现约束
 
-- Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。直接复用的 AndroidLiquidGlass Dialog 使用官方 `RoundedRectangle(48.dp)`；Popup 与 DropdownMenu 使用 16 dp 的 `XNoteSmoothCornerShape`，与系统卡片保持一致连续曲率。
+- Android 统一使用 `XNoteSmoothCornerShape`，默认 `smoothing` 固定为 `0.60`；业务组件只选择语义化半径令牌，不能覆盖平滑度。直接复用的 AndroidLiquidGlass Dialog 使用官方 `RoundedRectangle(48.dp)`；Popup 与 DropdownMenu 使用 24 dp 的 `XNoteSmoothCornerShape`，与系统卡片保持一致连续曲率。
 - 禁止业务页面直接使用普通 `RoundedCornerShape`、局部 Bézier Path 或各自实现的 superellipse。
 - 背景填充、内容裁剪、描边、阴影、Liquid Glass 背景采样、按压反馈和焦点轮廓必须复用同一个 Shape Path，不能出现边缘错位。
 - 圆角半径由组件尺寸令牌决定；调整半径时仍保持 60% 平滑度，禁止通过改变平滑度模拟不同层级。
@@ -324,7 +325,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteErrorState`        | 错误原因、重试和恢复入口                             | 只显示错误码                   |
 | `XNoteRichTextToolbar`   | 笔记段落样式、行内样式、清单、对齐、表格与折叠       | 页面私有格式栏或直接改文档模型 |
 
-Popup 与 DropdownMenu 必须在同一 Compose Host 内按触发控件的真实边界定位：默认保留 8 dp 间距，优先在指定方向出现，空间不足时在锚点另一侧翻转，并始终限制在系统安全区内。DropdownMenu 宽度由最长菜单项的单行内容和内边距决定，最大 360 dp，不得填满可用宽度或强制固定最小宽度。面板采用靠齐 iOS 质感的锚点动画：展开时使用带微弱超弹的 Spring（阻尼比 0.82、StiffnessMediumLow、起始比例 0.72）配合 180 ms 快速淡入，退出时使用 160 ms / 目标比例 0.88 的无回弹收缩与淡出，启用“减少动画”时直接显隐；全屏关闭层不参与该动画。
+Popup 与 DropdownMenu 必须在同一 Compose Host 内按触发控件的真实边界定位：默认保留 8 dp 间距，优先在指定方向出现，空间不足时在锚点另一侧翻转，并始终限制在系统安全区内。DropdownMenu 宽度由最长菜单项的单行内容和内边距决定，最大 360 dp，不得填满可用宽度或强制固定最小宽度。面板采用锚点展开动画：展开 Spring 阻尼比 0.86、刚度 1000，横向/纵向起始比例分别为 0.82/0.64，配合 80 ms 淡入；退出以 110 ms 收缩并淡出。缩放原点由触发按钮中心和最终面板位置共同计算，安全区翻转和边缘避让后仍指向触发控件。缩放与透明度在绘制层执行，支持中途反向，启用“减少动画”时直接显隐；全屏关闭层不参与该动画。菜单圆角统一为 24 dp。参数为 Android 实现调校值，参考 [Apple Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/) 的来源连续性和 [WWDC26 菜单说明](https://developer.apple.com/videos/play/wwdc2026/278/)，不作为苹果系统内部参数。
 
 Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1，面板同时从底部滑入；侧边形态的遮罩同样独立淡入，面板从末端滑入。遮罩不得随面板位移。点击遮罩或系统返回均可关闭。启用“减少动画”时遮罩与面板直接显隐。
 

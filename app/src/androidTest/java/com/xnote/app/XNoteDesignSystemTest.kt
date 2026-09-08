@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -270,6 +272,45 @@ class XNoteDesignSystemTest {
         assertTrue(
             composeRule.onAllNodesWithText("选择笔记本").fetchSemanticsNodes().isEmpty(),
         )
+    }
+
+    @Test
+    fun dropdownCanReverseDuringAnimationAndDismissPromptly() {
+        var expanded by mutableStateOf(false)
+        composeRule.setContent {
+            XNoteTheme(reduceMotion = false) {
+                val backdrop = rememberLayerBackdrop()
+                val anchor = rememberXNotePopupAnchor()
+                XNotePageScaffold(backdrop = backdrop, content = {}, overlay = {
+                    Box(Modifier.align(Alignment.Center).size(40.dp).xNotePopupAnchor(anchor))
+                    XNoteDropdownMenu(
+                        expanded = expanded, onDismissRequest = { expanded = false },
+                        items = listOf(XNoteDropdownMenuItem("菜单动画验收", onClick = {})),
+                        backdrop = backdrop, anchor = anchor,
+                        modifier = Modifier.testTag("animated-menu"),
+                    )
+                })
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.runOnUiThread { expanded = true }
+        composeRule.mainClock.advanceTimeBy(120)
+        composeRule.onNodeWithText("菜单动画验收").assertIsDisplayed()
+        composeRule.runOnUiThread { expanded = false }
+        composeRule.mainClock.advanceTimeBy(32)
+        composeRule.runOnUiThread { expanded = true }
+        composeRule.mainClock.advanceTimeBy(500)
+        composeRule.onNodeWithText("菜单动画验收").assertIsDisplayed()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        java.io.File(context.getExternalFilesDir(null), "dropdown-fixes.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap()
+                .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.runOnUiThread { expanded = false }
+        composeRule.mainClock.advanceTimeBy(160)
+        composeRule.onNodeWithTag("animated-menu").assertDoesNotExist()
+        composeRule.mainClock.autoAdvance = true
     }
 
     @Test

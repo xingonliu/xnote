@@ -307,6 +307,7 @@ fun NoteDocument.setLink(
 fun NoteDocument.insertTable(
     selection: EditorSelection,
     tableId: String,
+    followingTextId: String,
     firstCellSelection: EditorSelection = EditorSelection(
         blockId = tableId,
         tableRow = 0,
@@ -320,6 +321,10 @@ fun NoteDocument.insertTable(
         updated += table
     } else {
         updated.add(index + 1, table)
+    }
+    val tableIndex = updated.indexOfFirst { it.id == tableId }
+    if (updated.getOrNull(tableIndex + 1) !is TextBlock) {
+        updated.add(tableIndex + 1, emptyBodyBlock(followingTextId))
     }
     return EditorChange(copy(blocks = updated), firstCellSelection)
 }

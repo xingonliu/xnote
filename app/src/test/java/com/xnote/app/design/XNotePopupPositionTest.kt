@@ -12,6 +12,16 @@ class XNotePopupPositionTest {
     private val noInsets = XNotePopupSafeInsets(0, 0, 0, 0)
 
     @Test
+    fun animationOriginFollowsFlippedAndClampedPopup() {
+        val anchor = Rect(350f, 580f, 390f, 620f)
+        val above = calculatePopupTransformOrigin(anchor, IntOffset(136, 332), 240, 240, XNotePopupPlacement.BelowEnd)
+        assertEquals(0.975f, above.pivotFractionX, 0.001f)
+        assertEquals(1f, above.pivotFractionY, 0.001f)
+        val below = calculatePopupTransformOrigin(anchor, IntOffset(136, 628), 240, 240, XNotePopupPlacement.AboveEnd)
+        assertEquals(0f, below.pivotFractionY, 0.001f)
+    }
+
+    @Test
     fun placesPopupBelowAndEndAlignedToAnchor() {
         val offset = calculatePopupOffset(
             hostWidth = 1_000,

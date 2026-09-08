@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +30,8 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -139,6 +141,17 @@ fun NoteEditorScreen(
                             .take(index)
                             .none { it is TextBlock },
                     )
+                    if (block is TableBlock &&
+                        session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1) !is TextBlock
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(XNoteMinimumTouchTarget)
+                                .testTag("xnote-editor-continue-after-table")
+                                .clickable { session.continueAfterBlock(block.id) },
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -216,6 +229,11 @@ private fun TextBlockEditor(
     val style = block.paragraphStyle.toTextStyle()
     val heading = block.paragraphStyle == ParagraphStyle.Heading ||
         block.paragraphStyle == ParagraphStyle.Subheading
+    val firstLineHeight = with(LocalDensity.current) { style.lineHeight.toDp() }
+    val markerHeight = firstLineHeight.coerceAtLeast(XNoteMinimumTouchTarget)
+    val fieldTopPadding = if (heading || block.listMarker == ListMarker.Checklist) {
+        (markerHeight - firstLineHeight) / 2
+    } else 0.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -239,7 +257,7 @@ private fun TextBlockEditor(
         if (heading) {
             Box(
                 modifier = Modifier
-                    .size(XNoteMinimumTouchTarget)
+                    .size(width = XNoteMinimumTouchTarget, height = markerHeight)
                     .clickable {
                         session.select(EditorSelection(block.id))
                         session.applyAction(com.xnote.app.design.XNoteRichTextAction.ToggleHeadingCollapse)
@@ -269,13 +287,13 @@ private fun TextBlockEditor(
         }
         when (block.listMarker) {
             ListMarker.None -> Unit
-            ListMarker.Bullet -> MarkerText("•")
-            ListMarker.Dash -> MarkerText("–")
-            ListMarker.Numbered -> MarkerText("${numberedLabel ?: 1}.")
+            ListMarker.Bullet -> MarkerText("•", style)
+            ListMarker.Dash -> MarkerText("–", style)
+            ListMarker.Numbered -> MarkerText("${numberedLabel ?: 1}.", style)
             ListMarker.Checklist -> {
                 Box(
                     modifier = Modifier
-                        .size(XNoteMinimumTouchTarget)
+                        .size(width = XNoteMinimumTouchTarget, height = markerHeight)
                         .clickable {
                             session.select(EditorSelection(block.id))
                             session.toggleChecked()
@@ -329,8 +347,8 @@ private fun TextBlockEditor(
             } else {
                 null
             },
-            fieldTestTag = if (isFirstTextBlock) "xnote-editor-body" else null,
-            modifier = Modifier.weight(1f),
+            fieldTestTag = if (isFirstTextBlock) "xnote-editor-body" else "xnote-editor-text-${block.id}",
+            modifier = Modifier.weight(1f).alignByBaseline().padding(top = fieldTopPadding),
         )
     }
 }
@@ -438,14 +456,14 @@ private fun TableBlockEditor(
 }
 
 @Composable
-private fun MarkerText(label: String) {
+private fun RowScope.MarkerText(label: String, style: TextStyle) {
     Text(
         text = label,
-        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        style = style.copy(fontWeight = FontWeight.Medium),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
-            .width(28.dp)
-            .padding(top = 2.dp),
+            .widthIn(min = 28.dp)
+            .alignByBaseline(),
     )
 }
 

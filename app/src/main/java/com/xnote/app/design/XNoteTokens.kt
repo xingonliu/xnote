@@ -1,6 +1,5 @@
 package com.xnote.app.design
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -34,7 +33,7 @@ val XNoteRadiusSmall = 12.dp
 val XNoteRadiusMedium = 20.dp
 val XNoteRadiusLarge = 28.dp
 val XNoteCardRadius = 16.dp
-val XNotePopupRadius = 16.dp
+val XNotePopupRadius = 24.dp
 
 val XNoteDividerInsetStart = 16.dp
 
@@ -42,8 +41,9 @@ const val XNoteCornerSmoothing = 0.60f
 const val XNoteShortAnimationDurationMillis = 180
 const val XNoteOverlayScrimDurationMillis = 300
 
-const val XNotePopupSpringDampingRatio = 0.82f
-const val XNotePopupSpringStiffness = Spring.StiffnessMediumLow
-const val XNotePopupInitialScale = 0.72f
-const val XNotePopupExitDurationMillis = 160
-const val XNotePopupExitTargetScale = 0.88f
+const val XNotePopupSpringDampingRatio = 0.86f
+const val XNotePopupSpringStiffness = 1000f
+const val XNotePopupInitialScale = 0.82f
+const val XNotePopupInitialScaleY = 0.64f
+const val XNotePopupFadeInDurationMillis = 80
+const val XNotePopupExitDurationMillis = 110
