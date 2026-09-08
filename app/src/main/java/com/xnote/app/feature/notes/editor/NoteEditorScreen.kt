@@ -141,14 +141,21 @@ fun NoteEditorScreen(
                             .take(index)
                             .none { it is TextBlock },
                     )
-                    if (block is TableBlock &&
-                        session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1) !is TextBlock
-                    ) {
+                    val nextBlock = session.document.blocks.getOrNull(
+                        session.document.blocks.indexOf(block) + 1,
+                    )
+                    if (block !is TextBlock && nextBlock !is TextBlock) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(XNoteMinimumTouchTarget)
-                                .testTag("xnote-editor-continue-after-table")
+                                .testTag(
+                                    when (block) {
+                                        is TableBlock -> "xnote-editor-continue-after-table"
+                                        is ImageBlock -> "xnote-editor-continue-after-image"
+                                        else -> "xnote-editor-continue-after-${block.id}"
+                                    },
+                                )
                                 .clickable { session.continueAfterBlock(block.id) },
                         )
                     }
@@ -329,6 +336,7 @@ private fun TextBlockEditor(
                 if (session.selection.blockId != block.id || session.selection.isTable) {
                     session.select(EditorSelection(blockId = block.id))
                 }
+                session.focusBlockId = block.id
             },
             onTextChange = { oldText, newText, range, composing ->
                 session.onPlainTextChange(

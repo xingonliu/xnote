@@ -192,6 +192,36 @@ class NotesFlowTest {
     }
 
     @Test
+    fun existingImageAtDocumentEndAllowsTypingAfterItAndSaving() {
+        val note = runBlocking {
+            val source = File(context.cacheDir, "ui-image-tail-${System.nanoTime()}.png")
+            val bitmap = android.graphics.Bitmap.createBitmap(400, 300, android.graphics.Bitmap.Config.ARGB_8888)
+            bitmap.eraseColor(android.graphics.Color.rgb(120, 160, 200))
+            source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+            try {
+                val attachment = com.xnote.app.data.files.importNoteImage(context, library, android.net.Uri.fromFile(source), "ui-tail-test")
+                library.saveNote(library.createNote(null).copy(title = "图片末尾续写验收", document = NoteDocument(blocks = listOf(
+                    TextBlock("before", inlines = listOf(InlineRun("图片前正文"))),
+                    com.xnote.app.domain.document.ImageBlock("tail-photo", attachment.id),
+                ))))
+            } finally { source.delete() }
+        }
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithText("图片末尾续写验收").performClick()
+        composeRule.onNodeWithTag("xnote-editor-continue-after-image").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-editor-continue-after-image").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNode(androidx.compose.ui.test.isFocused()).performTextInput("图片后继续输入")
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty() }
+        val saved = runBlocking { requireNotNull(library.getNote(note.id)).document }
+        assertEquals("图片后继续输入", (saved.blocks.last() as TextBlock).inlines.joinToString("") { it.text })
+        composeRule.onNodeWithText("图片末尾续写验收").performClick()
+        composeRule.onNodeWithText("图片后继续输入").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun createNotePersistsTitleAndBodyAfterReturningHome() {
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
