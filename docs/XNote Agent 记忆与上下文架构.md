@@ -1,6 +1,6 @@
 # XNote Agent 记忆与上下文架构
 
-> 文档版本：v1.0
+> 文档版本：v1.1
 >
 > 文档状态：已确认方案，后续实现以本文为准
 >
@@ -338,7 +338,7 @@ summaryPromptVersion
 ```
 
 - `noteId + contentVersion` 指向明确事实源。
-- `plainText` 复用现有普通笔记与 Markdown 可见文本抽取。
+- `plainText` 统一从结构化 `NoteDocument` 抽取；Markdown 快捷输入在写入文档前已转换，不形成第二套事实源。
 - `semanticSummary` 与 UI 列表短摘要分开。
 - 索引可删除、重建，不承担笔记版本事实源职责。
 
