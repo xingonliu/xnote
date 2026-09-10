@@ -2,10 +2,16 @@ package com.xnote.app.design
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
+import com.xnote.app.domain.model.ReadingLayout
 
 // -- Constants
 
@@ -87,23 +93,46 @@ private val DarkColorScheme = darkColorScheme(
     surfaceContainerHighest = Color(0xFF38383A),
 )
 
-// -- Composables
+// -- State
+
+val LocalReadingLayout = staticCompositionLocalOf { ReadingLayout.Standard }
+
+// -- Functions
 
 @Composable
 fun XNoteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     reduceMotion: Boolean? = null,
     highContrast: Boolean = false,
+    fontScale: Float = 1f,
+    readingLayout: ReadingLayout = ReadingLayout.Standard,
     content: @Composable () -> Unit,
 ) {
-    XNoteInteractionSettingsProvider(
-        reduceMotion = reduceMotion,
-        highContrast = highContrast,
+    val density = LocalDensity.current
+    val baseColors = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colors = if (highContrast) baseColors.copy(
+        primary = if (darkTheme) Color(0xFFFFD60A) else Color(0xFF805600),
+        onBackground = if (darkTheme) Color.White else Color.Black,
+        onSurface = if (darkTheme) Color.White else Color.Black,
+        onSurfaceVariant = if (darkTheme) Color.White else Color.Black,
+        outline = if (darkTheme) Color.White else Color.Black,
+        outlineVariant = if (darkTheme) Color.LightGray else Color.DarkGray,
+        onPrimary = if (darkTheme) Color.Black else Color.White,
+    ) else baseColors
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, density.fontScale * fontScale),
+        LocalReadingLayout provides readingLayout,
+        LocalContentColor provides colors.onBackground,
     ) {
-        MaterialTheme(
-            colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
-            typography = XNoteTypography,
-            content = content,
-        )
+        XNoteInteractionSettingsProvider(
+            reduceMotion = reduceMotion,
+            highContrast = highContrast,
+        ) {
+            MaterialTheme(
+                colorScheme = colors,
+                typography = XNoteTypography,
+                content = content,
+            )
+        }
     }
 }

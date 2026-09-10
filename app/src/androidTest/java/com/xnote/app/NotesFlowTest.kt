@@ -432,7 +432,8 @@ class NotesFlowTest {
         }
 
         composeRule.onNodeWithText("我的").performClick()
-        composeRule.onNodeWithText("Markdown 快捷输入").assertIsDisplayed()
+        composeRule.onNodeWithText("外观、辅助功能与编辑").performClick()
+        composeRule.onNodeWithText("Markdown 快捷输入").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-markdown-shortcuts-switch").performClick()
         composeRule.waitUntil(5_000) {
             runBlocking { settings.settings.first().markdownShortcutsEnabled.not() }
@@ -533,7 +534,8 @@ class NotesFlowTest {
         }
 
         composeRule.onNodeWithText("我的").performClick()
-        composeRule.onNodeWithText("默认笔记背景").performClick()
+        composeRule.onNodeWithText("外观、辅助功能与编辑").performClick()
+        composeRule.onNodeWithText("方格纸").performScrollTo()
         composeRule.onNodeWithText("所有未设置专属背景的笔记").assertIsDisplayed()
         composeRule.onNodeWithText("方格纸").performClick()
 

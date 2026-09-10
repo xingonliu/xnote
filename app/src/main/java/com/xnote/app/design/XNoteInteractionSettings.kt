@@ -36,7 +36,7 @@ fun XNoteInteractionSettingsProvider(
     val systemReduceMotion = rememberSystemReduceMotion()
     val settings = remember(reduceMotion, systemReduceMotion, highContrast) {
         XNoteInteractionSettings(
-            reduceMotion = reduceMotion ?: systemReduceMotion,
+            reduceMotion = reduceMotion == true || systemReduceMotion,
             highContrast = highContrast,
         )
     }

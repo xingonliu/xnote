@@ -67,6 +67,7 @@ fun NoteCollectionScreen(
     onOpenSort: () -> Unit,
     sortMenuAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
+    openedNoteId: String? = null,
 ) {
     var notes by remember(library, notesScope) { mutableStateOf<List<Note>>(emptyList()) }
     var dragging by remember { mutableStateOf(false) }
@@ -170,7 +171,7 @@ fun NoteCollectionScreen(
                             note = note,
                             notebookName = if (notesScope is NotesScope.All) notebookName(notebooks, note.notebookId) else null,
                             untitledLabel = untitled,
-                            selected = note.id in selectedIds,
+                            selected = if (selectionMode) note.id in selectedIds else note.id == openedNoteId,
                             selectionMode = selectionMode,
                             onClick = {
                                 if (selectionMode) onToggleSelect(note.id) else onOpenNote(note.id)

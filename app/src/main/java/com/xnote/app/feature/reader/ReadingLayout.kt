@@ -49,10 +49,11 @@ fun measureReadingUnits(
     pageHeight: Float,
     density: Float,
     untitled: String,
+    lineHeightScale: Float = 1f,
 ): List<ReadingUnit<ReadingContent>> = buildList<ReadingUnit<ReadingContent>> {
     val gap = 8f * density
     fun measure(text: AnnotatedString, style: TextStyle, availableWidth: Float) = measurer.measure(
-        text, style.copy(color = colors.onBackground),
+        text, style.copy(color = colors.onBackground, lineHeight = style.lineHeight * lineHeightScale),
         constraints = Constraints.fixedWidth(availableWidth.toInt().coerceAtLeast(1)),
     )
     fun inline(runs: List<InlineRun>): AnnotatedString {

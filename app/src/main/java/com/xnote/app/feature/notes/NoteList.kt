@@ -2,6 +2,7 @@ package com.xnote.app.feature.notes
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ fun NoteListRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
             .semantics { this.selected = selected }
             .testTag("xnote-note-row")
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)

@@ -71,7 +71,8 @@ fun LiquidBottomTabs(
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val accentColor = MaterialTheme.colorScheme.primary
     val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
+        if (com.xnote.app.design.LocalXNoteInteractionSettings.current.highContrast) MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+        else if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
 
     val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)

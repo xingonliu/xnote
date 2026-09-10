@@ -28,7 +28,10 @@ fun XNoteLiquidGlassPanel(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
-    val containerColor = if (isLightTheme) {
+    val highContrast = LocalXNoteInteractionSettings.current.highContrast
+    val containerColor = if (highContrast) {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+    } else if (isLightTheme) {
         Color(0xFFFAFAFA).copy(alpha = 0.6f)
     } else {
         Color(0xFF121212).copy(alpha = 0.4f)

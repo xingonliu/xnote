@@ -130,7 +130,7 @@ class XNoteAppTest {
             }
             val first = composeRule.onNodeWithTag("xnote-notebook-${books[0].id}").fetchSemanticsNode().boundsInRoot
             val second = composeRule.onNodeWithTag("xnote-notebook-${books[1].id}").fetchSemanticsNode().boundsInRoot
-            if (mode == "large-text") assertTrue(second.top >= first.bottom)
+            if (mode == "large-text" || mode == "tablet") assertTrue(second.top >= first.bottom)
             else { assertEquals(first.top, second.top); assertTrue(second.left >= first.right) }
             File(context.getExternalFilesDir(null), "notebooks-$mode.png").outputStream().use {
                 composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
@@ -163,7 +163,7 @@ class XNoteAppTest {
         composeRule.onNodeWithText("我的").performClick()
 
         composeRule.onNodeWithText("回收站").assertIsDisplayed()
-        composeRule.onNodeWithText("Markdown 快捷输入").assertIsDisplayed()
+        composeRule.onNodeWithText("外观、辅助功能与编辑").assertIsDisplayed()
         composeRule.onNode(isSelected() and hasText("我的")).assertIsSelected()
     }
 
@@ -216,7 +216,7 @@ class XNoteAppTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("搜索").performClick()
+        composeRule.onNodeWithText("搜索").performClick()
 
         composeRule.onNodeWithTag("xnote-navigation-rail").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-search-field").assertIsDisplayed()

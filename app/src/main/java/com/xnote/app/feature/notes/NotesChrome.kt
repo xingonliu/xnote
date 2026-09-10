@@ -94,6 +94,7 @@ fun BoxScope.NotesChrome(
     onOpenReader: () -> Unit,
     onExport: () -> Unit,
     onSelectionBarHeightChanged: (Int) -> Unit,
+    showBack: Boolean = true,
 ) {
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -117,7 +118,7 @@ fun BoxScope.NotesChrome(
             XNoteHeader(
                 title = stringResource(if (route.collection == NoteCollection.All) R.string.notes_scope_all else R.string.notes_scope_unfiled),
                 backdrop = backdrop,
-                onBack = onPop,
+                onBack = if (showBack) onPop else null,
                 horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
@@ -126,7 +127,7 @@ fun BoxScope.NotesChrome(
             XNoteHeader(
                 title = currentNotebook?.name.orEmpty(),
                 backdrop = backdrop,
-                onBack = onPop,
+                onBack = if (showBack) onPop else null,
                 actions = listOf(
                     XNoteHeaderAction(
                         iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
@@ -147,7 +148,7 @@ fun BoxScope.NotesChrome(
                     ""
                 },
                 backdrop = backdrop,
-                onBack = onPop,
+                onBack = if (showBack) onPop else null,
                 actions = listOf(
                     XNoteHeaderAction(
                         iconRes = R.drawable.ic_keyline_stroke_square_pen,
@@ -200,7 +201,7 @@ fun BoxScope.NotesChrome(
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_plus),
                     contentDescription = stringResource(R.string.action_create_note),
-                    tint = Color.White,
+                    tint = LocalContentColor.current,
                     modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }
@@ -495,6 +496,8 @@ fun BoxScope.NotesChrome(
             onClick = {
                 scope.launch {
                     val ids = moveIds(route, ui, editorSession)
+                    editorSession?.flushSave()
+                    if (editorSession?.saveStatus == EditorSaveStatus.Error) return@launch
                     library.trashNotes(ids)
                     ui.selectedIds = emptySet()
                     ui.trashConfirmVisible = false
@@ -533,6 +536,8 @@ fun BoxScope.NotesChrome(
                 val id = currentNotebook?.id
                 if (id != null) {
                     scope.launch {
+                        editorSession?.flushSave()
+                        if (editorSession?.saveStatus == EditorSaveStatus.Error) return@launch
                         library.deleteNotebook(id)
                         ui.deleteNotebookVisible = false
                         onPop()

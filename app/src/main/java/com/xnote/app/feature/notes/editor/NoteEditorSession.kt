@@ -130,6 +130,8 @@ class NoteEditorSession(
         imageAnchors.getOrPut(id) { XNotePopupAnchor() }
 
     suspend fun load() {
+        // The same session can move between phone and tablet panes during a resize.
+        if (note != null || missing) return
         val loaded = library.getNote(noteId)
         if (loaded == null || loaded.isTrashed) {
             missing = true
@@ -146,6 +148,10 @@ class NoteEditorSession(
         focusBlockId = (first as? TextBlock)?.id
         editVersion = 0L
         savedVersion = 0L
+    }
+
+    fun refreshMetadata(saved: Note) {
+        if (note != null && saved.id == noteId) note = saved
     }
 
     suspend fun moveToNotebook(notebookId: String?) {
@@ -475,12 +481,7 @@ class NoteEditorSession(
             return
         }
         try {
-            val saved = library.saveNote(
-                current.copy(
-                    title = titleToSave,
-                    document = documentToSave,
-                ),
-            )
+            val saved = library.saveNoteContent(current.id, titleToSave, documentToSave)
             note = saved
             title = saved.title
             lastSavedTitle = saved.title

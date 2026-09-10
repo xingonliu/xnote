@@ -55,6 +55,7 @@ fun LiquidButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val interactionSettings = LocalXNoteInteractionSettings.current
+    val contrastSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
     val animationScope = rememberCoroutineScope()
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(animationScope = animationScope)
@@ -96,9 +97,10 @@ fun LiquidButton(
                     null
                 },
                 onDrawSurface = {
+                    if (interactionSettings.highContrast) drawRect(contrastSurface)
                     if (tint.isSpecified) {
                         drawRect(tint, blendMode = BlendMode.Hue)
-                        drawRect(tint.copy(alpha = 0.75f))
+                        drawRect(tint.copy(alpha = if (interactionSettings.highContrast) 1f else 0.75f))
                     }
                     if (surfaceColor.isSpecified) {
                         drawRect(surfaceColor)
@@ -126,7 +128,7 @@ fun LiquidButton(
         verticalAlignment = Alignment.CenterVertically,
         content = {
             CompositionLocalProvider(
-                LocalContentColor provides if (tint.isSpecified) Color.White else MaterialTheme.colorScheme.onSurface,
+                LocalContentColor provides if (tint.isSpecified) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             ) { content() }
         },
     )

@@ -9,6 +9,7 @@ import com.xnote.app.data.db.toDomain
 import com.xnote.app.data.db.toEntity
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.domain.document.emptyNoteDocument
+import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.referencedAttachmentIds
 import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
@@ -211,6 +212,17 @@ class NoteLibrary(
             } else {
                 indexForSearch(saved)
             }
+            saved
+        }
+    }
+
+    suspend fun saveNoteContent(noteId: String, title: String, document: NoteDocument): Note {
+        return write {
+            // Preserve metadata changed from another pane in the same database transaction.
+            val existing = notes.get(noteId)?.toDomain() ?: error("Note not found: $noteId")
+            val saved = existing.copy(title = title, document = document, updatedAtEpochMs = clock.nowMs()).withDerivedText()
+            notes.upsert(saved.toEntity())
+            if (saved.isTrashed) noteFts.deleteByNoteId(saved.id) else indexForSearch(saved)
             saved
         }
     }

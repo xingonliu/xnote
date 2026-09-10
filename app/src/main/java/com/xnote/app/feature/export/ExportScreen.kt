@@ -38,6 +38,8 @@ import java.util.UUID
 fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: BackgroundKey, onBack: () -> Unit) {
     // Freeze all visual inputs for the lifetime of this export, including theme and font scale.
     val initialDensity = LocalDensity.current
+    val currentReadingLayout = LocalReadingLayout.current
+    val readingLayout = remember { currentReadingLayout }
     val currentColors = MaterialTheme.colorScheme
     val currentTypography = MaterialTheme.typography
     val density = remember { initialDensity }
@@ -90,7 +92,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val insets = WindowInsets.safeDrawing.asPaddingValues()
             val horizontal = if (maxWidth >= 600.dp) 24.dp else XNoteSpacingMedium
-            val contentWidth = minOf(XNoteMaximumContentWidth, (maxWidth - horizontal * 2).coerceAtLeast(1.dp))
+            val contentWidth = minOf(readingLayout.widthDp.dp, (maxWidth - horizontal * 2).coerceAtLeast(1.dp))
             val margin = 16.dp
             val availableHeight = (maxHeight - insets.calculateTopPadding() - insets.calculateBottomPadding() - XNoteHeaderHeight - 180.dp).coerceAtLeast(120.dp)
             // Keep the reader's logical text width while bounding each raster to 2048 pixels per side.
@@ -106,7 +108,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                         val width = with(rasterDensity) { (pageWidth - margin * 2).roundToPx() }.coerceAtLeast(1)
                         val height = with(rasterDensity) { (pageHeight - margin * 2).toPx() }.coerceAtLeast(1f)
                         paginateReadingUnits(measureReadingUnits(listOf(note!!), attachments.orEmpty(), measurer,
-                            typography, colors, width, height, rasterDensity.density, untitled), height)
+                            typography, colors, width, height, rasterDensity.density, untitled, readingLayout.lineHeightScale), height)
                     }
                 }
                 val ready = pages.isNotEmpty() && completed == pages.size && !failure

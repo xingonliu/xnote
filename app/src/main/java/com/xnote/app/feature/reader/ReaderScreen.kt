@@ -40,6 +40,7 @@ fun ReaderScreen(
     val backdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 128)
+    val readingLayout = LocalReadingLayout.current
     val typography = MaterialTheme.typography
     val colors = MaterialTheme.colorScheme
     val untitled = stringResource(R.string.notes_untitled)
@@ -81,13 +82,13 @@ fun ReaderScreen(
             content = {
                 Box(Modifier.fillMaxSize().padding(top = top, bottom = bottom, start = horizontal, end = horizontal),
                     contentAlignment = Alignment.TopCenter) {
-                    BoxWithConstraints(Modifier.widthIn(max = XNoteMaximumContentWidth).fillMaxSize()) {
+                    BoxWithConstraints(Modifier.widthIn(max = readingLayout.widthDp.dp).fillMaxSize()) {
                         val width = constraints.maxWidth.coerceAtLeast(1)
                         val height = constraints.maxHeight.toFloat().coerceAtLeast(1f)
-                        val measuredPages = remember(notes, attachments, width, height, density, typography, colors, measurer, untitled) {
+                        val measuredPages = remember(notes, attachments, width, height, density, typography, colors, measurer, untitled, readingLayout) {
                             if (attachments == null) emptyList() else paginateReadingUnits(
                                 measureReadingUnits(notes, attachments.orEmpty(), measurer, typography, colors,
-                                    width, height, density.density, untitled), height)
+                                    width, height, density.density, untitled, readingLayout.lineHeightScale), height)
                         }
                         SideEffect { pages = measuredPages }
                         val displayedPage = measuredPages.getOrNull(readingPageIndex(measuredPages, anchorNote, anchorBlock, anchorOffset))

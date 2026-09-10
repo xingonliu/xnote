@@ -10,6 +10,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.xnote.app.domain.model.AppSettings
 import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.ThemeMode
+import com.xnote.app.domain.model.AppFontSize
+import com.xnote.app.domain.model.ReadingLayout
 import com.xnote.app.domain.model.defaultBackgroundKey
 import com.xnote.app.domain.model.encode
 import com.xnote.app.domain.model.parseBackgroundKey
@@ -25,6 +27,10 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 private val DefaultBackgroundKey = stringPreferencesKey("default_background_key")
 private val ThemeModeKey = stringPreferencesKey("theme_mode")
 private val MarkdownShortcutsKey = booleanPreferencesKey("markdown_shortcuts_enabled")
+private val ReduceMotionKey = booleanPreferencesKey("reduce_motion")
+private val HighContrastKey = booleanPreferencesKey("high_contrast")
+private val FontSizeKey = stringPreferencesKey("font_size")
+private val ReadingLayoutKey = stringPreferencesKey("reading_layout")
 
 // -- Type Definitions
 
@@ -49,11 +55,16 @@ class AppSettingsStore(
         }
     }
 
-    suspend fun setThemeMode(mode: ThemeMode) {
+    override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { preferences ->
             preferences[ThemeModeKey] = mode.storageValue()
         }
     }
+
+    override suspend fun setReduceMotion(enabled: Boolean) { dataStore.edit { it[ReduceMotionKey] = enabled } }
+    override suspend fun setHighContrast(enabled: Boolean) { dataStore.edit { it[HighContrastKey] = enabled } }
+    override suspend fun setFontSize(size: AppFontSize) { dataStore.edit { it[FontSizeKey] = size.name } }
+    override suspend fun setReadingLayout(layout: ReadingLayout) { dataStore.edit { it[ReadingLayoutKey] = layout.name } }
 }
 
 // -- Functions
@@ -64,6 +75,10 @@ private fun Preferences.toAppSettings(): AppSettings {
             ?: defaultBackgroundKey(),
         themeMode = this[ThemeModeKey].toThemeMode(),
         markdownShortcutsEnabled = this[MarkdownShortcutsKey] ?: true,
+        reduceMotion = this[ReduceMotionKey] ?: false,
+        highContrast = this[HighContrastKey] ?: false,
+        fontSize = AppFontSize.entries.firstOrNull { it.name == this[FontSizeKey] } ?: AppFontSize.Standard,
+        readingLayout = ReadingLayout.entries.firstOrNull { it.name == this[ReadingLayoutKey] } ?: ReadingLayout.Standard,
     )
 }
 

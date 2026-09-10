@@ -96,8 +96,10 @@ import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.defaultAppSettings
 import com.xnote.app.domain.model.resolveBackgroundKey
 import com.xnote.app.feature.PlaceholderScreen
-import com.xnote.app.feature.background.DefaultBackgroundScreen
+import com.xnote.app.feature.profile.AppearanceScreen
+import com.xnote.app.feature.profile.ProfileDetailScreen
 import com.xnote.app.feature.background.XNoteNoteSurface
+import com.xnote.app.feature.notes.TabletNotesWorkspace
 import com.xnote.app.feature.notes.NotesChrome
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.feature.notes.NotesScope
@@ -137,6 +139,8 @@ fun XNoteApp(
     searchHistory: SearchHistoryRepository = EmptySearchHistoryRepository,
     settings: AppSettingsRepository? = null,
 ) {
+    var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
+    var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
@@ -255,16 +259,35 @@ fun XNoteApp(
     }
 
     fun updateNavigationState(newState: XNoteNavigationState) {
-        if (newState.notesRoute != navigationState.notesRoute) {
-            uiState.selectedIds = emptySet()
-            uiState.sortMenuVisible = false
-            uiState.moreVisible = false
+        appScope.launch {
+            if (newState.notesRoute != navigationState.notesRoute || newState.destination != navigationState.destination ||
+                newState.isSearchOpen != navigationState.isSearchOpen) {
+                editorSession?.flushSave()
+                if (editorSession?.saveStatus == EditorSaveStatus.Error) {
+                    toastHostState.showSnackbar("保存失败，请重试后再切换")
+                    return@launch
+                }
+            }
+            if (newState.notesRoute != navigationState.notesRoute) {
+                uiState.selectedIds = emptySet()
+                uiState.sortMenuVisible = false
+                uiState.moreVisible = false
+            }
+            destinationName = newState.destination.name
+            isSearchOpen = newState.isSearchOpen
+            isRecycleBinOpen = newState.isRecycleBinOpen
+            isAppearanceOpen = newState.isAppearanceOpen
+            notesStackEncoded = encodeNotesStack(newState.notesStack)
         }
-        destinationName = newState.destination.name
-        isSearchOpen = newState.isSearchOpen
-        isRecycleBinOpen = newState.isRecycleBinOpen
-        isAppearanceOpen = newState.isAppearanceOpen
-        notesStackEncoded = encodeNotesStack(newState.notesStack)
+    }
+
+    LaunchedEffect(activeNotes, editorSession) {
+        activeNotes.firstOrNull { it.id == editorNoteId }?.let { editorSession?.refreshMetadata(it) }
+    }
+    LaunchedEffect(trashedNotes, editorNoteId) {
+        if (editorNoteId != null && trashedNotes.any { it.id == editorNoteId }) {
+            updateNavigationState(navigationState.popNotes())
+        }
     }
 
     fun createNote(notebookId: String?) {
@@ -294,7 +317,12 @@ fun XNoteApp(
     fun popNotes() {
         appScope.launch {
             editorSession?.flushSave()
-            updateNavigationState(navigationState.popNotes())
+            if (editorSession?.saveStatus == EditorSaveStatus.Error) return@launch
+            if (statisticsNoteId != null && (navigationState.notesRoute as? NotesRoute.Editor)?.noteId == statisticsNoteId) {
+                statisticsNoteId = null
+                profilePage = "统计"
+                updateNavigationState(navigationState.popNotes().openDestination(AppDestination.Profile))
+            } else updateNavigationState(navigationState.popNotes())
         }
     }
 
@@ -341,6 +369,15 @@ fun XNoteApp(
         }
     }
 
+    profilePage?.let { page ->
+        ProfileDetailScreen(page, activeNotes, notebooks, onBack = { profilePage = null }, onOpenNote = {
+            profilePage = null
+            statisticsNoteId = it
+            updateNavigationState(navigationState.openEditor(it))
+        })
+        return
+    }
+
     val exportRoute = navigationState.notesRoute as? NotesRoute.Export
     if (exportRoute != null && navigationState.destination == AppDestination.Notes) {
         ExportScreen(exportRoute.noteId, noteLibrary, defaultBackground, ::popNotes)
@@ -367,6 +404,30 @@ fun XNoteApp(
         val density = androidx.compose.ui.platform.LocalDensity.current
         var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
         val isTablet = maxWidth >= TabletBreakpoint
+        val usesWorkspace = maxWidth.value >= 840 * maxOf(1f, density.fontScale) &&
+            navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
+        if (usesWorkspace) {
+            TabletNotesWorkspace(
+                navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes,
+                ui = uiState, editorSession = editorSession, editorScroll = editorScrollState,
+                listState = notebookListState, searchListState = searchListState, background = editorBackground,
+                query = searchQuery, searchNotebookId = searchNotebookId, results = searchResults, recentQueries = recentQueries,
+                onQueryChange = { searchQuery = it }, onSearch = ::recordSearch, onSearchNotebook = { searchNotebookId = it },
+                onClearHistory = { appScope.launch { searchHistory.clear() } },
+                onSearchVisible = { open -> updateNavigationState(if (open) navigationState.openSearch() else navigationState.closeSearch()) },
+                onOpenNotebook = ::openNotebook, onOpenCollection = ::openCollection,
+                onOpenNote = { updateNavigationState(navigationState.openEditor(it).copy(isSearchOpen = navigationState.isSearchOpen)) },
+                onCreateNote = ::createNote, onBack = ::popNotes,
+                onReadNotebook = { id -> updateNavigationState(navigationState.openReader(notebookId = id)) },
+                onReadNote = { editorSession?.note?.let { updateNavigationState(navigationState.openReader(noteId = it.id)) } },
+                onExport = { editorSession?.note?.let { updateNavigationState(navigationState.openExport(it.id)) } },
+                navigationRail = { railBackdrop ->
+                    XNoteNavigationRail(navigationState.destination, { updateNavigationState(navigationState.openDestination(it)) },
+                        railBackdrop, Modifier.align(Alignment.CenterStart))
+                },
+            )
+            return@BoxWithConstraints
+        }
         val showsPrimaryChrome = navigationState.showsPrimaryChrome ||
             (isTablet && navigationState.isSearchOpen)
         val showsShellHeader = !navigationState.isRecycleBinOpen &&
@@ -485,7 +546,6 @@ fun XNoteApp(
                     notebookListState = notebookListState,
                     editorScrollState = editorScrollState,
                     editorSession = editorSession,
-                    defaultBackground = defaultBackground,
                     settings = settingsRepository,
                     appearanceScrollState = appearanceScrollState,
                     searchQuery = searchQuery,
@@ -505,13 +565,10 @@ fun XNoteApp(
                     onOpenRecycleBin = {
                         updateNavigationState(navigationState.openRecycleBin())
                     },
-                    onOpenBackgroundSettings = {
+                    onOpenAppearance = {
                         updateNavigationState(navigationState.openAppearance())
                     },
-                    markdownShortcutsEnabled = appSettings.markdownShortcutsEnabled,
-                    onMarkdownShortcutsEnabledChange = { enabled ->
-                        appScope.launch { settingsRepository.setMarkdownShortcutsEnabled(enabled) }
-                    },
+                    onOpenProfileDetail = { profilePage = it },
                 )
             },
             overlay = {
@@ -647,7 +704,7 @@ fun XNoteApp(
 
                 if (navigationState.isAppearanceOpen) {
                     XNoteHeader(
-                        title = stringResource(R.string.background_settings_title),
+                        title = stringResource(R.string.profile_appearance_section),
                         backdrop = backdrop,
                         onBack = {
                             updateNavigationState(navigationState.closeAppearance())
@@ -675,7 +732,6 @@ private fun DestinationContent(
     notebookListState: LazyListState,
     editorScrollState: ScrollState,
     editorSession: NoteEditorSession?,
-    defaultBackground: BackgroundKey,
     settings: AppSettingsRepository,
     appearanceScrollState: ScrollState,
     searchQuery: String,
@@ -693,22 +749,14 @@ private fun DestinationContent(
     onSearch: (String) -> Unit,
     onSearchNotebookSelected: (String?) -> Unit,
     onOpenRecycleBin: () -> Unit,
-    onOpenBackgroundSettings: () -> Unit,
-    markdownShortcutsEnabled: Boolean,
-    onMarkdownShortcutsEnabledChange: (Boolean) -> Unit,
+    onOpenAppearance: () -> Unit,
+    onOpenProfileDetail: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
 
     if (navigationState.isAppearanceOpen) {
-        DefaultBackgroundScreen(
-            selectedBackground = defaultBackground,
-            settings = settings,
-            backdrop = backdrop,
-            contentPadding = contentPadding,
-            scrollState = appearanceScrollState,
-            modifier = modifier,
-        )
+        AppearanceScreen(settings, backdrop, contentPadding, appearanceScrollState)
         return
     }
 
@@ -817,13 +865,12 @@ private fun DestinationContent(
         )
 
         AppDestination.Profile -> ProfileScreen(
+            onOpenDetail = onOpenProfileDetail,
             trashCount = trashedNotes.size,
-            markdownShortcutsEnabled = markdownShortcutsEnabled,
             contentPadding = contentPadding,
             listState = listState,
             onOpenRecycleBin = onOpenRecycleBin,
-            onOpenBackgroundSettings = onOpenBackgroundSettings,
-            onMarkdownShortcutsEnabledChange = onMarkdownShortcutsEnabledChange,
+            onOpenAppearance = onOpenAppearance,
             modifier = modifier,
         )
     }
