@@ -104,6 +104,7 @@ import com.xnote.app.feature.notes.NotesScope
 import com.xnote.app.feature.notes.NotesUiState
 import com.xnote.app.feature.notes.NoteCollectionScreen
 import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
+import com.xnote.app.feature.export.ExportScreen
 import com.xnote.app.feature.reader.ReaderScreen
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
@@ -338,6 +339,12 @@ fun XNoteApp(
             }
             else -> popNotes()
         }
+    }
+
+    val exportRoute = navigationState.notesRoute as? NotesRoute.Export
+    if (exportRoute != null && navigationState.destination == AppDestination.Notes) {
+        ExportScreen(exportRoute.noteId, noteLibrary, defaultBackground, ::popNotes)
+        return
     }
 
     val readerRoute = navigationState.notesRoute as? NotesRoute.Reader
@@ -595,6 +602,15 @@ fun XNoteApp(
                         onOpenNotebook = ::openNotebook,
                         onCreateNote = ::createNote,
                         onPop = ::popNotes,
+                        onExport = {
+                            uiState.moreVisible = false
+                            appScope.launch {
+                                editorSession?.flushSave()
+                                if (editorSession?.saveStatus != EditorSaveStatus.Error) {
+                                    editorSession?.note?.let { updateNavigationState(navigationState.openExport(it.id)) }
+                                }
+                            }
+                        },
                         onOpenReader = {
                             uiState.moreVisible = false
                             uiState.selectedIds = emptySet()
@@ -748,7 +764,7 @@ private fun DestinationContent(
 
     when (navigationState.destination) {
         AppDestination.Notes -> when (val route = navigationState.notesRoute) {
-            is NotesRoute.Reader -> Unit
+            is NotesRoute.Reader, is NotesRoute.Export -> Unit
             NotesRoute.Home -> NotesHomeScreen(
                 notes = activeNotes,
                 backdrop = backdrop,

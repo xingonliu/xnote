@@ -92,6 +92,7 @@ fun BoxScope.NotesChrome(
     onCreateNote: (notebookId: String?) -> Unit,
     onPop: () -> Unit,
     onOpenReader: () -> Unit,
+    onExport: () -> Unit,
     onSelectionBarHeightChanged: (Int) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -111,7 +112,7 @@ fun BoxScope.NotesChrome(
     }
 
     when (route) {
-        NotesRoute.Home, is NotesRoute.Reader -> Unit
+        NotesRoute.Home, is NotesRoute.Reader, is NotesRoute.Export -> Unit
         is NotesRoute.Collection -> {
             XNoteHeader(
                 title = stringResource(if (route.collection == NoteCollection.All) R.string.notes_scope_all else R.string.notes_scope_unfiled),
@@ -176,7 +177,7 @@ fun BoxScope.NotesChrome(
                     val notebookId = when (route) {
                         is NotesRoute.Notebook -> route.notebookId
                         NotesRoute.Home, is NotesRoute.Collection -> null
-                        is NotesRoute.Editor, is NotesRoute.Reader -> null
+                        is NotesRoute.Editor, is NotesRoute.Reader, is NotesRoute.Export -> null
                     }
                     onCreateNote(notebookId)
                 },
@@ -340,6 +341,11 @@ fun BoxScope.NotesChrome(
         )
         is NotesRoute.Editor -> buildList {
             add(XNoteDropdownMenuItem(
+                label = stringResource(R.string.export_open),
+                enabled = editorSession?.note != null && !imageUi.busy,
+                onClick = { dismissEditorInput(); onExport() },
+            ))
+            add(XNoteDropdownMenuItem(
                 label = stringResource(if (imageUi.busy) R.string.image_importing else R.string.image_add),
                 enabled = editorSession?.note != null && !imageUi.busy,
                 onClick = { imageUi.addRequested = true },
@@ -380,7 +386,7 @@ fun BoxScope.NotesChrome(
                 ),
             )
         }
-        NotesRoute.Home, is NotesRoute.Reader, is NotesRoute.Collection -> emptyList()
+        NotesRoute.Home, is NotesRoute.Reader, is NotesRoute.Export, is NotesRoute.Collection -> emptyList()
     }
     XNoteDropdownMenu(
         expanded = ui.moreVisible,

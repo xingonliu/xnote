@@ -32,7 +32,12 @@ import kotlinx.coroutines.CancellationException
 // -- Functions
 
 @Composable
-fun ReadingPageContent(page: ReadingPage<ReadingContent>, library: NoteLibrary, modifier: Modifier = Modifier) {
+fun ReadingPageContent(
+    page: ReadingPage<ReadingContent>,
+    library: NoteLibrary,
+    modifier: Modifier = Modifier,
+    loadedMedia: Map<String, ImageBitmap>? = null,
+) {
     val density = LocalDensity.current
     val uriHandler = LocalUriHandler.current
     val outline = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
@@ -42,7 +47,7 @@ fun ReadingPageContent(page: ReadingPage<ReadingContent>, library: NoteLibrary, 
             val content = unit.content
             val height = with(density) { unit.height.toDp() }
             if (content is ReadingContent.Media) {
-                ReadingMedia(content, library, Modifier.fillMaxWidth().height(height))
+                ReadingMedia(content, library, Modifier.fillMaxWidth().height(height), loadedMedia)
             } else {
                 val lines = when (content) {
                     is ReadingContent.TextLine -> listOf(content)
@@ -89,11 +94,12 @@ fun ReadingPageContent(page: ReadingPage<ReadingContent>, library: NoteLibrary, 
 }
 
 @Composable
-private fun ReadingMedia(media: ReadingContent.Media, library: NoteLibrary, modifier: Modifier) {
-    var bitmap by remember(media.attachmentId) { mutableStateOf<ImageBitmap?>(null) }
-    var failed by remember(media.attachmentId) { mutableStateOf(false) }
+private fun ReadingMedia(media: ReadingContent.Media, library: NoteLibrary, modifier: Modifier, loadedMedia: Map<String, ImageBitmap>?) {
+    var bitmap by remember(media.attachmentId, loadedMedia) { mutableStateOf(loadedMedia?.get(media.attachmentId)) }
+    var failed by remember(media.attachmentId, loadedMedia) { mutableStateOf(loadedMedia != null && bitmap == null) }
     val density = LocalDensity.current
     LaunchedEffect(media.attachmentId, library) {
+        if (loadedMedia != null) return@LaunchedEffect
         try {
             val attachment = library.getAttachment(media.attachmentId) ?: error("Missing attachment")
             bitmap = decodeNoteImage(library.attachmentFile(attachment)).asImageBitmap()
