@@ -1,5 +1,7 @@
 package com.xnote.app
 
+import com.xnote.app.design.XNoteButtonSize
+import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,16 +102,13 @@ import com.xnote.app.feature.notes.NotesChrome
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.feature.notes.NotesScope
 import com.xnote.app.feature.notes.NotesUiState
-import com.xnote.app.feature.notes.NotebookDetailScreen
+import com.xnote.app.feature.notes.NoteCollectionScreen
 import com.xnote.app.feature.notes.XNoteEditorToolbarHeight
-import com.xnote.app.feature.notes.decodeNotesScope
-import com.xnote.app.feature.notes.encodeNotesScope
 import com.xnote.app.feature.reader.ReaderScreen
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.notebookStatsFrom
-import com.xnote.app.feature.notes.unfiledStatsFrom
 import com.xnote.app.feature.profile.ProfileScreen
 import com.xnote.app.feature.recycle.RecycleBinChrome
 import com.xnote.app.feature.recycle.RecycleBinScreen
@@ -117,6 +116,7 @@ import com.xnote.app.feature.recycle.RecycleBinUiState
 import com.xnote.app.feature.recycle.XNoteRecycleSelectionHeight
 import com.xnote.app.feature.search.SearchScreen
 import com.xnote.app.navigation.AppDestination
+import com.xnote.app.navigation.NoteCollection
 import com.xnote.app.navigation.NotesRoute
 import com.xnote.app.navigation.XNoteNavigationState
 import com.xnote.app.navigation.decodeNotesStack
@@ -141,8 +141,7 @@ fun XNoteApp(
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
     var isAppearanceOpen by rememberSaveable { mutableStateOf(false) }
     var notesStackEncoded by rememberSaveable { mutableStateOf("") }
-    var scopeEncoded by rememberSaveable { mutableStateOf("all") }
-    var homeSortName by rememberSaveable { mutableStateOf(NoteListSort.UpdatedAt.name) }
+    var collectionSortName by rememberSaveable { mutableStateOf(NoteListSort.UpdatedAt.name) }
     var notebookSortName by rememberSaveable { mutableStateOf(NoteListSort.Manual.name) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchNotebookId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -198,13 +197,11 @@ fun XNoteApp(
     )
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(scopeEncoded, homeSortName, notebookSortName) {
-        uiState.scope = decodeNotesScope(scopeEncoded)
-        uiState.homeSort = runCatching { NoteListSort.valueOf(homeSortName) }.getOrDefault(NoteListSort.UpdatedAt)
+    LaunchedEffect(collectionSortName, notebookSortName) {
+        uiState.collectionSort = runCatching { NoteListSort.valueOf(collectionSortName) }.getOrDefault(NoteListSort.UpdatedAt)
         uiState.notebookSort = runCatching { NoteListSort.valueOf(notebookSortName) }.getOrDefault(NoteListSort.Manual)
     }
-    LaunchedEffect(uiState.scope) { scopeEncoded = encodeNotesScope(uiState.scope) }
-    LaunchedEffect(uiState.homeSort) { homeSortName = uiState.homeSort.name }
+    LaunchedEffect(uiState.collectionSort) { collectionSortName = uiState.collectionSort.name }
     LaunchedEffect(uiState.notebookSort) { notebookSortName = uiState.notebookSort.name }
     LaunchedEffect(noteLibrary) {
         launch { noteLibrary.observeNotebooks().collect { notebooks = it } }
@@ -257,6 +254,11 @@ fun XNoteApp(
     }
 
     fun updateNavigationState(newState: XNoteNavigationState) {
+        if (newState.notesRoute != navigationState.notesRoute) {
+            uiState.selectedIds = emptySet()
+            uiState.sortMenuVisible = false
+            uiState.moreVisible = false
+        }
         destinationName = newState.destination.name
         isSearchOpen = newState.isSearchOpen
         isRecycleBinOpen = newState.isRecycleBinOpen
@@ -269,6 +271,16 @@ fun XNoteApp(
             val note = noteLibrary.createNote(notebookId)
             updateNavigationState(navigationState.openEditor(note.id))
         }
+    }
+
+    fun openNotebook(notebookId: String) {
+        appScope.launch { notebookListState.scrollToItem(0) }
+        updateNavigationState(navigationState.openNotebook(notebookId))
+    }
+
+    fun openCollection(collection: NoteCollection) {
+        appScope.launch { notebookListState.scrollToItem(0) }
+        updateNavigationState(navigationState.openCollection(collection))
     }
 
     fun recordSearch(query: String) {
@@ -372,13 +384,16 @@ fun XNoteApp(
         val showsNoteSelection = navigationState.destination == AppDestination.Notes &&
             !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen &&
             !navigationState.isAppearanceOpen && uiState.selectedIds.isNotEmpty() &&
-            (navigationState.notesRoute is NotesRoute.Home || navigationState.notesRoute is NotesRoute.Notebook)
+            (navigationState.notesRoute is NotesRoute.Collection || navigationState.notesRoute is NotesRoute.Notebook)
         val bottomOverlayHeight = when {
             showsEditorToolbar -> XNoteEditorToolbarHeight
             showsRecycleSelection -> XNoteRecycleSelectionHeight
             showsNoteSelection -> noteSelectionBarHeight +
                 if (showsBottomNavigation) XNoteBottomNavigationHeight + XNoteSpacingSmall else XNoteSpacingMedium
             showsBottomNavigation -> XNoteBottomNavigationHeight
+            navigationState.destination == AppDestination.Notes &&
+                (navigationState.notesRoute is NotesRoute.Notebook || navigationState.notesRoute is NotesRoute.Collection) ->
+                XNoteButtonSize + XNoteSpacingSmall
             else -> 0.dp
         }
         val contentStartPadding = when {
@@ -412,7 +427,7 @@ fun XNoteApp(
         val scrollable = when {
             navigationState.isAppearanceOpen -> appearanceScrollState
             isEditor -> editorScrollState
-            navigationState.notesRoute is NotesRoute.Notebook -> notebookListState
+            navigationState.notesRoute is NotesRoute.Notebook || navigationState.notesRoute is NotesRoute.Collection -> notebookListState
             else -> listState
         }
         val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
@@ -455,6 +470,7 @@ fun XNoteApp(
                     noteLibrary = noteLibrary,
                     uiState = uiState,
                     notebooks = notebooks,
+                    activeNotes = activeNotes,
                     backdrop = backdrop,
                     contentPadding = contentPadding,
                     editorContentPadding = editorContentPadding,
@@ -474,7 +490,8 @@ fun XNoteApp(
                     sortMenuAnchor = sortMenuAnchor,
                     toastHostState = toastHostState,
                     onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
-                    onCreateNote = ::createNote,
+                    onOpenNotebook = ::openNotebook,
+                    onOpenCollection = ::openCollection,
                     onSearchQueryChange = { searchQuery = it },
                     onSearch = ::recordSearch,
                     onSearchNotebookSelected = { searchNotebookId = it },
@@ -568,16 +585,14 @@ fun XNoteApp(
                         library = noteLibrary,
                         ui = uiState,
                         notebooks = notebooks,
-                        allNotesCount = activeNotes.size,
                         notebookStats = notebookStatsFrom(activeNotes),
-                        unfiledStats = unfiledStatsFrom(activeNotes),
                         backdrop = backdrop,
                         isTablet = isTablet,
                         editorSession = editorSession,
                         editorBackground = editorBackground,
                         sortMenuAnchor = sortMenuAnchor,
                         toastHostState = toastHostState,
-                        onOpenNotebook = { updateNavigationState(navigationState.openNotebook(it)) },
+                        onOpenNotebook = ::openNotebook,
                         onCreateNote = ::createNote,
                         onPop = ::popNotes,
                         onOpenReader = {
@@ -636,6 +651,7 @@ private fun DestinationContent(
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
     notebooks: List<Notebook>,
+    activeNotes: List<Note>,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     editorContentPadding: PaddingValues,
@@ -655,7 +671,8 @@ private fun DestinationContent(
     sortMenuAnchor: XNotePopupAnchor,
     toastHostState: androidx.compose.material3.SnackbarHostState,
     onOpenNote: (String) -> Unit,
-    onCreateNote: (String?) -> Unit,
+    onOpenNotebook: (String) -> Unit,
+    onOpenCollection: (NoteCollection) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
     onSearchNotebookSelected: (String?) -> Unit,
@@ -733,43 +750,30 @@ private fun DestinationContent(
         AppDestination.Notes -> when (val route = navigationState.notesRoute) {
             is NotesRoute.Reader -> Unit
             NotesRoute.Home -> NotesHomeScreen(
-                library = noteLibrary,
+                notes = activeNotes,
                 backdrop = backdrop,
                 contentPadding = contentPadding,
                 listState = listState,
-                scope = uiState.scope,
-                sort = uiState.homeSort,
                 notebooks = notebooks,
-                selectedIds = uiState.selectedIds,
-                onOpenNote = onOpenNote,
-                onToggleSelect = { id ->
-                    uiState.selectedIds = uiState.selectedIds.toggle(id)
-                },
-                onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
-                onOpenPicker = { uiState.pickerVisible = true },
-                onOpenSort = { uiState.sortMenuVisible = true },
-                sortMenuAnchor = sortMenuAnchor,
-                onCreateNote = {
-                    val notebookId = when (val scope = uiState.scope) {
-                        NotesScope.All, NotesScope.Unfiled -> null
-                        is NotesScope.Notebook -> scope.id
-                    }
-                    onCreateNote(notebookId)
-                },
+                onOpenNotebook = onOpenNotebook,
+                onOpenCollection = onOpenCollection,
+                onCreateNotebook = { uiState.createNotebookVisible = true },
                 modifier = modifier,
             )
-            is NotesRoute.Notebook -> NotebookDetailScreen(
+            is NotesRoute.Notebook, is NotesRoute.Collection -> NoteCollectionScreen(
                 library = noteLibrary,
-                notebook = notebooks.firstOrNull { it.id == route.notebookId },
+                notesScope = when (route) {
+                    is NotesRoute.Notebook -> NotesScope.Notebook(route.notebookId)
+                    is NotesRoute.Collection -> if (route.collection == NoteCollection.All) NotesScope.All else NotesScope.Unfiled
+                },
+                notebooks = notebooks,
                 backdrop = backdrop,
                 contentPadding = contentPadding,
                 listState = notebookListState,
-                sort = uiState.notebookSort,
+                sort = if (route is NotesRoute.Notebook) uiState.notebookSort else uiState.collectionSort,
                 selectedIds = uiState.selectedIds,
                 onOpenNote = onOpenNote,
-                onToggleSelect = { id ->
-                    uiState.selectedIds = uiState.selectedIds.toggle(id)
-                },
+                onToggleSelect = { id -> uiState.selectedIds = uiState.selectedIds.toggle(id) },
                 onEnterSelection = { id -> uiState.selectedIds = setOf(id) },
                 onOpenSort = { uiState.sortMenuVisible = true },
                 sortMenuAnchor = sortMenuAnchor,
@@ -912,11 +916,6 @@ private fun XNoteNavigationRailItem(
     modifier: Modifier = Modifier,
 ) {
     val label = stringResource(destination.labelRes)
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
     LiquidButton(
         onClick = onClick,
         backdrop = backdrop,
@@ -929,11 +928,11 @@ private fun XNoteNavigationRailItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            NavigationIcon(destination = destination, tint = contentColor)
+            NavigationIcon(destination = destination, tint = LocalContentColor.current)
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = contentColor,
+                color = LocalContentColor.current,
             )
         }
     }

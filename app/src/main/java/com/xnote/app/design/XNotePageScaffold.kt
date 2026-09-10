@@ -1,5 +1,6 @@
 package com.xnote.app.design
 
+import androidx.compose.material3.LocalContentColor
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -175,7 +176,7 @@ fun XNoteHeader(
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_arrow_left),
                     contentDescription = stringResource(R.string.action_back),
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    tint = LocalContentColor.current,
                     modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }

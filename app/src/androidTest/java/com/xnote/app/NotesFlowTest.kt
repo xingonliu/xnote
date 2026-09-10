@@ -90,6 +90,7 @@ class NotesFlowTest {
                 XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) }
             }
         }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         for (scale in listOf(1f, 1.5f)) {
             composeRule.runOnIdle { fontScale = scale }
             composeRule.onAllNodesWithTag("xnote-note-row")[0].performScrollTo().performTouchInput { longClick() }
@@ -129,6 +130,7 @@ class NotesFlowTest {
             ))))
         }
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("编辑修复验收").performClick()
         composeRule.onNodeWithTag("xnote-editor-continue-after-table").performScrollTo().assertIsDisplayed()
         val screenshot = composeRule.onRoot().captureToImage().asAndroidBitmap()
@@ -164,6 +166,7 @@ class NotesFlowTest {
             } finally { source.delete() }
         }
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("图片验收").performClick()
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("添加图片").performClick()
@@ -208,6 +211,7 @@ class NotesFlowTest {
             } finally { source.delete() }
         }
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("图片末尾续写验收").performClick()
         composeRule.onNodeWithTag("xnote-editor-continue-after-image").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-continue-after-image").performClick()
@@ -236,6 +240,7 @@ class NotesFlowTest {
         composeRule.onNodeWithTag("xnote-editor-title").performTextInput("会议记录")
         composeRule.onNodeWithTag("xnote-editor-body").performTextInput("今天讨论进度")
         composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.onNodeWithTag("xnote-collection-unfiled").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("会议记录").fetchSemanticsNodes().isNotEmpty()
         }
@@ -273,8 +278,7 @@ class NotesFlowTest {
             }
         }
 
-        composeRule.onNodeWithTag("xnote-notebook-picker").performClick()
-        composeRule.onNodeWithContentDescription("打开笔记本").performClick()
+        composeRule.onNodeWithTag("xnote-notebook-${notebook.id}").performClick()
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("删除笔记本").performClick()
         composeRule.onNodeWithText("删除").performClick()
@@ -302,6 +306,7 @@ class NotesFlowTest {
             }
         }
 
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("待移动笔记").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithTag("xnote-editor-title").fetchSemanticsNodes().isNotEmpty()
@@ -355,6 +360,7 @@ class NotesFlowTest {
             }
         }
 
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("工具栏测试").performClick()
         composeRule.onNodeWithTag("xnote-editor-body").performTextInput("plain")
         composeRule.onNodeWithText("粗体").performClick()
@@ -400,6 +406,7 @@ class NotesFlowTest {
             }
         }
 
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("快捷输入").performClick()
         composeRule.onNodeWithTag("xnote-editor-body").performTextInput("# ")
         composeRule.waitUntil(5_000) {
@@ -549,6 +556,7 @@ class NotesFlowTest {
             }
         }
 
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("背景测试").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithTag("xnote-editor-title").fetchSemanticsNodes().isNotEmpty()

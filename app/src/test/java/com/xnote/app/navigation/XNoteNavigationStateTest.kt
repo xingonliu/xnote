@@ -9,6 +9,19 @@ import org.junit.Test
 
 class XNoteNavigationStateTest {
     @Test
+    fun collectionNavigationRestoresTheListAndReturnsToTheNotebookGrid() {
+        for (collection in NoteCollection.entries) {
+            val editor = XNoteNavigationState().openCollection(collection).openEditor("note-1")
+            val restored = XNoteNavigationState(notesStack = decodeNotesStack(encodeNotesStack(editor.notesStack)))
+            assertEquals(NotesRoute.Editor("note-1"), restored.notesRoute)
+            assertEquals(NotesRoute.Collection(collection), restored.popNotes().notesRoute)
+            assertFalse(restored.popNotes().showsPrimaryChrome)
+            assertEquals(NotesRoute.Home, restored.popNotes().popNotes().notesRoute)
+            assertTrue(restored.popNotes().popNotes().showsPrimaryChrome)
+        }
+    }
+
+    @Test
     fun openSearchPreservesCurrentDestination() {
         val state = XNoteNavigationState(destination = AppDestination.Agent)
 

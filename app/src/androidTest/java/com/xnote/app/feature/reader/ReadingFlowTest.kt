@@ -46,6 +46,7 @@ class ReadingFlowTest {
     @Test fun singleNoteEntryFlushesUnsavedTextAndReturnsThroughEditor() {
         val note = runBlocking { library.saveNote(library.createNote(null).copy(title = "单篇阅读")) }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library) } }
+        compose.onNodeWithTag("xnote-collection-all").performClick()
         compose.onNodeWithText("单篇阅读").performClick()
         compose.onNodeWithTag("xnote-editor-body").performTextInput("刚输入的最后一个字")
         compose.onNodeWithContentDescription("更多").performClick()
@@ -73,8 +74,7 @@ class ReadingFlowTest {
         }
         val restoration = StateRestorationTester(compose)
         restoration.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library) } }
-        compose.onNodeWithTag("xnote-notebook-picker").performClick()
-        compose.onNodeWithContentDescription("打开笔记本").performClick()
+        compose.onNodeWithTag("xnote-notebook-${book.id}").performClick()
         compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("打开阅读模式").performClick()
         compose.onNodeWithTag("xnote-reader-previous").assertIsNotEnabled()

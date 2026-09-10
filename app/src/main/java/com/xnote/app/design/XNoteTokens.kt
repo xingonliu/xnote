@@ -5,15 +5,14 @@ import androidx.compose.ui.unit.dp
 
 // -- Constants
 
-val XNoteLightPrimaryColor = Color(0xFF0066CC)
-val XNoteDarkPrimaryColor = Color(0xFF409CFF)
+val XNoteLightPrimaryColor = Color(0xFFE09F3E)
+val XNoteDarkPrimaryColor = Color(0xFFFFD60A)
 
-val XNoteHomeCreateLightColor = Color(0xFFE09F3E)
-val XNoteHomeCreateDarkColor = Color(0xFFFFD60A)
 
 val XNoteButtonSize = 40.dp
 val XNoteMinimumTouchTarget = XNoteButtonSize
 val XNoteButtonHorizontalPadding = 8.dp
+val XNoteButtonContentSpacing = 8.dp
 val XNoteHeaderTopPadding = 15.dp
 val XNoteHeaderHeight = XNoteHeaderTopPadding + XNoteButtonSize
 val XNoteBottomNavigationHeight = 88.dp

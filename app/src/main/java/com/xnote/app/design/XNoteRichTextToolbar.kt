@@ -1,5 +1,6 @@
 package com.xnote.app.design
 
+import androidx.compose.material3.LocalContentColor
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -187,11 +188,6 @@ private fun XNoteToolbarAction(
     popupAnchor: XNotePopupAnchor?,
 ) {
     val selected = action in state.selectedActions
-    val foreground = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
     LiquidButton(
         onClick = { onAction(action) },
         backdrop = backdrop,
@@ -206,7 +202,7 @@ private fun XNoteToolbarAction(
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = foreground,
+            color = LocalContentColor.current,
             maxLines = 1,
         )
     }

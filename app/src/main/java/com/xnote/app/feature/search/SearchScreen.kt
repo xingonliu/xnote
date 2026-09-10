@@ -1,5 +1,6 @@
 package com.xnote.app.feature.search
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -244,11 +245,7 @@ private fun SearchFilterButton(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            color = LocalContentColor.current,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -272,7 +269,7 @@ private fun RecentSearchRow(
         Icon(
             painter = painterResource(R.drawable.ic_keyline_stroke_search),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(XNoteIconSizeSmall),
         )
         Text(

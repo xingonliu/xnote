@@ -83,7 +83,7 @@ fun ProfileScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
@@ -121,7 +121,7 @@ fun ProfileScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
                         contentDescription = stringResource(R.string.recycle_bin_open),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                 }
@@ -149,7 +149,7 @@ fun ProfileScreen(
                         modifier = Modifier
                             .size(34.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
                             ),
                         contentAlignment = Alignment.Center,
@@ -157,7 +157,7 @@ fun ProfileScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_keyline_stroke_star),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
@@ -179,7 +179,7 @@ fun ProfileScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
                         contentDescription = stringResource(R.string.background_settings_open),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                 }
@@ -196,7 +196,7 @@ fun ProfileScreen(
                         modifier = Modifier
                             .size(34.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
                             ),
                         contentAlignment = Alignment.Center,
@@ -204,7 +204,7 @@ fun ProfileScreen(
                         Icon(
                             painter = painterResource(R.drawable.ic_keyline_stroke_square_pen),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }

@@ -1,6 +1,7 @@
 package com.xnote.app.feature.notes
 
-import androidx.compose.foundation.clickable
+import com.xnote.app.design.XNoteButtonContentSpacing
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,9 +52,10 @@ import kotlinx.coroutines.launch
 // -- Functions
 
 @Composable
-fun NotebookDetailScreen(
+fun NoteCollectionScreen(
     library: NoteLibrary,
-    notebook: Notebook?,
+    notesScope: NotesScope,
+    notebooks: List<Notebook>,
     backdrop: Backdrop,
     contentPadding: PaddingValues,
     listState: LazyListState,
@@ -67,15 +68,18 @@ fun NotebookDetailScreen(
     sortMenuAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
 ) {
-    var notes by remember { mutableStateOf<List<Note>>(emptyList()) }
+    var notes by remember(library, notesScope) { mutableStateOf<List<Note>>(emptyList()) }
     var dragging by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(library, notebook?.id, sort, dragging) {
-        val id = notebook?.id ?: return@LaunchedEffect
+    LaunchedEffect(library, notesScope, sort, dragging) {
         if (dragging) return@LaunchedEffect
-        library.observeNotesInNotebook(id, sort).collect { notes = it }
+        when (notesScope) {
+            NotesScope.All -> library.observeAllActiveNotes(sort)
+            NotesScope.Unfiled -> library.observeUnfiledNotes(sort)
+            is NotesScope.Notebook -> library.observeNotesInNotebook(notesScope.id, sort)
+        }.collect { notes = it }
     }
 
     val untitled = stringResource(R.string.notes_untitled)
@@ -84,7 +88,7 @@ fun NotebookDetailScreen(
         noteCount = notes.size,
         characterCount = notes.sumOf { it.visibleCharacterCount },
     )
-    val allowDrag = sort == NoteListSort.Manual && !selectionMode
+    val allowDrag = notesScope is NotesScope.Notebook && sort == NoteListSort.Manual && !selectionMode
 
     LazyColumn(
         state = listState,
@@ -115,19 +119,19 @@ fun NotebookDetailScreen(
                     modifier = Modifier.xNotePopupAnchor(sortMenuAnchor),
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(XNoteButtonContentSpacing),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_keyline_stroke_grip_vertical),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = LocalContentColor.current,
                             modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                         Text(
                             text = stringResource(R.string.notes_sort),
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = LocalContentColor.current,
                         )
                     }
                 }
@@ -137,8 +141,16 @@ fun NotebookDetailScreen(
         if (notes.isEmpty()) {
             item {
                 XNoteEmptyState(
-                    title = stringResource(R.string.notes_empty_notebook_title),
-                    description = stringResource(R.string.notes_empty_notebook_description),
+                    title = stringResource(when (notesScope) {
+                        NotesScope.All -> R.string.notes_empty_title
+                        NotesScope.Unfiled -> R.string.notes_empty_unfiled_title
+                        is NotesScope.Notebook -> R.string.notes_empty_notebook_title
+                    }),
+                    description = stringResource(when (notesScope) {
+                        NotesScope.All -> R.string.notes_empty_description
+                        NotesScope.Unfiled -> R.string.notes_empty_unfiled_description
+                        is NotesScope.Notebook -> R.string.notes_empty_notebook_description
+                    }),
                     iconRes = R.drawable.ic_keyline_stroke_square_pen,
                     backdrop = backdrop,
                     modifier = Modifier
@@ -156,7 +168,7 @@ fun NotebookDetailScreen(
                     notes.forEachIndexed { index, note ->
                         NoteListRow(
                             note = note,
-                            notebookName = null,
+                            notebookName = if (notesScope is NotesScope.All) notebookName(notebooks, note.notebookId) else null,
                             untitledLabel = untitled,
                             selected = note.id in selectedIds,
                             selectionMode = selectionMode,

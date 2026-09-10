@@ -27,11 +27,10 @@ sealed interface NotesScope {
 }
 
 class NotesUiState {
-    var scope by mutableStateOf<NotesScope>(NotesScope.All)
-    var homeSort by mutableStateOf(NoteListSort.UpdatedAt)
+    var collectionSort by mutableStateOf(NoteListSort.UpdatedAt)
     var notebookSort by mutableStateOf(NoteListSort.Manual)
     var selectedIds by mutableStateOf(emptySet<String>())
-    var pickerVisible by mutableStateOf(false)
+    var createNotebookVisible by mutableStateOf(false)
     var sortMenuVisible by mutableStateOf(false)
     var moreVisible by mutableStateOf(false)
     var moveVisible by mutableStateOf(false)
@@ -52,18 +51,6 @@ class NotesUiState {
 private val noteEditorDateFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
 
 // -- Functions
-
-fun encodeNotesScope(scope: NotesScope): String = when (scope) {
-    NotesScope.All -> "all"
-    NotesScope.Unfiled -> "unfiled"
-    is NotesScope.Notebook -> "notebook:${scope.id}"
-}
-
-fun decodeNotesScope(raw: String): NotesScope = when {
-    raw == "unfiled" -> NotesScope.Unfiled
-    raw.startsWith("notebook:") -> NotesScope.Notebook(raw.removePrefix("notebook:"))
-    else -> NotesScope.All
-}
 
 fun Note.displayTitle(untitled: String): String = title.ifBlank { untitled }
 

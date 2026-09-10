@@ -1,5 +1,6 @@
 package com.xnote.app.feature.notes
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
@@ -23,9 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.graphics.luminance
-import com.xnote.app.design.XNoteHomeCreateLightColor
-import com.xnote.app.design.XNoteHomeCreateDarkColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -66,6 +64,7 @@ import com.xnote.app.feature.notes.editor.NoteImageUiState
 import com.xnote.app.feature.notes.editor.NoteImageChrome
 import com.xnote.app.feature.notes.editor.toDomain
 import com.xnote.app.feature.background.XNoteBackgroundPicker
+import com.xnote.app.navigation.NoteCollection
 import com.xnote.app.navigation.NotesRoute
 import com.xnote.app.domain.model.BackgroundKey
 import kotlinx.coroutines.launch
@@ -82,9 +81,7 @@ fun BoxScope.NotesChrome(
     library: NoteLibrary,
     ui: NotesUiState,
     notebooks: List<Notebook>,
-    allNotesCount: Int,
     notebookStats: Map<String, NotebookStats>,
-    unfiledStats: NotebookStats,
     backdrop: Backdrop,
     isTablet: Boolean,
     editorSession: NoteEditorSession?,
@@ -115,6 +112,15 @@ fun BoxScope.NotesChrome(
 
     when (route) {
         NotesRoute.Home, is NotesRoute.Reader -> Unit
+        is NotesRoute.Collection -> {
+            XNoteHeader(
+                title = stringResource(if (route.collection == NoteCollection.All) R.string.notes_scope_all else R.string.notes_scope_unfiled),
+                backdrop = backdrop,
+                onBack = onPop,
+                horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
         is NotesRoute.Notebook -> {
             XNoteHeader(
                 title = currentNotebook?.name.orEmpty(),
@@ -163,30 +169,19 @@ fun BoxScope.NotesChrome(
         }
     }
 
-    if (route is NotesRoute.Home || route is NotesRoute.Notebook) {
+    if (route is NotesRoute.Home || route is NotesRoute.Notebook || route is NotesRoute.Collection) {
         if (ui.selectedIds.isEmpty()) {
             LiquidButton(
                 onClick = {
                     val notebookId = when (route) {
                         is NotesRoute.Notebook -> route.notebookId
-                        NotesRoute.Home -> when (val current = ui.scope) {
-                            NotesScope.All, NotesScope.Unfiled -> null
-                            is NotesScope.Notebook -> current.id
-                        }
+                        NotesRoute.Home, is NotesRoute.Collection -> null
                         is NotesRoute.Editor, is NotesRoute.Reader -> null
                     }
                     onCreateNote(notebookId)
                 },
                 backdrop = backdrop,
-                tint = if (route is NotesRoute.Home) {
-                    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
-                        XNoteHomeCreateDarkColor
-                    } else {
-                        XNoteHomeCreateLightColor
-                    }
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
@@ -257,70 +252,12 @@ fun BoxScope.NotesChrome(
     }
 
     XNoteDrawer(
-        visible = ui.pickerVisible,
-        onDismissRequest = { ui.pickerVisible = false },
-        title = stringResource(R.string.notes_choose_notebook),
+        visible = ui.createNotebookVisible,
+        onDismissRequest = { ui.createNotebookVisible = false },
+        title = stringResource(R.string.notes_create_notebook),
         backdrop = backdrop,
         placement = drawerPlacement,
     ) {
-        PickerRow(
-            title = stringResource(R.string.notes_scope_all),
-            subtitle = stringResource(R.string.notes_notebook_stats, allNotesCount, notebookStats.values.sumOf { it.characterCount } + unfiledStats.characterCount),
-            selected = ui.scope is NotesScope.All,
-            onClick = {
-                ui.scope = NotesScope.All
-                ui.pickerVisible = false
-            },
-        )
-        PickerRow(
-            title = stringResource(R.string.notes_scope_unfiled),
-            subtitle = stringResource(R.string.notes_unfiled_stats, unfiledStats.noteCount),
-            selected = ui.scope is NotesScope.Unfiled,
-            onClick = {
-                ui.scope = NotesScope.Unfiled
-                ui.pickerVisible = false
-            },
-            iconRes = R.drawable.ic_keyline_stroke_inbox,
-        )
-        notebooks.forEach { notebook ->
-            val stats = notebookStats[notebook.id] ?: NotebookStats(0, 0)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PickerRow(
-                    title = notebook.name,
-                    subtitle = stringResource(R.string.notes_notebook_stats, stats.noteCount, stats.characterCount),
-                    selected = (ui.scope as? NotesScope.Notebook)?.id == notebook.id,
-                    onClick = {
-                        ui.scope = NotesScope.Notebook(notebook.id)
-                        ui.pickerVisible = false
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                LiquidButton(
-                    onClick = {
-                        ui.pickerVisible = false
-                        onOpenNotebook(notebook.id)
-                    },
-                    backdrop = backdrop,
-                    modifier = Modifier.size(XNoteButtonSize),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
-                        contentDescription = stringResource(R.string.notes_open_notebook),
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(XNoteIconSizeMedium),
-                    )
-                }
-            }
-        }
-        Text(
-            text = stringResource(R.string.notes_create_notebook),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
         XNoteTextField(
             value = ui.createNotebookName,
             onValueChange = { ui.createNotebookName = it },
@@ -334,8 +271,9 @@ fun BoxScope.NotesChrome(
                 scope.launch {
                     val created = library.createNotebook(name)
                     ui.createNotebookName = ""
-                    ui.scope = NotesScope.Notebook(created.id)
-                    ui.pickerVisible = false
+                    ui.createNotebookVisible = false
+                    dismissEditorInput()
+                    onOpenNotebook(created.id)
                 }
             },
             backdrop = backdrop,
@@ -345,7 +283,7 @@ fun BoxScope.NotesChrome(
             Text(
                 text = stringResource(R.string.action_create_notebook),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = LocalContentColor.current,
             )
         }
     }
@@ -358,7 +296,7 @@ fun BoxScope.NotesChrome(
             add(NoteListSort.Manual to R.string.notes_sort_manual)
         }
     }.map { (value, labelRes) ->
-        val selected = if (route is NotesRoute.Notebook) ui.notebookSort == value else ui.homeSort == value
+        val selected = if (route is NotesRoute.Notebook) ui.notebookSort == value else ui.collectionSort == value
         XNoteDropdownMenuItem(
             label = stringResource(labelRes),
             selected = selected,
@@ -366,7 +304,7 @@ fun BoxScope.NotesChrome(
                 if (route is NotesRoute.Notebook) {
                     ui.notebookSort = value
                 } else {
-                    ui.homeSort = value
+                    ui.collectionSort = value
                 }
             },
         )
@@ -442,7 +380,7 @@ fun BoxScope.NotesChrome(
                 ),
             )
         }
-        NotesRoute.Home, is NotesRoute.Reader -> emptyList()
+        NotesRoute.Home, is NotesRoute.Reader, is NotesRoute.Collection -> emptyList()
     }
     XNoteDropdownMenu(
         expanded = ui.moreVisible,
@@ -703,7 +641,7 @@ private fun EditorToolbarBar(
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_left),
                 contentDescription = stringResource(R.string.action_undo),
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = LocalContentColor.current,
                 modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
@@ -716,7 +654,7 @@ private fun EditorToolbarBar(
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_arrow_u_turn_right),
                 contentDescription = stringResource(R.string.action_redo),
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = LocalContentColor.current,
                 modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
@@ -784,7 +722,7 @@ private fun SelectionBar(
                 )
                 LiquidButton(onClick = onCancel, backdrop = backdrop) {
                     Text(stringResource(R.string.notes_cancel_selection),
-                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                        color = LocalContentColor.current, maxLines = 1)
                 }
             }
             FlowRow(
@@ -794,13 +732,13 @@ private fun SelectionBar(
             ) {
                 LiquidButton(onClick = onMove, backdrop = backdrop) {
                     Text(stringResource(R.string.notes_move_to_notebook),
-                        color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                        color = LocalContentColor.current, maxLines = 1)
                 }
                 LiquidButton(onClick = onTrash, backdrop = backdrop) {
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
+                        tint = LocalContentColor.current,
                         modifier = Modifier.size(XNoteIconSizeMedium),
                     )
                     Text(stringResource(R.string.notes_delete_notes),
@@ -834,7 +772,7 @@ private fun PickerRow(
             Icon(
                 painter = painterResource(if (selected) R.drawable.ic_keyline_stroke_check else iconRes),
                 contentDescription = null,
-                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(XNoteIconSizeMedium),
             )
             Text(

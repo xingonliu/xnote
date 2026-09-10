@@ -316,11 +316,7 @@ private fun TextBlockEditor(
                             },
                         ),
                         contentDescription = stringResource(R.string.editor_checklist),
-                        tint = if (block.checked) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(XNoteIconSizeMedium),
                     )
                 }

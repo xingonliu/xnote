@@ -1,6 +1,7 @@
 package com.xnote.app.design
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
@@ -26,7 +27,7 @@ fun XNoteLiquidGlassPanel(
     shape: Shape = XNoteSmoothCornerShape(XNoteRadiusLarge),
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val containerColor = if (isLightTheme) {
         Color(0xFFFAFAFA).copy(alpha = 0.6f)
     } else {

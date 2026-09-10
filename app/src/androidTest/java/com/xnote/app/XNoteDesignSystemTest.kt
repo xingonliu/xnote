@@ -1,5 +1,8 @@
 package com.xnote.app
 
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.platform.LocalDensity
+import com.xnote.app.design.XNoteButtonContentSpacing
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -69,6 +72,44 @@ import org.junit.Test
 class XNoteDesignSystemTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun buttonsShareForegroundAndIconSpacingAcrossThemesAndStates() {
+        var dark by mutableStateOf(false)
+        var colored by mutableStateOf(false)
+        var enabled by mutableStateOf(true)
+        var actual = Color.Unspecified
+        var expected = Color.Unspecified
+        var expectedSpacing = 0f
+        composeRule.setContent {
+            XNoteTheme(darkTheme = dark, reduceMotion = true) {
+                val normal = MaterialTheme.colorScheme.onSurface
+                val density = LocalDensity.current
+                SideEffect {
+                    expected = if (colored) Color.White else normal
+                    expectedSpacing = with(density) { XNoteButtonContentSpacing.toPx() }
+                }
+                LiquidButton(onClick = {}, backdrop = rememberLayerBackdrop(), enabled = enabled,
+                    tint = if (colored) MaterialTheme.colorScheme.primary else Color.Unspecified) {
+                    val foreground = LocalContentColor.current
+                    SideEffect { actual = foreground }
+                    Box(Modifier.size(20.dp).testTag("button-icon"))
+                    Text("完成", modifier = Modifier.testTag("button-label"))
+                }
+            }
+        }
+        for (isDark in listOf(false, true)) {
+            for (isColored in listOf(false, true)) {
+                for (isEnabled in listOf(false, true)) {
+                    composeRule.runOnIdle { dark = isDark; colored = isColored; enabled = isEnabled }
+                    composeRule.runOnIdle { assertEquals(expected, actual) }
+                    val icon = composeRule.onNodeWithTag("button-icon", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    val label = composeRule.onNodeWithTag("button-label", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    assertEquals(expectedSpacing, label.left - icon.right, 1f)
+                }
+            }
+        }
+    }
 
     @Test
     fun liquidButtonUsesCompactControlSize() {

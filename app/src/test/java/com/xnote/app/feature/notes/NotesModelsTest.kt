@@ -10,16 +10,6 @@ import org.junit.Test
 
 class NotesModelsTest {
     @Test
-    fun notesScopeRoundTripsThroughSaveableEncoding() {
-        assertEquals(NotesScope.All, decodeNotesScope(encodeNotesScope(NotesScope.All)))
-        assertEquals(NotesScope.Unfiled, decodeNotesScope(encodeNotesScope(NotesScope.Unfiled)))
-        assertEquals(
-            NotesScope.Notebook("nb-1"),
-            decodeNotesScope(encodeNotesScope(NotesScope.Notebook("nb-1"))),
-        )
-    }
-
-    @Test
     fun sortNotesOrdersByTitleWithoutChangingIdentity() {
         val first = sampleNote("b", "Beta")
         val second = sampleNote("a", "alpha")

@@ -2,8 +2,15 @@ package com.xnote.app.navigation
 
 // -- Type Definitions
 
+enum class NoteCollection {
+    All,
+    Unfiled,
+}
+
 sealed interface NotesRoute {
     data object Home : NotesRoute
+
+    data class Collection(val collection: NoteCollection) : NotesRoute
 
     data class Notebook(
         val notebookId: String,
@@ -68,6 +75,14 @@ data class XNoteNavigationState(
 
     fun closeAppearance() = copy(isAppearanceOpen = false)
 
+    fun openCollection(collection: NoteCollection) = copy(
+        destination = AppDestination.Notes,
+        isSearchOpen = false,
+        isRecycleBinOpen = false,
+        isAppearanceOpen = false,
+        notesStack = listOf(NotesRoute.Collection(collection)),
+    )
+
     fun openNotebook(notebookId: String) = copy(
         destination = AppDestination.Notes,
         isSearchOpen = false,
@@ -101,6 +116,7 @@ fun encodeNotesStack(stack: List<NotesRoute>): String {
     return stack.joinToString(separator = "|") { route ->
         when (route) {
             NotesRoute.Home -> "home"
+            is NotesRoute.Collection -> "collection:${route.collection.name}"
             is NotesRoute.Notebook -> "notebook:${route.notebookId}"
             is NotesRoute.Editor -> "editor:${route.noteId}"
             is NotesRoute.Reader -> if (route.notebookId != null) "read-notebook:${route.notebookId}" else "read-note:${route.noteId}"
@@ -113,6 +129,9 @@ fun decodeNotesStack(raw: String): List<NotesRoute> {
     return raw.split('|').mapNotNull { token ->
         when {
             token.isBlank() || token == "home" -> null
+            token.startsWith("collection:") -> NoteCollection.entries
+                .firstOrNull { it.name == token.removePrefix("collection:") }
+                ?.let { NotesRoute.Collection(it) }
             token.startsWith("notebook:") -> NotesRoute.Notebook(token.removePrefix("notebook:"))
             token.startsWith("read-notebook:") -> NotesRoute.Reader(notebookId = token.removePrefix("read-notebook:"))
             token.startsWith("read-note:") -> NotesRoute.Reader(noteId = token.removePrefix("read-note:"))

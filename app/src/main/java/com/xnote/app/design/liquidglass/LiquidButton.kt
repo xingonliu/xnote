@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import com.xnote.app.design.XNoteButtonContentSpacing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -118,8 +122,12 @@ fun LiquidButton(
             )
             .height(XNoteButtonSize)
             .padding(horizontal = XNoteButtonHorizontalPadding),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(XNoteButtonContentSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
-        content = content,
+        content = {
+            CompositionLocalProvider(
+                LocalContentColor provides if (tint.isSpecified) Color.White else MaterialTheme.colorScheme.onSurface,
+            ) { content() }
+        },
     )
 }

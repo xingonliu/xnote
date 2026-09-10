@@ -155,7 +155,7 @@ private fun DefaultInheritanceChoice(
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_check),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
@@ -214,7 +214,7 @@ private fun BackgroundChoice(
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_check),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(XNoteIconSizeSmall),
                 )
             }

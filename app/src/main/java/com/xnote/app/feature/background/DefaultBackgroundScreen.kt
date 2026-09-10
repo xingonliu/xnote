@@ -1,5 +1,6 @@
 package com.xnote.app.feature.background
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -73,7 +74,7 @@ fun DefaultBackgroundScreen(
                 Text(
                     text = stringResource(R.string.background_restore_initial),
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = LocalContentColor.current,
                 )
             }
         }

@@ -66,11 +66,7 @@ fun NoteListRow(
                     if (selected) R.drawable.ic_keyline_stroke_square_check else R.drawable.ic_keyline_stroke_square,
                 ),
                 contentDescription = null,
-                tint = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                },
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(XNoteIconSizeMedium),
             )
         }
@@ -113,7 +109,7 @@ fun NoteListRow(
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_square_pen),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(XNoteIconSizeSmall),
                     )
                     Text(
@@ -141,7 +137,7 @@ fun NoteReorderHandle(
         Icon(
             painter = painterResource(R.drawable.ic_keyline_stroke_grip_vertical),
             contentDescription = stringResource(R.string.notes_reorder_handle),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(XNoteIconSizeMedium),
         )
     }

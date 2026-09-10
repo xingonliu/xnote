@@ -1,5 +1,7 @@
 package com.xnote.app.design
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloat
@@ -21,7 +23,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -156,7 +157,7 @@ fun XNoteDialog(
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
     val settings = LocalXNoteInteractionSettings.current
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val accentColor = MaterialTheme.colorScheme.primary
     val containerColor = if (isLightTheme) {
@@ -243,16 +244,8 @@ fun XNoteDialog(
                         XNoteDialogButton(
                             action = confirmAction,
                             backdrop = backdrop,
-                            foreground = if (confirmAction.destructive) {
-                                MaterialTheme.colorScheme.onError
-                            } else {
-                                Color.White
-                            },
-                            surfaceColor = if (confirmAction.destructive) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                accentColor
-                            },
+                            foreground = Color.White,
+                            surfaceColor = accentColor,
                         )
                     }
                 }
@@ -563,7 +556,7 @@ fun XNoteToastHost(
                         Text(
                             text = label,
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = LocalContentColor.current,
                         )
                     }
                 }
@@ -575,7 +568,7 @@ fun XNoteToastHost(
                         Text(
                             text = dismissLabel,
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = LocalContentColor.current,
                         )
                     }
                 }

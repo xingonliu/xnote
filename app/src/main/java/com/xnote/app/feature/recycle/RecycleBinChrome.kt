@@ -1,5 +1,6 @@
 package com.xnote.app.feature.recycle
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
@@ -222,7 +223,7 @@ private fun RecycleSelectionBar(
         ) {
             Text(
                 text = stringResource(R.string.recycle_bin_restore),
-                color = MaterialTheme.colorScheme.primary,
+                color = LocalContentColor.current,
             )
         }
         LiquidButton(
@@ -241,7 +242,7 @@ private fun RecycleSelectionBar(
         ) {
             Text(
                 text = stringResource(R.string.action_cancel),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalContentColor.current,
             )
         }
     }

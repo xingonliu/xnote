@@ -1,5 +1,6 @@
 package com.xnote.app.feature.recycle
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -168,11 +169,7 @@ private fun RecycleBinRow(
                         if (selected) R.drawable.ic_keyline_stroke_square_check else R.drawable.ic_keyline_stroke_square,
                     ),
                     contentDescription = null,
-                    tint = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    },
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(XNoteIconSizeMedium),
                 )
             }
@@ -193,7 +190,7 @@ private fun RecycleBinRow(
                 Text(
                     text = "剩余 $remainingDays 天",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.error,
+                    color = LocalContentColor.current,
                 )
             }
         }
@@ -234,18 +231,18 @@ private fun RecycleBinRow(
                     Text(
                         text = stringResource(R.string.recycle_bin_restore),
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = LocalContentColor.current,
                     )
                 }
                 LiquidButton(
                     onClick = onPermanentlyDelete,
                     backdrop = backdrop,
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                    tint = MaterialTheme.colorScheme.primary,
                 ) {
                     Text(
                         text = stringResource(R.string.recycle_bin_delete_permanently),
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error,
+                        color = LocalContentColor.current,
                     )
                 }
             }

@@ -1,5 +1,6 @@
 package com.xnote.app.design
 
+import androidx.compose.material3.LocalContentColor
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -103,7 +104,7 @@ fun XNoteEmptyState(
                 modifier = Modifier
                     .size(76.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
@@ -111,7 +112,7 @@ fun XNoteEmptyState(
                 Icon(
                     painter = painterResource(iconRes),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(XNoteIconSizeHero),
                 )
             }
@@ -144,21 +145,21 @@ fun XNoteEmptyState(
                 modifier = Modifier.padding(top = XNoteSpacingSmall),
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+                    horizontalArrangement = Arrangement.spacedBy(XNoteButtonContentSpacing),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (actionIconRes != null) {
                         Icon(
                             painter = painterResource(actionIconRes),
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            tint = LocalContentColor.current,
                             modifier = Modifier.size(XNoteIconSizeSmall),
                         )
                     }
                     Text(
                         text = actionLabel,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = LocalContentColor.current,
                     )
                 }
             }
@@ -194,7 +195,7 @@ fun XNoteErrorState(
             Icon(
                 painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(XNoteIconSizeHero),
             )
         }
@@ -223,14 +224,13 @@ fun XNoteErrorState(
             LiquidButton(
                 onClick = onAction,
                 backdrop = backdrop,
-                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
-                surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.20f),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = XNoteSpacingSmall),
             ) {
                 Text(
                     text = actionLabel,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = LocalContentColor.current,
                 )
             }
         }

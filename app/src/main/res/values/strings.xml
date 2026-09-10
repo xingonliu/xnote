@@ -175,4 +175,8 @@
     <string name="reader_progress">%1$d / %2$d 页 · %3$d%%</string>
     <string name="reader_empty">没有可阅读的笔记</string>
     <string name="reader_empty_description">笔记已移走或进入回收站，请返回后重新选择。</string>
+    <string name="notes_notebooks_title">笔记本</string>
+    <string name="notes_my_notebooks">我的笔记本</string>
+    <string name="notes_notebooks_empty_description">创建笔记本，按主题整理想法。快速新建的笔记会保存在“未归档”。</string>
+    <string name="notes_count">%1$d 篇笔记</string>
 </resources>
