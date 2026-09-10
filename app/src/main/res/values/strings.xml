@@ -62,8 +62,8 @@
     <string name="background_scope_default">所有未设置专属背景的笔记</string>
     <string name="background_use_default">使用默认背景</string>
     <string name="background_use_default_description">移除这篇笔记的专属背景并继续跟随默认设置</string>
-    <string name="background_builtin_default">暖白纸</string>
-    <string name="background_builtin_cream">奶油纹理</string>
+    <string name="background_builtin_default">纯白纸</string>
+    <string name="background_builtin_cream">浅灰纹理</string>
     <string name="background_builtin_ruled">横线纸</string>
     <string name="background_builtin_grid">方格纸</string>
     <string name="background_preview_title">笔记背景预览</string>

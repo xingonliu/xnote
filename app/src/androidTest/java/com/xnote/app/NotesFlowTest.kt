@@ -586,8 +586,8 @@ class NotesFlowTest {
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("笔记背景").performClick()
 
-        composeRule.onNodeWithText("暖白纸").assertIsDisplayed()
-        composeRule.onNodeWithText("奶油纹理").assertIsDisplayed()
+        composeRule.onNodeWithText("纯白纸").assertIsDisplayed()
+        composeRule.onNodeWithText("浅灰纹理").assertIsDisplayed()
         composeRule.onNodeWithText("横线纸").assertIsDisplayed()
         composeRule.onNodeWithText("方格纸").assertIsDisplayed()
     }

@@ -136,15 +136,15 @@ private fun builtinPattern(id: String): BackgroundPattern = when (id) {
 }
 
 private fun builtinBaseColor(id: String, isDark: Boolean): Color = when (id) {
-    CreamBuiltinBackgroundId -> if (isDark) Color(0xFF211E18) else Color(0xFFFFF4D9)
-    RuledBuiltinBackgroundId -> if (isDark) Color(0xFF181D22) else Color(0xFFF8FBFF)
-    GridBuiltinBackgroundId -> if (isDark) Color(0xFF19201F) else Color(0xFFF6FCFA)
-    else -> if (isDark) Color(0xFF1C1A17) else Color(0xFFFFFCF5)
+    CreamBuiltinBackgroundId -> if (isDark) Color(0xFF1C1C1E) else Color(0xFFF7F7F9)
+    RuledBuiltinBackgroundId -> if (isDark) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
+    GridBuiltinBackgroundId -> if (isDark) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
+    else -> if (isDark) Color(0xFF1C1C1E) else Color(0xFFFFFFFF)
 }
 
 private fun builtinDetailColor(id: String, isDark: Boolean): Color = when (id) {
-    CreamBuiltinBackgroundId -> if (isDark) Color(0x12FFE2A8) else Color(0x147A5A28)
-    RuledBuiltinBackgroundId -> if (isDark) Color(0x244A90C2) else Color(0x245B8FB5)
-    GridBuiltinBackgroundId -> if (isDark) Color(0x2055B6A1) else Color(0x205A9C8F)
+    CreamBuiltinBackgroundId -> if (isDark) Color(0x12FFFFFF) else Color(0x14000000)
+    RuledBuiltinBackgroundId -> if (isDark) Color(0x24AEAEB2) else Color(0x248E8E93)
+    GridBuiltinBackgroundId -> if (isDark) Color(0x20AEAEB2) else Color(0x208E8E93)
     else -> Color.Transparent
 }

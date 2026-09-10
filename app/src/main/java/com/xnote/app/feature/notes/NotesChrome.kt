@@ -23,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.luminance
+import com.xnote.app.design.XNoteHomeCreateLightColor
+import com.xnote.app.design.XNoteHomeCreateDarkColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -175,7 +178,15 @@ fun BoxScope.NotesChrome(
                     onCreateNote(notebookId)
                 },
                 backdrop = backdrop,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = if (route is NotesRoute.Home) {
+                    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+                        XNoteHomeCreateDarkColor
+                    } else {
+                        XNoteHomeCreateLightColor
+                    }
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
