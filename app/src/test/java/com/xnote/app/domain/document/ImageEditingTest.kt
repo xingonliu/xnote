@@ -30,7 +30,8 @@ class ImageEditingTest {
     fun duplicateSharesAttachmentButHasIndependentTransformAndHistory() {
         val original = NoteDocument(blocks = listOf(ImageBlock("image", "file")))
         val duplicate = original.editImage("image", ImageAction.Duplicate, "copy").document
-        val transformed = duplicate.editImage("copy", ImageAction.RotateRight, "unused").document
+        val copy = duplicate.block("copy") as ImageBlock
+        val transformed = duplicate.replaceBlock(copy.transformed(1f, 90f, copy.offsetX, copy.offsetY))
         assertEquals(0f, (transformed.block("image") as ImageBlock).rotationDegrees)
         assertEquals(90f, (transformed.block("copy") as ImageBlock).rotationDegrees)
         assertEquals(setOf("file"), transformed.attachmentIds())
@@ -44,18 +45,39 @@ class ImageEditingTest {
     }
 
     @Test
-    fun reorderBoundsLayersScaleAndDeletingLastBlockRemainValid() {
-        var document = NoteDocument(blocks = listOf(ImageBlock("image", "file"), TextBlock("text")))
-        assertEquals(document, document.editImage("image", ImageAction.MoveUp, "unused").document)
-        document = document.editImage("image", ImageAction.MoveDown, "unused").document
-        assertEquals(listOf("text", "image"), document.blocks.map { it.id })
-        repeat(30) { document = document.editImage("image", ImageAction.Smaller, "unused").document }
-        assertEquals(0.2f, (document.block("image") as ImageBlock).scale)
-        document = document.editImage("image", ImageAction.Forward, "unused").document
-        assertEquals(1, (document.block("image") as ImageBlock).zIndex)
+    fun layersSwapOneImageAtATimeAndDeletingLastBlockKeepsText() {
+        val original = NoteDocument(blocks = listOf(ImageBlock("a", "file"), TextBlock("text"),
+            ImageBlock("b", "file"), ImageBlock("c", "file")))
+        val forward = original.editImage("a", ImageAction.Forward, "unused").document
+        assertEquals(original.blocks.map { it.id }, forward.blocks.map { it.id })
+        assertEquals(listOf("b", "a", "c"), forward.blocks.filterIsInstance<ImageBlock>().sortedBy { it.zIndex }.map { it.id })
+        val back = forward.editImage("a", ImageAction.Backward, "unused").document
+        assertEquals(listOf("a", "b", "c"), back.blocks.filterIsInstance<ImageBlock>().sortedBy { it.zIndex }.map { it.id })
         val deleted = NoteDocument(blocks = listOf(ImageBlock("image", "file")))
             .editImage("image", ImageAction.Delete, "fallback")
         assertEquals(listOf(TextBlock("fallback")), deleted.document.blocks)
-        assertEquals("fallback", deleted.selection.blockId)
+    }
+
+    @Test
+    fun polarHandleCombinesScaleAndRotationAcrossAngleSeam() {
+        val image = ImageBlock("image", "file", rotationDegrees = 350f)
+        val moved = image.transformFromHandle(100f, 0f, 0f, 200f)
+        assertEquals(2f, moved.scale, 0.001f)
+        assertEquals(80f, moved.rotationDegrees, 0.001f)
+        val reverse = image.transformFromHandle(100f, 0f, 0f, -100f)
+        assertEquals(260f, reverse.rotationDegrees, 0.001f)
+    }
+
+    @Test
+    fun freeTranslationAndScaleLimitsSurviveSerialization() {
+        val image = ImageBlock("image", "file")
+        assertEquals(0.15f, image.transformed(0.01f, -450f, -700f, 900f).scale)
+        val large = image.transformed(20f, -450f, -700f, 900f)
+        assertEquals(4f, large.scale)
+        assertEquals(270f, large.rotationDegrees)
+        assertEquals(-700f, large.offsetX)
+        assertEquals(900f, large.offsetY)
+        val document = NoteDocument(blocks = listOf(large))
+        assertEquals(document, decodeNoteDocument(document.encodeToJson()))
     }
 }

@@ -1,18 +1,27 @@
 package com.xnote.app.design
 
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,13 +29,13 @@ import androidx.compose.runtime.Stable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Type Definitions
 
@@ -70,36 +79,7 @@ data class XNoteRichTextToolbarState(
     val disabledActions: Set<XNoteRichTextAction> = emptySet(),
 )
 
-// -- Constants
-
-private val InlineActions = listOf(
-    XNoteRichTextAction.Bold,
-    XNoteRichTextAction.Italic,
-    XNoteRichTextAction.Underline,
-    XNoteRichTextAction.Strikethrough,
-    XNoteRichTextAction.Link,
-    XNoteRichTextAction.Highlight,
-)
-
-private val StructureActions = listOf(
-    XNoteRichTextAction.BulletedList,
-    XNoteRichTextAction.DashedList,
-    XNoteRichTextAction.NumberedList,
-    XNoteRichTextAction.Checklist,
-    XNoteRichTextAction.Quote,
-    XNoteRichTextAction.DecreaseIndent,
-    XNoteRichTextAction.IncreaseIndent,
-)
-
-private val LayoutActions = listOf(
-    XNoteRichTextAction.AlignStart,
-    XNoteRichTextAction.AlignCenter,
-    XNoteRichTextAction.AlignEnd,
-    XNoteRichTextAction.Table,
-    XNoteRichTextAction.ToggleHeadingCollapse,
-)
-
-// -- Composables
+// -- Functions
 
 @Composable
 fun XNoteRichTextToolbar(
@@ -107,114 +87,75 @@ fun XNoteRichTextToolbar(
     onAction: (XNoteRichTextAction) -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    popupAnchors: Map<XNoteRichTextAction, XNotePopupAnchor> = emptyMap(),
+    onParagraphStyle: (XNoteParagraphStyle) -> Unit,
 ) {
-    XNoteLiquidGlassPanel(
-        backdrop = backdrop,
-        shape = XNoteSmoothCornerShape(XNoteRadiusMedium),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(XNoteSpacingSmall),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            XNoteToolbarAction(
-                label = stringResource(state.paragraphStyle.labelRes),
-                action = XNoteRichTextAction.ParagraphStyle,
-                state = state,
-                backdrop = backdrop,
-                onAction = onAction,
-                popupAnchor = popupAnchors[XNoteRichTextAction.ParagraphStyle],
-            )
-            XNoteToolbarDivider()
-            XNoteToolbarActionGroup(
-                actions = InlineActions,
-                state = state,
-                backdrop = backdrop,
-                onAction = onAction,
-                popupAnchors = popupAnchors,
-            )
-            XNoteToolbarDivider()
-            XNoteToolbarActionGroup(
-                actions = StructureActions,
-                state = state,
-                backdrop = backdrop,
-                onAction = onAction,
-                popupAnchors = popupAnchors,
-            )
-            XNoteToolbarDivider()
-            XNoteToolbarActionGroup(
-                actions = LayoutActions,
-                state = state,
-                backdrop = backdrop,
-                onAction = onAction,
-                popupAnchors = popupAnchors,
-            )
+    XNoteLiquidGlassPanel(backdrop = backdrop, shape = XNoteSmoothCornerShape(XNoteRadiusMedium),
+        modifier = modifier.fillMaxWidth().testTag("xnote-format-inspector")) {
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                XNoteParagraphStyle.entries.forEach { style ->
+                    EditorSymbolButton(stringResource(style.labelRes), stringResource(style.labelRes),
+                        selected = state.paragraphStyle == style,
+                        enabled = XNoteRichTextAction.ParagraphStyle !in state.disabledActions,
+                        modifier = Modifier.weight(1f), onClick = { onParagraphStyle(style) })
+                }
+            }
+            listOf(
+                listOf(XNoteRichTextAction.Bold to "B", XNoteRichTextAction.Italic to "I",
+                    XNoteRichTextAction.Underline to "U", XNoteRichTextAction.Strikethrough to "S",
+                    XNoteRichTextAction.Link to "↗", XNoteRichTextAction.Highlight to "▰"),
+                listOf(XNoteRichTextAction.BulletedList to "• ≡", XNoteRichTextAction.NumberedList to "1. ≡",
+                    XNoteRichTextAction.DecreaseIndent to "⇤", XNoteRichTextAction.IncreaseIndent to "⇥",
+                    XNoteRichTextAction.AlignStart to "≡←", XNoteRichTextAction.AlignCenter to "≡",
+                    XNoteRichTextAction.AlignEnd to "→≡"),
+            ).forEach { actions ->
+                Row(Modifier.fillMaxWidth()) {
+                    actions.forEach { (action, symbol) ->
+                        EditorSymbolButton(symbol, stringResource(action.labelRes), Modifier.weight(1f),
+                            selected = action in state.selectedActions, enabled = action !in state.disabledActions,
+                            iconRes = if (action == XNoteRichTextAction.Link) R.drawable.ic_keyline_stroke_link else null,
+                            onClick = { onAction(action) })
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun RowScope.XNoteToolbarActionGroup(
-    actions: List<XNoteRichTextAction>,
-    state: XNoteRichTextToolbarState,
-    backdrop: Backdrop,
-    onAction: (XNoteRichTextAction) -> Unit,
-    popupAnchors: Map<XNoteRichTextAction, XNotePopupAnchor>,
+fun EditorSymbolButton(
+    symbol: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    destructive: Boolean = false,
+    iconRes: Int? = null,
+    onClick: () -> Unit,
 ) {
-    actions.forEach { action ->
-        XNoteToolbarAction(
-            label = stringResource(action.labelRes),
-            action = action,
-            state = state,
-            backdrop = backdrop,
-            onAction = onAction,
-            popupAnchor = popupAnchors[action],
-        )
-    }
-}
-
-@Composable
-private fun XNoteToolbarAction(
-    label: String,
-    action: XNoteRichTextAction,
-    state: XNoteRichTextToolbarState,
-    backdrop: Backdrop,
-    onAction: (XNoteRichTextAction) -> Unit,
-    popupAnchor: XNotePopupAnchor?,
-) {
-    val selected = action in state.selectedActions
-    LiquidButton(
-        onClick = { onAction(action) },
-        backdrop = backdrop,
-        enabled = action !in state.disabledActions,
-        tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
-        modifier = Modifier
-            .semantics { this.selected = selected }
-            .then(
-                popupAnchor?.let { Modifier.xNotePopupAnchor(it) } ?: Modifier,
+    val colors = MaterialTheme.colorScheme
+    val selectedForeground = if (colors.primary.luminance() > 0.179f) Color.Black else Color.White
+    Box(modifier.heightIn(min = 44.dp).clip(XNoteSmoothCornerShape(22.dp))
+        .background(if (selected) colors.primary else Color.Transparent)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .semantics { contentDescription = description; this.selected = selected },
+        contentAlignment = Alignment.Center) {
+        if (iconRes != null) {
+            Icon(painterResource(iconRes), contentDescription = null,
+                tint = (if (selected) selectedForeground else if (destructive) colors.error else colors.onSurface)
+                    .copy(alpha = if (enabled) 1f else 0.35f), modifier = Modifier.size(XNoteIconSizeMedium))
+        } else Text(symbol, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (symbol == "B") FontWeight.Bold else FontWeight.Medium,
+                fontStyle = if (symbol == "I") FontStyle.Italic else FontStyle.Normal,
+                textDecoration = when (symbol) {
+                    "U" -> TextDecoration.Underline
+                    "S" -> TextDecoration.LineThrough
+                    else -> TextDecoration.None
+                },
             ),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = LocalContentColor.current,
-            maxLines = 1,
-        )
+            color = (if (selected) selectedForeground else if (destructive) colors.error else colors.onSurface)
+                .copy(alpha = if (enabled) 1f else 0.35f),
+            modifier = Modifier.padding(horizontal = 2.dp).clearAndSetSemantics {})
     }
-}
-
-@Composable
-private fun XNoteToolbarDivider() {
-    Spacer(
-        modifier = Modifier
-            .padding(horizontal = 2.dp)
-            .width(1.dp)
-            .height(24.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)),
-    )
 }

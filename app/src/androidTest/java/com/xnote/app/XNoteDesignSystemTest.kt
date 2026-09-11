@@ -213,6 +213,7 @@ class XNoteDesignSystemTest {
                         XNoteRichTextToolbar(
                             state = XNoteRichTextToolbarState(),
                             onAction = { selectedAction = it },
+                            onParagraphStyle = {},
                             backdrop = backdrop,
                         )
                     },
@@ -220,7 +221,7 @@ class XNoteDesignSystemTest {
             }
         }
 
-        composeRule.onNodeWithText("粗体").performClick()
+        composeRule.onNodeWithContentDescription("粗体").performClick()
         composeRule.runOnIdle {
             assertEquals(XNoteRichTextAction.Bold, selectedAction)
         }

@@ -45,7 +45,8 @@ class NoteImagesInstrumentedTest {
             val target = session.selection
             session.attachImage(attachment.id, target, null)
             val image = session.document.blocks.filterIsInstance<ImageBlock>().single()
-            session.editImage(image.id, ImageAction.RotateRight)
+            session.transformImage(image.id, 1f, 90f, 0f, 0f)
+            session.finishImageGesture()
             session.editImage(image.id, ImageAction.Duplicate)
             val duplicateId = session.selection.blockId
             session.transformImage(duplicateId, 0.5f, 25f, 12f, -8f)

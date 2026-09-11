@@ -1,6 +1,7 @@
 package com.xnote.app.feature.notes.editor
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,10 +9,10 @@ import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbarState
-import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.domain.document.EditorChange
 import com.xnote.app.domain.document.EditorHistory
 import com.xnote.app.domain.document.ImageBlock
+import com.xnote.app.domain.document.transformed
 import com.xnote.app.domain.document.ImageAction
 import com.xnote.app.domain.document.insertImage
 import com.xnote.app.domain.document.editImage
@@ -42,7 +43,6 @@ import com.xnote.app.domain.document.insertTable
 import com.xnote.app.domain.document.insertTableColumn
 import com.xnote.app.domain.document.insertTableRow
 import com.xnote.app.domain.document.marksAt
-import com.xnote.app.domain.document.plainText
 import com.xnote.app.domain.document.rangeHasLink
 import com.xnote.app.domain.document.rangeHasMark
 import com.xnote.app.domain.document.replaceSelectedText
@@ -99,12 +99,19 @@ class NoteEditorSession(
     var fieldsEpoch by mutableIntStateOf(0)
         private set
     var focusBlockId by mutableStateOf<String?>(null)
+    var toolbarHeightDp by mutableFloatStateOf(64f)
+    var canUndo by mutableStateOf(false)
+        private set
+    var canRedo by mutableStateOf(false)
+        private set
+
     var markdownShortcutsEnabled by mutableStateOf(true)
-    var imageMenuId by mutableStateOf<String?>(null)
+    var replaceImageId by mutableStateOf<String?>(null)
+    var imagePlacement by mutableStateOf<ImagePlacement?>(null)
     val attachmentOwner = newNoteId()
 
     private val history = EditorHistory()
-    private val imageAnchors = mutableMapOf<String, XNotePopupAnchor>()
+
     private var saveJob: Job? = null
     private var lastSavedTitle = ""
     private var lastSavedDocument = emptyNoteDocument()
@@ -115,19 +122,10 @@ class NoteEditorSession(
 
     // -- Derived Values
 
-    val canUndo: Boolean
-        get() = history.canUndo
-
-    val canRedo: Boolean
-        get() = history.canRedo
-
     val toolbarState: XNoteRichTextToolbarState
         get() = toolbarStateFor(document, selection, typingMarks)
 
     // -- Functions
-
-    fun imageAnchor(id: String): XNotePopupAnchor =
-        imageAnchors.getOrPut(id) { XNotePopupAnchor() }
 
     suspend fun load() {
         // The same session can move between phone and tablet panes during a resize.
@@ -167,7 +165,7 @@ class NoteEditorSession(
 
     fun updateTitle(value: String) {
         if (title == value) return
-        history.capture(snapshot(), key = "title")
+        captureHistory(snapshot(), key = "title")
         title = value
         scheduleSave()
     }
@@ -185,7 +183,7 @@ class NoteEditorSession(
             }
             return
         }
-        history.capture(snapshot(), key = "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
+        captureHistory(snapshot(), key = "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
         val (start, end, inserted) = findTextReplacement(oldText, newText)
         val change = document.replaceSelectedText(
             target.copy(start = start, end = end),
@@ -203,7 +201,7 @@ class NoteEditorSession(
             composing = composing,
         )
         if (shortcut != null) {
-            history.capture(snapshot(), key = "markdown-shortcut")
+            captureHistory(snapshot(), key = "markdown-shortcut")
             document = shortcut.document
             selection = shortcut.selection
             fieldsEpoch += 1
@@ -217,7 +215,7 @@ class NoteEditorSession(
     }
 
     fun deleteBackward() {
-        history.capture(snapshot())
+        captureHistory(snapshot())
         val change = document.deleteBackward(selection)
         val structureChanged = change.document.blocks.map { it.id } != document.blocks.map { it.id }
         document = change.document
@@ -249,14 +247,10 @@ class NoteEditorSession(
             XNoteRichTextAction.AlignCenter -> mutate { it.setAlignment(selection, TextAlignment.Center) }
             XNoteRichTextAction.AlignEnd -> mutate { it.setAlignment(selection, TextAlignment.Right) }
             XNoteRichTextAction.Table -> {
-                if (selection.isTable) {
-                    false
-                } else {
-                    mutate { it.insertTable(selection, newNoteId(), newNoteId()) }
-                    focusBlockId = selection.blockId
-                    fieldsEpoch += 1
-                    true
-                }
+                mutate { it.insertTable(selection, newNoteId(), newNoteId()) }
+                focusBlockId = selection.blockId
+                fieldsEpoch += 1
+                true
             }
             XNoteRichTextAction.ToggleHeadingCollapse -> {
                 mutate { it.toggleCollapsed(selection) }
@@ -270,7 +264,7 @@ class NoteEditorSession(
     }
 
     fun applyLink(url: String?) {
-        history.capture(snapshot())
+        captureHistory(snapshot())
         val (change, marks) = document.setLink(selection, url, typingMarks)
         document = change.document
         selection = change.selection
@@ -368,11 +362,8 @@ class NoteEditorSession(
 
     fun transformImage(id: String, scale: Float, rotation: Float, x: Float, y: Float) {
         val image = document.block(id) as? ImageBlock ?: return
-        history.capture(snapshot(), key = "image-gesture:$id:$imageGesture")
-        document = document.replaceBlock(image.copy(
-            scale = scale.coerceIn(0.2f, 3f), rotationDegrees = rotation % 360f,
-            offsetX = x.coerceIn(-120f, 120f), offsetY = y.coerceIn(-120f, 120f),
-        ))
+        captureHistory(snapshot(), key = "image-gesture:$id:$imageGesture")
+        document = document.replaceBlock(image.transformed(scale, rotation, x, y))
         scheduleSave()
     }
 
@@ -385,11 +376,13 @@ class NoteEditorSession(
 
     fun undo() {
         val previous = history.undo(snapshot()) ?: return
+        refreshHistoryState()
         restore(previous)
     }
 
     fun redo() {
         val next = history.redo(snapshot()) ?: return
+        refreshHistoryState()
         restore(next)
     }
 
@@ -406,7 +399,7 @@ class NoteEditorSession(
     }
 
     private fun applyMark(mark: InlineMark): Boolean {
-        history.capture(snapshot())
+        captureHistory(snapshot())
         val (change, marks) = document.applyInlineMark(selection, mark, typingMarks)
         document = change.document
         typingMarks = marks
@@ -420,7 +413,7 @@ class NoteEditorSession(
     }
 
     private fun mutate(block: (NoteDocument) -> com.xnote.app.domain.document.EditorChange): Boolean {
-        history.capture(snapshot())
+        captureHistory(snapshot())
         val change = block(document)
         document = change.document
         selection = change.selection
@@ -428,12 +421,22 @@ class NoteEditorSession(
         return true
     }
 
+    private fun refreshHistoryState() {
+        canUndo = history.canUndo
+        canRedo = history.canRedo
+    }
+
+    private fun captureHistory(snapshot: EditorSnapshot, key: String? = null) {
+        history.capture(snapshot, key)
+        refreshHistoryState()
+    }
+
     private fun restore(snapshot: EditorSnapshot) {
         title = snapshot.title
         document = snapshot.document
         selection = snapshot.selection
         fieldsEpoch += 1
-        focusBlockId = snapshot.selection.blockId
+        focusBlockId = snapshot.selection.blockId.takeIf { document.block(it) !is ImageBlock }
         scheduleSave()
     }
 

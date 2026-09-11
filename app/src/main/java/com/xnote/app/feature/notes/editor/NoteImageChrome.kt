@@ -3,17 +3,8 @@ package com.xnote.app.feature.notes.editor
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.Composable
@@ -25,29 +16,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.data.files.cameraFile
 import com.xnote.app.data.files.cameraUri
 import com.xnote.app.data.files.importNoteImage
 import com.xnote.app.data.repository.NoteLibrary
-import com.xnote.app.design.XNoteDrawer
-import com.xnote.app.design.XNoteDrawerPlacement
 import com.xnote.app.design.XNoteDropdownMenu
 import com.xnote.app.design.XNoteDropdownMenuItem
 import com.xnote.app.design.XNotePopupPlacement
-import com.xnote.app.design.XNotePopup
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.domain.document.EditorSelection
-import com.xnote.app.domain.document.ImageAction
-import com.xnote.app.domain.document.ImageBlock
-import com.xnote.app.domain.document.block
 import com.xnote.app.domain.model.newNoteId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -68,11 +51,12 @@ fun BoxScope.NoteImageChrome(
     session: NoteEditorSession,
     library: NoteLibrary,
     backdrop: Backdrop,
-    isTablet: Boolean,
     toast: SnackbarHostState,
     ui: NoteImageUiState,
     sourceAnchor: XNotePopupAnchor,
 ) {
+    val replacementAnchor = com.xnote.app.design.rememberXNotePopupAnchor()
+    NoteImageControls(session, backdrop, replacementAnchor)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
@@ -155,73 +139,21 @@ fun BoxScope.NoteImageChrome(
             ui.addRequested = false
         }
     }
-    val selectedId = session.imageMenuId
-    val selectedImage = selectedId?.let { session.document.block(it) as? ImageBlock }
-    val operations = buildList {
-        if (selectedImage != null) {
-            add(XNoteDropdownMenuItem(stringResource(R.string.image_gesture), onClick = {}))
-            ImageAction.entries.forEach { action ->
-                add(XNoteDropdownMenuItem(
-                    stringResource(action.labelRes()),
-                    onClick = { session.editImage(selectedImage.id, action) },
-                    destructive = action == ImageAction.Delete,
-                ))
-            }
-            add(XNoteDropdownMenuItem(stringResource(R.string.image_replace), onClick = { openSources(selectedImage.id) }))
+    LaunchedEffect(session.replaceImageId) {
+        session.replaceImageId?.let { id ->
+            openSources(id)
+            session.replaceImageId = null
         }
     }
-    if (isTablet) {
-        XNotePopup(
-            visible = selectedImage != null, onDismissRequest = { session.imageMenuId = null },
-            backdrop = backdrop,
-            anchor = selectedId?.let(session::imageAnchor),
-        ) {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                operations.forEach { item -> ImageMenuRow(item) { session.imageMenuId = null } }
-            }
-        }
-        XNoteDropdownMenu(
-            expanded = sourceVisible, onDismissRequest = { sourceVisible = false }, items = sources,
-            backdrop = backdrop, anchor = if (replaceId != null) session.imageAnchor(replaceId!!) else sourceAnchor,
-            placement = if (replaceId != null) XNotePopupPlacement.AboveStart else XNotePopupPlacement.BelowEnd,
-        )
-    } else {
-        XNoteDrawer(
-            visible = selectedImage != null, onDismissRequest = { session.imageMenuId = null },
-            title = stringResource(R.string.image_edit), backdrop = backdrop, placement = XNoteDrawerPlacement.Bottom,
-        ) {
-            operations.forEach { item -> ImageMenuRow(item) { session.imageMenuId = null } }
-        }
-        XNoteDrawer(
-            visible = sourceVisible, onDismissRequest = { sourceVisible = false },
-            title = stringResource(R.string.image_add), backdrop = backdrop, placement = XNoteDrawerPlacement.Bottom,
-        ) {
-            sources.forEach { item -> ImageMenuRow(item) { sourceVisible = false } }
-        }
-    }
-}
-
-@Composable
-private fun ImageMenuRow(item: XNoteDropdownMenuItem, dismiss: () -> Unit) {
-    Text(
-        item.label, style = MaterialTheme.typography.bodyLarge,
-        color = if (item.destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { item.onClick(); dismiss() }.padding(12.dp),
+    XNoteDropdownMenu(
+        expanded = sourceVisible, onDismissRequest = { sourceVisible = false },
+        items = if (replaceId == null) sources + XNoteDropdownMenuItem(
+            stringResource(R.string.rich_text_action_table), onClick = {
+                sourceVisible = false
+                session.applyAction(com.xnote.app.design.XNoteRichTextAction.Table)
+            },
+        ) else sources,
+        backdrop = backdrop, anchor = if (replaceId == null) sourceAnchor else replacementAnchor,
+        placement = XNotePopupPlacement.AboveStart,
     )
-}
-
-// -- Functions
-
-private fun ImageAction.labelRes(): Int = when (this) {
-    ImageAction.Smaller -> R.string.image_smaller
-    ImageAction.Larger -> R.string.image_larger
-    ImageAction.RotateLeft -> R.string.image_rotate_left
-    ImageAction.RotateRight -> R.string.image_rotate_right
-    ImageAction.MoveUp -> R.string.image_move_up
-    ImageAction.MoveDown -> R.string.image_move_down
-    ImageAction.Backward -> R.string.image_backward
-    ImageAction.Forward -> R.string.image_forward
-    ImageAction.Reset -> R.string.image_reset
-    ImageAction.Duplicate -> R.string.image_duplicate
-    ImageAction.Delete -> R.string.image_delete
 }

@@ -237,7 +237,7 @@ class NotesFlowTest {
     }
 
     @Test
-    fun imageSourceDrawerAndImageOperationsWorkInEditor() {
+    fun insertBubbleAndImagePillWorkInEditor() {
         val note = runBlocking {
             val source = File(context.cacheDir, "ui-image-${System.nanoTime()}.png")
             val bitmap = android.graphics.Bitmap.createBitmap(640, 360, android.graphics.Bitmap.Config.ARGB_8888)
@@ -256,10 +256,12 @@ class NotesFlowTest {
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
         composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("图片验收").performClick()
-        composeRule.onNodeWithContentDescription("更多").performClick()
-        composeRule.onNodeWithText("添加图片").performClick()
+        composeRule.onNodeWithContentDescription("插入").performClick()
         composeRule.onNodeWithText("相机").assertIsDisplayed()
         composeRule.onNodeWithText("相册").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "editor-insert.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
         composeRule.onNodeWithTag("xnote-overlay-scrim").performTouchInput {
             click(percentOffset(0.5f, 0.05f))
         }
@@ -270,16 +272,14 @@ class NotesFlowTest {
         screenshot.outputStream().use {
             composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }
-        composeRule.onNodeWithTag("xnote-image-photo").performScrollTo().performClick()
-        composeRule.onNodeWithText("向右旋转 90°").performScrollTo().performClick()
-        composeRule.onNodeWithTag("xnote-image-photo").performScrollTo().performClick()
-        composeRule.onNodeWithText("复制图片").performScrollTo().performClick()
+        composeRule.onNodeWithTag("xnote-image-photo").performScrollTo().performTouchInput { click() }
+        composeRule.onNodeWithContentDescription("复制图片").performClick()
         composeRule.onNodeWithContentDescription("撤销").performClick()
-        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.onNodeWithTag("xnote-editor-back").performClick()
         composeRule.waitUntil(5_000) { composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty() }
         val images = runBlocking { library.getNote(note.id)!!.document.blocks.filterIsInstance<com.xnote.app.domain.document.ImageBlock>() }
         assertEquals(1, images.size)
-        assertEquals(90f, images.single().rotationDegrees)
+        assertEquals(0f, images.single().rotationDegrees)
     }
 
     @Test
@@ -401,9 +401,7 @@ class NotesFlowTest {
         }
         composeRule.onNodeWithContentDescription("选择笔记本").performClick()
         composeRule.onNodeWithText("目标本").performClick()
-        composeRule.waitUntil(5_000) {
-            composeRule.onAllNodesWithText("目标本").fetchSemanticsNodes().isEmpty()
-        }
+        composeRule.onNodeWithTag("xnote-editor-notebook").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-title").performTextInput("已编辑")
         composeRule.onNodeWithContentDescription("返回").performClick()
         composeRule.waitUntil(5_000) {
@@ -436,6 +434,96 @@ class NotesFlowTest {
         composeRule.onNodeWithTag("xnote-editor-title").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-body").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("撤销").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("排版格式").performClick()
+        composeRule.onNodeWithTag("xnote-format-inspector").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "editor-large-font.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
+    @Test
+    fun editorInspectorDarkThemeShowsSelectedParagraphAndQuickActions() {
+        composeRule.setContent { XNoteTheme(darkTheme = true, reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-create-note").performClick()
+        composeRule.onNodeWithTag("xnote-editor-body").performTextInput("深色编辑体验")
+        composeRule.onNodeWithContentDescription("排版格式").performClick()
+        composeRule.onNodeWithContentDescription("标题").performClick()
+        composeRule.onNodeWithTag("xnote-editor-heading-collapse").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "editor-dark.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithContentDescription("收起键盘").performClick()
+        composeRule.onNodeWithTag("xnote-format-inspector").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("检查清单").performClick()
+        composeRule.onNodeWithContentDescription("引用").performClick()
+    }
+
+    @Test
+    fun imageStickerDragsBeyondOldBoundsTransformsAndUndoesDeletion() = runTest {
+        val source = File(filesRoot, "sticker-source.png")
+        source.parentFile?.mkdirs()
+        val bitmap = android.graphics.Bitmap.createBitmap(600, 400, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(android.graphics.Color.rgb(232, 219, 187))
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.color = android.graphics.Color.rgb(54, 100, 78)
+        canvas.drawCircle(300f, 200f, 130f, paint)
+        source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val attachment = com.xnote.app.data.files.importNoteImage(context, library, android.net.Uri.fromFile(source), "test")
+        val note = library.createNote(null)
+        library.saveNote(note.copy(title = "纸面贴纸", document = NoteDocument(blocks = listOf(
+            TextBlock("intro", inlines = listOf(InlineRun("记录此刻的灵感"))),
+            com.xnote.app.domain.document.ImageBlock("sticker", attachment.id),
+            TextBlock("tail", inlines = listOf(InlineRun("图片可以自由移动"))),
+        ))))
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
+        composeRule.onNodeWithText("纸面贴纸").performClick()
+        composeRule.onNodeWithContentDescription("收起键盘").performClick()
+        composeRule.onNodeWithTag("xnote-image-sticker").performTouchInput { click() }
+        composeRule.onNodeWithTag("xnote-image-pill").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-image-sticker").performTouchInput {
+            swipe(center, center + androidx.compose.ui.geometry.Offset(0f, 420f), durationMillis = 600)
+        }
+        composeRule.waitUntil(5_000) {
+            runBlocking { library.getNote(note.id)?.document?.blocks?.filterIsInstance<com.xnote.app.domain.document.ImageBlock>()?.single()?.offsetY ?: 0f } > 120f
+        }
+        composeRule.onNodeWithTag("xnote-image-transform-handle").performTouchInput {
+            swipe(center, center + androidx.compose.ui.geometry.Offset(-90f, 50f), durationMillis = 500)
+        }
+        composeRule.waitUntil(5_000) {
+            runBlocking { library.getNote(note.id)?.document?.blocks?.filterIsInstance<com.xnote.app.domain.document.ImageBlock>()?.single()?.rotationDegrees ?: 0f } > 5f
+        }
+        File(context.getExternalFilesDir(null), "editor-sticker.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithContentDescription("删除图片").performClick()
+        composeRule.onNodeWithTag("xnote-image-sticker").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("撤销").performClick()
+        composeRule.onNodeWithTag("xnote-image-sticker").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("重置变换").performClick()
+        composeRule.waitUntil(5_000) {
+            runBlocking { library.getNote(note.id)?.document?.blocks?.filterIsInstance<com.xnote.app.domain.document.ImageBlock>()?.single()?.offsetY } == 0f
+        }
+        composeRule.onNodeWithTag("xnote-image-sticker").performTouchInput {
+            val pivot = center
+            down(0, pivot - androidx.compose.ui.geometry.Offset(40f, 0f))
+            down(1, pivot + androidx.compose.ui.geometry.Offset(40f, 0f))
+            moveTo(0, pivot - androidx.compose.ui.geometry.Offset(100f, 50f), delayMillis = 100)
+            moveTo(1, pivot + androidx.compose.ui.geometry.Offset(100f, 50f), delayMillis = 100)
+            up(0)
+            up(1)
+        }
+        composeRule.waitUntil(5_000) {
+            val image = runBlocking { library.getNote(note.id)?.document?.blocks?.filterIsInstance<com.xnote.app.domain.document.ImageBlock>()?.single() }
+            image != null && image.scale > 2f && image.rotationDegrees > 15f
+        }
+        composeRule.onNodeWithContentDescription("撤销").performClick()
+        composeRule.waitUntil(5_000) {
+            val image = runBlocking { library.getNote(note.id)?.document?.blocks?.filterIsInstance<com.xnote.app.domain.document.ImageBlock>()?.single() }
+            image?.scale == 1f && image.rotationDegrees == 0f
+        }
     }
 
     @Test
@@ -451,22 +539,26 @@ class NotesFlowTest {
         composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("工具栏测试").performClick()
         composeRule.onNodeWithTag("xnote-editor-body").performTextInput("plain")
-        composeRule.onNodeWithText("粗体").performClick()
+        composeRule.onNodeWithContentDescription("排版格式").performClick()
+        composeRule.onNodeWithContentDescription("粗体").performClick()
+        File(context.getExternalFilesDir(null), "editor-format.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
         composeRule.onNodeWithTag("xnote-editor-body").performTextInput("bold")
-        composeRule.onNodeWithText("表格").performScrollTo().performClick()
+        composeRule.onNodeWithContentDescription("插入").performClick()
+        composeRule.onNodeWithText("表格").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("单元格").fetchSemanticsNodes().size == 4
         }
-        composeRule.onNodeWithText("表格").performScrollTo().performClick()
-        composeRule.waitUntil(5_000) {
-            composeRule.onAllNodesWithText("下方插入行").fetchSemanticsNodes().isNotEmpty()
+        File(context.getExternalFilesDir(null), "editor-table.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }
-        composeRule.onNodeWithText("下方插入行").performClick()
+        composeRule.onNodeWithContentDescription("下方插入行").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("单元格").fetchSemanticsNodes().size == 6
         }
         composeRule.onAllNodes(hasSetTextAction()).onLast().performScrollTo().performClick().performTextInput("表格后的正文")
-        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.onNodeWithTag("xnote-editor-back").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty()
         }

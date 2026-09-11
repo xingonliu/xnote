@@ -3,6 +3,9 @@ package com.xnote.app.feature.notes.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +21,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.Icon
@@ -27,6 +29,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,69 +107,92 @@ fun NoteEditorScreen(
         return
     }
 
-    val labels = session.document.numberedLabels()
+    val layoutDirection = LocalLayoutDirection.current
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding()
-            .navigationBarsPadding()
-            .verticalScroll(scrollState)
-            .padding(contentPadding)
-            .fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+        modifier = modifier.fillMaxSize().imePadding().navigationBarsPadding()
+            .padding(bottom = (session.toolbarHeightDp + 8f).dp)
+            .verticalScroll(scrollState).padding(
+                start = contentPadding.calculateStartPadding(layoutDirection),
+                top = contentPadding.calculateTopPadding(),
+                end = contentPadding.calculateEndPadding(layoutDirection),
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = XNoteMaximumContentWidth)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-        ) {
+        NotePaper(session)
+    }
+}
+
+@Composable
+private fun NotePaper(session: NoteEditorSession) {
+    val imageOrigins = remember(session.noteId) { mutableStateMapOf<String, Float>() }
+    val imageBaseHeights = remember(session.noteId) { mutableStateMapOf<String, Float>() }
+    val imageBottoms = remember(session.noteId) { mutableStateMapOf<String, Float>() }
+    val density = LocalDensity.current.density
+    val blocks = session.document.visibleBlocks()
+    val labels = session.document.numberedLabels()
+    val firstTextId = blocks.filterIsInstance<TextBlock>().firstOrNull()?.id
+    val images = blocks.filterIsInstance<ImageBlock>()
+    val paperBottom = images.maxOfOrNull { imageBottoms[it.id] ?: 0f } ?: 0f
+    Box(Modifier.widthIn(max = XNoteMaximumContentWidth).fillMaxWidth()
+        .heightIn(min = maxOf(600f, paperBottom).dp)) {
+        Box(Modifier.matchParentSize().clickable {
+            val tail = session.document.blocks.lastOrNull()
+            if (tail is TextBlock) {
+                val end = tail.inlines.plainText().length
+                session.select(EditorSelection(tail.id, end, end))
+                session.focusBlockId = tail.id
+            } else if (tail != null) session.continueAfterBlock(tail.id)
+        })
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall)) {
             TitleField(
                 value = session.title,
                 onValueChange = session::updateTitle,
+                onFocused = { session.focusBlockId = null; session.select(EditorSelection("")) },
             )
             session.note?.let { note ->
                 Text(
                     text = formatNoteEditorDate(note.updatedAtEpochMs),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("xnote-editor-date"),
+                    modifier = Modifier.fillMaxWidth().testTag("xnote-editor-date"),
                 )
             }
-            session.document.visibleBlocks().forEachIndexed { index, block ->
+            blocks.forEach { block ->
                 key(block.id) {
-                    EditorBlock(
-                        block = block,
-                        session = session,
-                        numberedLabel = labels[block.id],
-                        isFirstTextBlock = index == 0 || session.document.visibleBlocks()
-                            .take(index)
-                            .none { it is TextBlock },
-                    )
-                    val nextBlock = session.document.blocks.getOrNull(
-                        session.document.blocks.indexOf(block) + 1,
-                    )
+                    if (block is ImageBlock) {
+                        Spacer(Modifier.fillMaxWidth().height(0.dp).onPlaced {
+                            imageOrigins[block.id] = it.positionInParent().y
+                        })
+                    } else {
+                        EditorBlock(block, session, labels[block.id], block.id == firstTextId)
+                    }
+                    val nextBlock = session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1)
+                    if (block is ImageBlock && nextBlock !is ImageBlock) {
+                        // Reserve the insertion footprint; later transforms never reflow text.
+                        Spacer(Modifier.height((imageBaseHeights[block.id] ?: 180f).dp))
+                    }
                     if (block !is TextBlock && nextBlock !is TextBlock) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(XNoteMinimumTouchTarget)
-                                .testTag(
-                                    when (block) {
-                                        is TableBlock -> "xnote-editor-continue-after-table"
-                                        is ImageBlock -> "xnote-editor-continue-after-image"
-                                        else -> "xnote-editor-continue-after-${block.id}"
-                                    },
-                                )
-                                .clickable { session.continueAfterBlock(block.id) },
-                        )
+                        Box(Modifier.fillMaxWidth().height(XNoteMinimumTouchTarget)
+                            .testTag(when (block) {
+                                is TableBlock -> "xnote-editor-continue-after-table"
+                                is ImageBlock -> "xnote-editor-continue-after-image"
+                                else -> "xnote-editor-continue-after-${block.id}"
+                            }).clickable { session.continueAfterBlock(block.id) })
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
+        }
+        images.forEach { image ->
+            key(image.id) {
+                NoteImageBlock(
+                    block = image, session = session,
+                    originY = (imageOrigins[image.id] ?: 0f) / density,
+                    modifier = Modifier.matchParentSize(),
+                    onBottomChanged = { imageBottoms[image.id] = it },
+                    onBaseHeightChanged = { imageBaseHeights[image.id] = it },
+                )
+            }
         }
     }
 }
@@ -170,6 +201,7 @@ fun NoteEditorScreen(
 private fun TitleField(
     value: String,
     onValueChange: (String) -> Unit,
+    onFocused: () -> Unit,
 ) {
     val style = MaterialTheme.typography.headlineLarge
     BasicTextField(
@@ -180,7 +212,8 @@ private fun TitleField(
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("xnote-editor-title"),
+            .testTag("xnote-editor-title")
+            .onFocusChanged { if (it.isFocused) onFocused() },
         decorationBox = { inner ->
             Box {
                 if (value.isEmpty()) {
@@ -211,7 +244,7 @@ private fun EditorBlock(
             isFirstTextBlock = isFirstTextBlock,
         )
         is TableBlock -> TableBlockEditor(block = block, session = session)
-        is ImageBlock -> NoteImageBlock(block, session)
+        is ImageBlock -> Unit
         is StickerBlock, is DrawingBlock -> {
             Text(
                 text = stringResource(R.string.editor_unsupported_block),
