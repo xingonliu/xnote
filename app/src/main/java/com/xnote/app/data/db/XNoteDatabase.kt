@@ -1,6 +1,7 @@
 package com.xnote.app.data.db
 
 import android.content.Context
+import androidx.room3.AutoMigration
 import androidx.room3.Database
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
@@ -17,7 +18,8 @@ import kotlinx.coroutines.Dispatchers
         NoteRevisionEntity::class,
         AttachmentEntity::class,
     ],
-    version = 2,
+    version = 3,
+    autoMigrations = [AutoMigration(from = 2, to = 3)],
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {

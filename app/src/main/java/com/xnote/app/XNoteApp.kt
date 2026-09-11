@@ -101,6 +101,9 @@ import com.xnote.app.feature.profile.ProfileDetailScreen
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.TabletNotesWorkspace
 import com.xnote.app.feature.notes.NotesChrome
+import com.xnote.app.feature.notes.NotebookHomeUiState
+import com.xnote.app.feature.notes.NotebookHomeOverlays
+import com.xnote.app.feature.notes.rememberNotebookHomeUiState
 import com.xnote.app.feature.notes.NotesHomeScreen
 import com.xnote.app.feature.notes.NotesScope
 import com.xnote.app.feature.notes.NotesUiState
@@ -152,6 +155,7 @@ fun XNoteApp(
     var searchNotebookId by rememberSaveable { mutableStateOf<String?>(null) }
     val readerStateHolder = rememberSaveableStateHolder()
     val uiState = remember { NotesUiState() }
+    val homeUi = rememberNotebookHomeUiState()
     val recycleBinUiState = remember { RecycleBinUiState() }
     val navigationState = remember(
         destinationName,
@@ -408,7 +412,9 @@ fun XNoteApp(
             navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
         if (usesWorkspace) {
             TabletNotesWorkspace(
-                navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes,
+                navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes, homeUi = homeUi,
+                trashCount = trashedNotes.size,
+                onOpenRecycleBin = { updateNavigationState(navigationState.openRecycleBin()) },
                 ui = uiState, editorSession = editorSession, editorScroll = editorScrollState,
                 listState = notebookListState, searchListState = searchListState, background = editorBackground,
                 query = searchQuery, searchNotebookId = searchNotebookId, results = searchResults, recentQueries = recentQueries,
@@ -537,6 +543,7 @@ fun XNoteApp(
                     navigationState = navigationState,
                     noteLibrary = noteLibrary,
                     uiState = uiState,
+                    homeUi = homeUi,
                     notebooks = notebooks,
                     activeNotes = activeNotes,
                     backdrop = backdrop,
@@ -687,6 +694,11 @@ fun XNoteApp(
                     )
                 }
 
+                if (navigationState.destination == AppDestination.Notes && navigationState.notesRoute == NotesRoute.Home &&
+                    !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen) {
+                    NotebookHomeOverlays(homeUi, notebooks, activeNotes, noteLibrary, backdrop)
+                }
+
                 if (navigationState.isRecycleBinOpen) {
                     RecycleBinChrome(
                         notes = trashedNotes,
@@ -723,6 +735,7 @@ private fun DestinationContent(
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
+    homeUi: NotebookHomeUiState,
     notebooks: List<Notebook>,
     activeNotes: List<Note>,
     backdrop: Backdrop,
@@ -815,6 +828,9 @@ private fun DestinationContent(
             is NotesRoute.Reader, is NotesRoute.Export -> Unit
             NotesRoute.Home -> NotesHomeScreen(
                 notes = activeNotes,
+                ui = homeUi,
+                trashCount = trashedNotes.size,
+                onOpenRecycleBin = onOpenRecycleBin,
                 backdrop = backdrop,
                 contentPadding = contentPadding,
                 listState = listState,

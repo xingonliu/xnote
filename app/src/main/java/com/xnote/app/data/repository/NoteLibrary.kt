@@ -89,6 +89,13 @@ class NoteLibrary(
         return updated
     }
 
+    suspend fun setNotebookAppearance(id: String, color: String, icon: String) {
+        write {
+            val existing = notebooks.get(id)?.toDomain() ?: error("Notebook not found: $id")
+            notebooks.upsert(existing.copy(color = color, icon = icon, updatedAtEpochMs = clock.nowMs()).toEntity())
+        }
+    }
+
     suspend fun reorderNotebooks(orderedIds: List<String>) {
         if (orderedIds.isEmpty()) return
         write {
@@ -114,7 +121,7 @@ class NoteLibrary(
         }
     }
 
-    suspend fun deleteNotebook(id: String) {
+    suspend fun deleteNotebook(id: String, moveNotesToUnfiled: Boolean = false) {
         val notebook = notebooks.get(id)?.toDomain() ?: return
         write {
             val assigned = notes.getByNotebook(id).map { it.toDomain() }
@@ -125,12 +132,13 @@ class NoteLibrary(
                     val patch = patches.getValue(note.id)
                     note.copy(
                         notebookId = null,
-                        originalNotebookName = patch.originalNotebookName,
-                        deletedAtEpochMs = patch.deletedAtEpochMs,
+                        originalNotebookName = if (moveNotesToUnfiled && !note.isTrashed) null else patch.originalNotebookName,
+                        deletedAtEpochMs = if (moveNotesToUnfiled) note.deletedAtEpochMs else patch.deletedAtEpochMs,
                     ).withDerivedText()
                 }
                 notes.upsertAll(patched.map { it.toEntity() })
                 noteFts.deleteByNoteIds(patched.map { it.id })
+                patched.filterNot { it.isTrashed }.forEach { indexForSearch(it) }
             }
             notebooks.deleteById(id)
         }

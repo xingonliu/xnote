@@ -53,6 +53,38 @@ class NoteLibraryInstrumentedTest {
     }
 
     @Test
+    fun appearanceAndOrderPersistAndRenamePreservesAppearance() = runTest {
+        val first = library.createNotebook("第一本")
+        val second = library.createNotebook("第二本")
+        library.setNotebookAppearance(first.id, "purple", "star")
+        library.renameNotebook(first.id, "新名字")
+        library.reorderNotebooks(listOf(second.id, first.id))
+        val restored = library.observeNotebooks().first()
+        assertEquals(listOf(second.id, first.id), restored.map { it.id })
+        assertEquals("purple", restored.last().color)
+        assertEquals("star", restored.last().icon)
+        assertEquals("新名字", restored.last().name)
+    }
+
+    @Test
+    fun deletingNotebookCanKeepActiveNotesAndSearchWhilePreservingExistingTrash() = runTest {
+        val notebook = library.createNotebook("工作")
+        val active = library.saveNote(library.createNote(notebook.id).copy(title = "保留的设计"))
+        val trashed = library.createNote(notebook.id)
+        library.trashNotes(listOf(trashed.id))
+        val deletedAt = library.getNote(trashed.id)?.deletedAtEpochMs
+        library.deleteNotebook(notebook.id, moveNotesToUnfiled = true)
+        assertNull(library.getNotebook(notebook.id))
+        assertNull(library.getNote(active.id)?.notebookId)
+        assertNull(library.getNote(active.id)?.deletedAtEpochMs)
+        assertEquals(listOf(active.id), library.searchNoteIds("设计"))
+        assertEquals(deletedAt, library.getNote(trashed.id)?.deletedAtEpochMs)
+        assertEquals("工作", library.getNote(trashed.id)?.originalNotebookName)
+        library.restoreNotes(listOf(trashed.id))
+        assertNull(library.getNote(trashed.id)?.notebookId)
+    }
+
+    @Test
     fun createNotePersistsAcrossReads() = runTest {
         val notebook = library.createNotebook("工作")
         val created = library.createNote(notebook.id)

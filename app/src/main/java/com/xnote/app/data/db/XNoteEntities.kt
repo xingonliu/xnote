@@ -17,6 +17,8 @@ data class NotebookEntity(
     val sortIndex: Long,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
+    @ColumnInfo(defaultValue = "'gold'") val color: String = "gold",
+    @ColumnInfo(defaultValue = "'notebook'") val icon: String = "notebook",
 )
 
 @Entity(

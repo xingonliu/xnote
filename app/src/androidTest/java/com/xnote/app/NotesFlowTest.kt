@@ -19,6 +19,8 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
@@ -77,6 +79,92 @@ class NotesFlowTest {
 
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(cleanupRule).around(composeRule)
+
+    @Test
+    fun homeNotebookContextActionsPreviewAndReorder() {
+        val books = runBlocking {
+            val first = library.createNotebook("设计灵感")
+            val second = library.createNotebook("读书摘录")
+            library.saveNote(library.createNote(first.id).copy(title = "关于 WWDC 的设计想法"))
+            library.saveNote(library.createNote(second.id).copy(title = "阅读中的一句话"))
+            listOf(first, second)
+        }
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-system-collections").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-collection-trash").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-notebook-${books[0].id}").performScrollTo()
+        composeRule.onNodeWithText("最新：关于 WWDC 的设计想法").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "home-grouped.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithTag("xnote-notebook-${books[0].id}").performTouchInput { longClick() }
+        composeRule.onNodeWithText("更换颜色/图标").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "home-context.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithText("重命名").performClick()
+        composeRule.onNodeWithTag("xnote-notebook-name").performTextReplacement("产品设计")
+        composeRule.onNodeWithText("保存").performClick()
+        composeRule.waitUntil { runBlocking { library.getNotebook(books[0].id)?.name == "产品设计" } }
+        composeRule.onNodeWithTag("xnote-notebook-${books[0].id}").performTouchInput { longClick() }
+        composeRule.onNodeWithText("更换颜色/图标").performClick()
+        composeRule.onNodeWithTag("xnote-notebook-color-purple").performClick()
+        composeRule.onNodeWithTag("xnote-notebook-icon-star").performClick()
+        composeRule.onNodeWithText("保存").performClick()
+        composeRule.waitUntil { runBlocking { library.getNotebook(books[0].id)?.color == "purple" } }
+        composeRule.onNodeWithTag("xnote-manage-notebooks").performScrollTo().performClick()
+        val firstHandle = composeRule.onNodeWithTag("xnote-reorder-handle-${books[0].id}")
+        val secondHandle = composeRule.onNodeWithTag("xnote-reorder-handle-${books[1].id}")
+        val distance = secondHandle.fetchSemanticsNode().boundsInRoot.center.y - firstHandle.fetchSemanticsNode().boundsInRoot.center.y
+        firstHandle.performTouchInput { swipe(center, center + androidx.compose.ui.geometry.Offset(0f, distance), 800) }
+        composeRule.onNodeWithText("完成").performClick()
+        composeRule.waitUntil { runBlocking { library.observeNotebooks().first().first().id == books[1].id } }
+        assertEquals("star", runBlocking { library.getNotebook(books[0].id)?.icon })
+    }
+
+    @Test
+    fun homeDarkLargeFontSupportsPreviewAndCancellingManagement() {
+        val books = runBlocking {
+            (1..8).map { index -> library.createNotebook("灵感笔记本 $index") }.also {
+                library.saveNote(library.createNote(it[0].id).copy(document = NoteDocument(blocks = listOf(
+                    TextBlock("preview", inlines = listOf(InlineRun("只有正文的灵感摘要")))))))
+            }
+        }
+        composeRule.setContent {
+            XNoteTheme(darkTheme = true, reduceMotion = true, fontScale = 1.5f) { XNoteApp(noteLibrary = library) }
+        }
+        composeRule.onNodeWithTag("xnote-notebook-${books[0].id}").performScrollTo()
+        composeRule.onNodeWithText("最新：只有正文的灵感摘要").assertIsDisplayed()
+        File(context.getExternalFilesDir(null), "home-dark-large.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithTag("xnote-manage-notebooks").performScrollTo().performClick()
+        val moveDown = composeRule.onNodeWithTag("xnote-reorder-row-${books[0].id}").fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsActions.CustomActions].first { it.label == "下移" }
+        composeRule.runOnIdle { assertTrue(moveDown.action()) }
+        File(context.getExternalFilesDir(null), "home-manage-dark-large.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithText("取消").performClick()
+        assertEquals(books.map { it.id }, runBlocking { library.observeNotebooks().first().map { it.id } })
+    }
+
+    @Test
+    fun homeDeleteNotebookOffersUnfiledAndTrash() {
+        val book = runBlocking { library.createNotebook("待整理") }
+        val note = runBlocking { library.createNote(book.id) }
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-notebook-${book.id}").performScrollTo().performTouchInput { longClick() }
+        composeRule.onNodeWithText("删除笔记本").performClick()
+        composeRule.onNodeWithText("移到未分类，保留笔记").assertIsDisplayed()
+        composeRule.onNodeWithText("连同笔记移入最近删除").assertIsDisplayed()
+        composeRule.onAllNodesWithText("删除笔记本").onLast().performClick()
+        composeRule.waitUntil { runBlocking { library.getNotebook(book.id) == null } }
+        assertNull(runBlocking { library.getNote(note.id)?.notebookId })
+        assertNull(runBlocking { library.getNote(note.id)?.deletedAtEpochMs })
+        composeRule.onNodeWithTag("xnote-collection-trash").performClick()
+        composeRule.onNodeWithText("回收站").assertIsDisplayed()
+    }
 
     @Test
     fun longPressNoteShowsReadableSelectionActions() {

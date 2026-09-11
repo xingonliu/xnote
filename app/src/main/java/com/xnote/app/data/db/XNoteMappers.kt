@@ -20,6 +20,8 @@ fun NotebookEntity.toDomain(): Notebook = Notebook(
     sortIndex = sortIndex,
     createdAtEpochMs = createdAtEpochMs,
     updatedAtEpochMs = updatedAtEpochMs,
+    color = color,
+    icon = icon,
 )
 
 fun Notebook.toEntity(): NotebookEntity = NotebookEntity(
@@ -28,6 +30,8 @@ fun Notebook.toEntity(): NotebookEntity = NotebookEntity(
     sortIndex = sortIndex,
     createdAtEpochMs = createdAtEpochMs,
     updatedAtEpochMs = updatedAtEpochMs,
+    color = color,
+    icon = icon,
 )
 
 fun NoteEntity.toDomain(): Note = Note(

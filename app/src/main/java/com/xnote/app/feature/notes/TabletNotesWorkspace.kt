@@ -2,13 +2,9 @@ package com.xnote.app.feature.notes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
@@ -39,7 +35,10 @@ fun TabletNotesWorkspace(
     library: NoteLibrary,
     notebooks: List<Notebook>,
     notes: List<Note>,
+    trashCount: Int,
+    onOpenRecycleBin: () -> Unit,
     ui: NotesUiState,
+    homeUi: NotebookHomeUiState,
     editorSession: NoteEditorSession?,
     editorScroll: ScrollState,
     listState: LazyListState,
@@ -82,6 +81,12 @@ fun TabletNotesWorkspace(
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     val top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
+    var notebookWasPresent by remember(notebookId) { mutableStateOf(false) }
+    LaunchedEffect(notebooks, notebookId) {
+        val exists = notebooks.any { it.id == notebookId }
+        if (notebookWasPresent && !exists) onOpenCollection(NoteCollection.All)
+        notebookWasPresent = exists
+    }
     BackHandler(ui.selectedIds.isNotEmpty()) { ui.selectedIds = emptySet() }
 
     BoxWithConstraints(Modifier.fillMaxSize().testTag("xnote-tablet-workspace")) {
@@ -90,19 +95,14 @@ fun TabletNotesWorkspace(
         XNotePageScaffold(outerBackdrop, content = {
             Row(Modifier.fillMaxSize().padding(start = 104.dp)) {
                 if (showNotebooks) {
-                    LazyColumn(Modifier.width(220.dp).fillMaxHeight().testTag("xnote-tablet-notebooks"),
-                        state = rememberLazyListState(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top, bottom = 24.dp)) {
-                        item { Text("笔记本", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp)) }
-                        item { NotebookRow("全部笔记", notes.size, scope == NotesScope.All) { onOpenCollection(NoteCollection.All) } }
-                        item { NotebookRow("未归档", notes.count { it.notebookId == null }, scope == NotesScope.Unfiled) { onOpenCollection(NoteCollection.Unfiled) } }
-                        items(notebooks, key = { it.id }) { book ->
-                            NotebookRow(book.name, notes.count { it.notebookId == book.id }, notebookId == book.id,
-                                Modifier.testTag("xnote-notebook-${book.id}")) { onOpenNotebook(book.id) }
-                        }
-                        item {
-                            LiquidButton({ ui.createNotebookVisible = true }, outerBackdrop, modifier = Modifier.padding(top = 16.dp)) { Text("新建笔记本") }
-                        }
-                    }
+                    NotesHomeScreen(notes = notes, backdrop = outerBackdrop,
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top, bottom = 24.dp),
+                        listState = rememberLazyListState(), notebooks = notebooks,
+                        trashCount = trashCount, onOpenRecycleBin = onOpenRecycleBin,
+                        onOpenNotebook = onOpenNotebook, onOpenCollection = onOpenCollection,
+                        onCreateNotebook = { ui.createNotebookVisible = true },
+                        modifier = Modifier.width(260.dp).fillMaxHeight().testTag("xnote-tablet-notebooks"),
+                        ui = homeUi, selectedNotebookId = notebookId)
                     VerticalDivider()
                 }
                 val listModifier = if (full || editor != null) Modifier.width(320.dp) else Modifier.weight(1f)
@@ -154,15 +154,9 @@ fun TabletNotesWorkspace(
                         })
                 }
             }
-        }, overlay = { navigationRail(outerBackdrop) })
-    }
-}
-
-@Composable
-private fun NotebookRow(title: String, count: Int, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Column(modifier.fillMaxWidth().background(if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-        XNoteSmoothCornerShape(12.dp)).selectable(selected, onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-        Text("$count 篇笔记", style = MaterialTheme.typography.bodySmall)
+        }, overlay = {
+            navigationRail(outerBackdrop)
+            NotebookHomeOverlays(homeUi, notebooks, notes, library, outerBackdrop)
+        })
     }
 }

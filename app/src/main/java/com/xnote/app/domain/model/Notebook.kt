@@ -8,6 +8,8 @@ data class Notebook(
     val sortIndex: Long,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
+    val color: String = "gold",
+    val icon: String = "notebook",
 )
 
 data class NotebookStats(
