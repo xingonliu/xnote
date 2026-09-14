@@ -3,9 +3,12 @@ package com.xnote.app.feature.notes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,6 +43,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.Capsule
@@ -54,6 +58,7 @@ import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
+import com.xnote.app.design.XNoteShortAnimationDurationMillis
 import com.xnote.app.design.XNoteSpacingExtraSmall
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -221,8 +226,10 @@ fun EditorToolbarBar(
             )
             if (inTable) {
                 TableToolbarCapsule(session = session, backdrop = backdrop)
-            } else if (toolsExpanded) {
+            } else {
                 EditorToolsCapsule(
+                    expanded = toolsExpanded,
+                    reduceMotion = reduceMotion,
                     backdrop = backdrop,
                     formatVisible = formatVisible,
                     checklistSelected = XNoteRichTextAction.Checklist in state.selectedActions,
@@ -232,18 +239,15 @@ fun EditorToolbarBar(
                     onFormat = { formatVisible = !formatVisible },
                     onChecklist = { action(XNoteRichTextAction.Checklist) },
                     onQuote = { action(XNoteRichTextAction.Quote) },
-                    onCollapse = {
-                        toolsExpanded = false
-                        formatVisible = false
-                        onOpenModal()
+                    onToggleExpanded = {
+                        if (toolsExpanded) {
+                            toolsExpanded = false
+                            formatVisible = false
+                            onOpenModal()
+                        } else {
+                            toolsExpanded = true
+                        }
                     },
-                )
-            } else {
-                EditorGlassIconButton(
-                    iconRes = R.drawable.ic_keyline_stroke_chevrons_left,
-                    description = stringResource(R.string.editor_expand_tools),
-                    backdrop = backdrop,
-                    onClick = { toolsExpanded = true },
                 )
             }
         }
@@ -252,6 +256,8 @@ fun EditorToolbarBar(
 
 @Composable
 private fun EditorToolsCapsule(
+    expanded: Boolean,
+    reduceMotion: Boolean,
     backdrop: Backdrop,
     formatVisible: Boolean,
     checklistSelected: Boolean,
@@ -261,42 +267,62 @@ private fun EditorToolsCapsule(
     onFormat: () -> Unit,
     onChecklist: () -> Unit,
     onQuote: () -> Unit,
-    onCollapse: () -> Unit,
+    onToggleExpanded: () -> Unit,
 ) {
+    val widthSpec = tween<IntSize>(XNoteShortAnimationDurationMillis)
+    val fadeSpec = tween<Float>(XNoteShortAnimationDurationMillis)
     XNoteLiquidGlassPanel(backdrop = backdrop, shape = Capsule()) {
-        Row(
-            modifier = Modifier.padding(horizontal = XNoteSpacingExtraSmall),
-            horizontalArrangement = Arrangement.spacedBy(0.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = if (reduceMotion) {
+                    EnterTransition.None
+                } else {
+                    expandHorizontally(expandFrom = Alignment.End, animationSpec = widthSpec) + fadeIn(fadeSpec)
+                },
+                exit = if (reduceMotion) {
+                    ExitTransition.None
+                } else {
+                    shrinkHorizontally(shrinkTowards = Alignment.End, animationSpec = widthSpec) + fadeOut(fadeSpec)
+                },
+            ) {
+                Row {
+                    EditorSymbolButton(
+                        description = stringResource(R.string.editor_format),
+                        iconRes = R.drawable.ic_keyline_stroke_pen_line,
+                        selected = formatVisible,
+                        modifier = Modifier.size(XNoteButtonSize),
+                        onClick = onFormat,
+                    )
+                    EditorSymbolButton(
+                        description = stringResource(R.string.rich_text_action_checklist),
+                        iconRes = R.drawable.ic_keyline_stroke_square_check,
+                        selected = checklistSelected,
+                        enabled = checklistEnabled,
+                        modifier = Modifier.size(XNoteButtonSize),
+                        onClick = onChecklist,
+                    )
+                    EditorSymbolButton(
+                        description = stringResource(R.string.rich_text_action_quote),
+                        iconRes = R.drawable.ic_keyline_stroke_quote,
+                        selected = quoteSelected,
+                        enabled = quoteEnabled,
+                        modifier = Modifier.size(XNoteButtonSize),
+                        onClick = onQuote,
+                    )
+                }
+            }
             EditorSymbolButton(
-                description = stringResource(R.string.editor_format),
-                iconRes = R.drawable.ic_keyline_stroke_pen_line,
-                selected = formatVisible,
+                description = stringResource(
+                    if (expanded) R.string.editor_collapse_tools else R.string.editor_expand_tools,
+                ),
+                iconRes = if (expanded) {
+                    R.drawable.ic_keyline_stroke_chevrons_right
+                } else {
+                    R.drawable.ic_keyline_stroke_chevrons_left
+                },
                 modifier = Modifier.size(XNoteButtonSize),
-                onClick = onFormat,
-            )
-            EditorSymbolButton(
-                description = stringResource(R.string.rich_text_action_checklist),
-                iconRes = R.drawable.ic_keyline_stroke_square_check,
-                selected = checklistSelected,
-                enabled = checklistEnabled,
-                modifier = Modifier.size(XNoteButtonSize),
-                onClick = onChecklist,
-            )
-            EditorSymbolButton(
-                description = stringResource(R.string.rich_text_action_quote),
-                iconRes = R.drawable.ic_keyline_stroke_quote,
-                selected = quoteSelected,
-                enabled = quoteEnabled,
-                modifier = Modifier.size(XNoteButtonSize),
-                onClick = onQuote,
-            )
-            EditorSymbolButton(
-                description = stringResource(R.string.editor_collapse_tools),
-                iconRes = R.drawable.ic_keyline_stroke_chevrons_right,
-                modifier = Modifier.size(XNoteButtonSize),
-                onClick = onCollapse,
+                onClick = onToggleExpanded,
             )
         }
     }
