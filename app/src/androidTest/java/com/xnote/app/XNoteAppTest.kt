@@ -105,6 +105,8 @@ class XNoteAppTest {
     fun creatingNotebookOpensItAndNewNotesUseItsIdentity() {
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library) } }
         composeRule.onNodeWithTag("xnote-create-notebook").performClick()
+        composeRule.onNodeWithText("新建笔记本").assertIsDisplayed()
+        composeRule.onNodeWithText("取消").assertIsDisplayed()
         composeRule.onNode(hasSetTextAction()).performTextInput("旅行计划")
         composeRule.onNodeWithText("创建").performClick()
         composeRule.onNodeWithText("旅行计划").assertIsDisplayed()

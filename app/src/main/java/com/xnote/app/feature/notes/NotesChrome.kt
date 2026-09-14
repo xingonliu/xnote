@@ -27,7 +27,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
@@ -231,41 +230,37 @@ fun BoxScope.NotesChrome(
         )
     }
 
-    XNoteDrawer(
+    XNoteDialog(
         visible = ui.createNotebookVisible,
         onDismissRequest = { ui.createNotebookVisible = false },
         title = stringResource(R.string.notes_create_notebook),
         backdrop = backdrop,
-        placement = drawerPlacement,
+        confirmAction = XNoteDialogAction(
+            label = stringResource(R.string.action_create_notebook),
+            enabled = ui.createNotebookName.trim().isNotEmpty(),
+            onClick = {
+                val name = ui.createNotebookName.trim()
+                if (name.isNotEmpty()) {
+                    scope.launch {
+                        val created = library.createNotebook(name)
+                        ui.createNotebookName = ""
+                        ui.createNotebookVisible = false
+                        dismissEditorInput()
+                        onOpenNotebook(created.id)
+                    }
+                }
+            },
+        ),
+        dismissAction = XNoteDialogAction(
+            label = stringResource(R.string.action_cancel),
+            onClick = { ui.createNotebookVisible = false },
+        ),
     ) {
         XNoteTextField(
             value = ui.createNotebookName,
             onValueChange = { ui.createNotebookName = it },
             placeholder = stringResource(R.string.notes_notebook_name_placeholder),
-            imeAction = ImeAction.Done,
         )
-        LiquidButton(
-            onClick = {
-                val name = ui.createNotebookName.trim()
-                if (name.isEmpty()) return@LiquidButton
-                scope.launch {
-                    val created = library.createNotebook(name)
-                    ui.createNotebookName = ""
-                    ui.createNotebookVisible = false
-                    dismissEditorInput()
-                    onOpenNotebook(created.id)
-                }
-            },
-            backdrop = backdrop,
-            enabled = ui.createNotebookName.trim().isNotEmpty(),
-            tint = MaterialTheme.colorScheme.primary,
-        ) {
-            Text(
-                text = stringResource(R.string.action_create_notebook),
-                style = MaterialTheme.typography.titleMedium,
-                color = LocalContentColor.current,
-            )
-        }
     }
 
     val sortItems = buildList {
