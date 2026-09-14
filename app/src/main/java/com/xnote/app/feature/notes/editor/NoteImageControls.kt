@@ -4,8 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -25,11 +26,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.design.XNotePopupAnchor
-import com.xnote.app.design.xNotePopupAnchor
+import com.xnote.app.design.EditorGlassIconButton
 import com.xnote.app.design.EditorSymbolButton
+import com.xnote.app.design.XNoteButtonSize
+import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteLiquidGlassPanel
+import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteSmoothCornerShape
+import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.domain.document.*
 import kotlin.math.*
 
@@ -63,33 +67,42 @@ fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, r
                     ((top - 52f).coerceAtLeast(80f) * density).roundToInt())
             }.width(pillWidth.dp).testTag("xnote-image-pill")) {
             Row(Modifier.fillMaxWidth()) {
-                EditorSymbolButton("替换", stringResource(R.string.image_replace), Modifier.weight(1f).xNotePopupAnchor(replacementAnchor),
-                    onClick = { session.replaceImageId = block.id })
+                EditorSymbolButton(
+                    description = stringResource(R.string.image_replace),
+                    iconRes = R.drawable.ic_keyline_stroke_refresh_cw,
+                    modifier = Modifier.weight(1f).xNotePopupAnchor(replacementAnchor),
+                    onClick = { session.replaceImageId = block.id },
+                )
                 Spacer(Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically)
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)))
-                listOf(Triple("↑", R.string.image_forward, ImageAction.Forward),
-                    Triple("↓", R.string.image_backward, ImageAction.Backward),
-                    Triple("⧉", R.string.image_duplicate, ImageAction.Duplicate),
-                    Triple("↺", R.string.image_reset, ImageAction.Reset)).forEachIndexed { index, (symbol, label, action) ->
-                    EditorSymbolButton(symbol, stringResource(label), Modifier.weight(1f),
-                        iconRes = when (action) {
-                            ImageAction.Forward -> R.drawable.ic_keyline_stroke_arrow_up
-                            ImageAction.Backward -> R.drawable.ic_keyline_stroke_arrow_down
-                            ImageAction.Duplicate -> R.drawable.ic_keyline_stroke_copy
-                            else -> R.drawable.ic_keyline_stroke_rotate_ccw
-                        }, onClick = { session.editImage(block.id, action) })
+                listOf(
+                    Triple(R.drawable.ic_keyline_stroke_arrow_up, R.string.image_forward, ImageAction.Forward),
+                    Triple(R.drawable.ic_keyline_stroke_arrow_down, R.string.image_backward, ImageAction.Backward),
+                    Triple(R.drawable.ic_keyline_stroke_copy, R.string.image_duplicate, ImageAction.Duplicate),
+                    Triple(R.drawable.ic_keyline_stroke_rotate_ccw, R.string.image_reset, ImageAction.Reset),
+                ).forEachIndexed { index, (iconRes, label, action) ->
+                    EditorSymbolButton(
+                        description = stringResource(label),
+                        iconRes = iconRes,
+                        modifier = Modifier.weight(1f),
+                        onClick = { session.editImage(block.id, action) },
+                    )
                     if (index == 1) Spacer(Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically)
                         .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)))
                 }
             }
         }
         val delete = corner(width / 2f + 6f, -height / 2f - 6f)
-        XNoteLiquidGlassPanel(backdrop, shape = XNoteSmoothCornerShape(22.dp),
-            modifier = Modifier.offset { IntOffset(((delete.x - 22f) * density).roundToInt(), ((delete.y - 22f) * density).roundToInt()) }
-                .size(44.dp)) {
-            EditorSymbolButton("×", stringResource(R.string.image_delete), Modifier.fillMaxWidth(), destructive = true,
-                iconRes = R.drawable.ic_keyline_stroke_bin, onClick = { session.editImage(block.id, ImageAction.Delete) })
-        }
+        EditorGlassIconButton(
+            iconRes = R.drawable.ic_keyline_stroke_bin,
+            description = stringResource(R.string.image_delete),
+            backdrop = backdrop,
+            destructive = true,
+            onClick = { session.editImage(block.id, ImageAction.Delete) },
+            modifier = Modifier
+                .offset { IntOffset(((delete.x - 22f) * density).roundToInt(), ((delete.y - 22f) * density).roundToInt()) }
+                .size(XNoteButtonSize),
+        )
         val handle = corner(width / 2f + 6f, height / 2f + 6f)
         var handleCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
         val latestBlock by rememberUpdatedState(block)
@@ -118,7 +131,12 @@ fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, r
                     }
                 }
             }.clip(XNoteSmoothCornerShape(22.dp)).background(primary), contentAlignment = Alignment.Center) {
-            Text("⤢", color = onPrimary)
+            Icon(
+                painter = painterResource(R.drawable.ic_keyline_stroke_maximize_2),
+                contentDescription = null,
+                tint = onPrimary,
+                modifier = Modifier.size(XNoteIconSizeMedium),
+            )
         }
     }
 }

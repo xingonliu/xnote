@@ -10,7 +10,7 @@ Licensed under the Apache License, Version 2.0. A complete copy is available at 
 
 ## Keyline Icons
 
-XNote 使用 [Keyline Icons](https://keylineicons.com/) 官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf` 的原始 Rounded Stroke 与 Rounded Fill SVG 图标。原始项目使用 MIT License。
+XNote 使用 [Keyline Icons](https://keylineicons.com/) 的原始 Rounded Stroke 与 Rounded Fill SVG 图标。既有图标来自官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf`；编辑排版、表格与图片控制新增图标来自 `b83dfe1909a9916d36d85c1b9d4f324470768c92`。原始项目使用 MIT License。
 
 ### MIT License
 

@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.23
+> 文档版本：v0.24
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -122,7 +122,7 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 
 Header 在顶部安全区之后保留 15 dp 留白，40 dp 圆形按钮位于留白下方，因此按钮中心纵坐标固定为“顶部安全区高度 + 35 dp”。标题与按钮在同一 40 dp 内容区内垂直居中。
 
-普通按钮的高度、圆形按钮边长和最小可点击区域为 40 × 40 dp，胶囊按钮使用 8 dp 水平内边距；编辑器的紧凑动作与贴纸控制柄使用 44 dp 高触控区域。SVG 使用 `currentColor` 语义，由组件根据普通、按下、禁用和危险状态提供前景色；业务页面不得维护不同版本的返回图标。
+普通按钮的高度、圆形按钮边长和最小可点击区域为 40 × 40 dp，胶囊按钮使用 8 dp 水平内边距；贴纸缩放旋转控制柄使用 44 dp 高触控区域。SVG 使用 `currentColor` 语义，由组件根据普通、按下、禁用和危险状态提供前景色；业务页面不得维护不同版本的返回图标。
 
 ### 4.3 笔记编辑页例外
 
@@ -130,7 +130,7 @@ Header 在顶部安全区之后保留 15 dp 留白，40 dp 圆形按钮位于留
 
 编辑页仍必须使用统一的左侧圆形 SVG 返回按钮、右侧功能按钮和顶部 Progressive blur。
 
-编辑页底栏为贴合键盘的 Liquid Glass 胶囊，固定五个意图入口：插入、Aa 格式、待办、引用、收起键盘。插入按钮上方展示相册、相机、表格气泡菜单。Aa 平滑展开 `XNoteRichTextToolbar` 三行格式检视器：正文/标题/小标题/等宽代码分段选择；B/I/U/S、链接与高亮；项目/编号列表、缩进与左中右对齐。活跃格式显示 Primary 胶囊选中态，减少动画时直接显隐。面板实际高度计入正文底部留白。表格单元格获得焦点时，底栏直接切换为四个行列插入和三个删除动作。
+编辑页底栏左侧是独立的圆形 Liquid Glass 插入按钮；右侧默认展开为紧凑胶囊，内含排版、待办、引用和收起工具四个图标，间距为 0。收起后右侧变为圆形展开按钮，再次点击恢复胶囊。插入按钮上方展示相册、相机、表格气泡菜单。排版展开 `XNoteRichTextToolbar` 三行格式检视器，全部使用 Keyline Stroke 图标：段落层级、行内样式、列表缩进与对齐。活跃格式显示 Primary 选中态，减少动画时直接显隐。面板实际高度计入正文底部留白。表格单元格获得焦点时，右侧胶囊切换为行上、行下、列左、列右、删行、删列、删表七个图标动作。Header 返回、笔记本归属、撤销、重做、更多均为 `LiquidButton`，禁止用字符充当图标。
 
 图片作为纸面自由贴纸显示：图片圆角 12 dp，选框外扩 6 dp；抗锯齿虚线跟随旋转。右上角是可撤销的删除玻璃按钮，右下角是固定触控尺寸的 Primary 复合手柄，以中心极角和距离同步控制旋转与 0.15–4 倍缩放。本体单指自由平移，保留双指缩放旋转，不限制到原图片行或正文宽度。选中图片上方 8 dp 展示替换、前移一层、后移一层、复制、重置胶囊。控制层与正文 Backdrop 捕获层为同级。图片的变换包围盒只扩展纸面可滚动范围，不参与文字排版。
 
@@ -172,11 +172,11 @@ Markdown 只作为格式工具栏命令的输入快捷方式，不创建独立�
 
 ### 5.1 来源与版本
 
-- 应用界面中的 SVG 图标统一选自 [Keyline Icons](https://keylineicons.com/)，当前资产基线为官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf`。
+- 应用界面中的 SVG 图标统一选自 [Keyline Icons](https://keylineicons.com/)。既有图标来自官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf`；编辑排版、表格与图片控制新增图标来自 `b83dfe1909a9916d36d85c1b9d4f324470768c92`，同为 Rounded Stroke。
 - 全部图标固定使用 Rounded 角型。手机 Bottom Tabs 的三个图标使用 Fill；平板 Navigation Rail、Header、按钮、列表、状态组件、编辑器和启动图形全部使用 Stroke。
 - Android 工程将 Keyline 官方 `icons/<style>/<name>.svg` 转换为等价的 `VectorDrawable`，不引入运行时图标依赖；转换时必须保留官方路径、24 × 24 视口、Fill/Stroke 分类和 Rounded 语义。
 - 新增或替换图标时，先从 Keyline 图标目录选择语义最接近且具有所需样式的图标，并在资源文件头记录 Keyline 名称、Rounded 样式、来源提交和 MIT License。
-- 操作图标使用 Keyline。编辑格式检视器允许直接展示 B/I/U/S、Aa、引用符号、列表/缩进/对齐排版示意，以及表格行列增删符号；这些字形由公共 `EditorSymbolButton` 承载，并提供完整本地化操作名称。
+- 操作图标使用 Keyline。笔记编辑页 Header、底栏、格式检视器、表格工具和图片控制禁止用字符或字母代替图标；全部使用 Rounded Stroke 矢量，并由本地化 `contentDescription` 提供操作名称。
 - Keyline Icons 的许可证全文统一保存在仓库根目录的 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
 
 ### 5.2 几何与样式
@@ -229,6 +229,36 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 | `ic_keyline_stroke_square` | `square` / Rounded Stroke | 未勾选检查项 |
 | `ic_keyline_stroke_square_check` | `square-check` / Rounded Stroke | 已勾选检查项 |
 | `ic_launcher` | `square-pen` / Rounded Stroke | 应用图标与启动页图形 |
+| `ic_keyline_stroke_pen_line` | `pen-line` / Rounded Stroke | 编辑页排版入口 |
+| `ic_keyline_stroke_scan_text` | `scan-text` / Rounded Stroke | 正文段落 |
+| `ic_keyline_stroke_file_text` | `file-text` / Rounded Stroke | 标题段落 |
+| `ic_keyline_stroke_queue` | `queue` / Rounded Stroke | 小标题段落 |
+| `ic_keyline_stroke_code` | `code` / Rounded Stroke | 等宽代码段落 |
+| `ic_keyline_stroke_bold` | `bold` / Rounded Stroke | 粗体 |
+| `ic_keyline_stroke_italic` | `italic` / Rounded Stroke | 斜体 |
+| `ic_keyline_stroke_underline` | `underline` / Rounded Stroke | 下划线 |
+| `ic_keyline_stroke_strikethrough` | `strikethrough` / Rounded Stroke | 删除线 |
+| `ic_keyline_stroke_paintbrush` | `paintbrush` / Rounded Stroke | 高亮 |
+| `ic_keyline_stroke_quote` | `quote` / Rounded Stroke | 引用 |
+| `ic_keyline_stroke_list` | `list` / Rounded Stroke | 圆点列表 |
+| `ic_keyline_stroke_list_ordered` | `list-ordered` / Rounded Stroke | 编号列表 |
+| `ic_keyline_stroke_bracket_arrow_left` | `bracket-arrow-left` / Rounded Stroke | 减少缩进 |
+| `ic_keyline_stroke_bracket_arrow_right` | `bracket-arrow-right` / Rounded Stroke | 增加缩进 |
+| `ic_keyline_stroke_align_left` | `align-left` / Rounded Stroke | 左对齐 |
+| `ic_keyline_stroke_align_center` | `align-center` / Rounded Stroke | 居中 |
+| `ic_keyline_stroke_align_right` | `align-right` / Rounded Stroke | 右对齐 |
+| `ic_keyline_stroke_chevrons_left` | `chevrons-left` / Rounded Stroke | 展开编辑工具 |
+| `ic_keyline_stroke_chevrons_right` | `chevrons-right` / Rounded Stroke | 收起编辑工具 |
+| `ic_keyline_stroke_grid_3x3` | `grid-3x3` / Rounded Stroke | 表格 |
+| `ic_keyline_stroke_square_arrow_up` | `square-arrow-up` / Rounded Stroke | 上方插入行 |
+| `ic_keyline_stroke_square_arrow_down` | `square-arrow-down` / Rounded Stroke | 下方插入行 |
+| `ic_keyline_stroke_square_arrow_left` | `square-arrow-left` / Rounded Stroke | 左侧插入列 |
+| `ic_keyline_stroke_square_arrow_right` | `square-arrow-right` / Rounded Stroke | 右侧插入列 |
+| `ic_keyline_stroke_list_minus` | `list-minus` / Rounded Stroke | 删除行 |
+| `ic_keyline_stroke_square_minus` | `square-minus` / Rounded Stroke | 删除列 |
+| `ic_keyline_stroke_grid_squares_x` | `grid-squares-x` / Rounded Stroke | 删除表格 |
+| `ic_keyline_stroke_refresh_cw` | `refresh-cw` / Rounded Stroke | 替换图片 |
+| `ic_keyline_stroke_maximize_2` | `maximize-2` / Rounded Stroke | 图片缩放旋转手柄 |
 
 ### 5.4 无障碍
 

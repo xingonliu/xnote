@@ -4,22 +4,60 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
+import com.kyant.shapes.Capsule
 import com.xnote.app.R
-import com.xnote.app.design.*
+import com.xnote.app.design.EditorGlassIconButton
+import com.xnote.app.design.EditorSymbolButton
+import com.xnote.app.design.LocalXNoteInteractionSettings
+import com.xnote.app.design.XNoteButtonSize
+import com.xnote.app.design.XNoteHeaderHeight
+import com.xnote.app.design.XNoteIconSizeSmall
+import com.xnote.app.design.XNoteLiquidGlassPanel
+import com.xnote.app.design.XNotePopupAnchor
+import com.xnote.app.design.XNoteRichTextAction
+import com.xnote.app.design.XNoteRichTextToolbar
+import com.xnote.app.design.XNoteSpacingExtraSmall
+import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.editor.NoteImageUiState
@@ -38,34 +76,87 @@ fun EditorHeader(
     moreAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.fillMaxWidth().windowInsetsPadding(
-        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-        .height(XNoteHeaderHeight).padding(start = 12.dp, end = 12.dp, top = 11.dp)) {
-        val leadingSpace = if (onBack == null) 0.dp else 48.dp
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .height(XNoteHeaderHeight)
+            .padding(start = 12.dp, end = 12.dp, top = 11.dp),
+    ) {
+        val leadingSpace = if (onBack == null) 0.dp else XNoteButtonSize + XNoteSpacingSmall
+        val trailingWidth = XNoteButtonSize * 3 + XNoteSpacingExtraSmall * 2
         val pillWidth = (maxWidth - 280.dp).coerceIn(88.dp, 220.dp)
-            .coerceAtMost(maxWidth - leadingSpace - 140.dp)
-        val pillLeft = ((maxWidth - pillWidth) / 2).coerceIn(leadingSpace, maxWidth - 140.dp - pillWidth)
+            .coerceAtMost(maxWidth - leadingSpace - trailingWidth - XNoteSpacingSmall)
+        val pillLeft = ((maxWidth - pillWidth) / 2).coerceIn(leadingSpace, maxWidth - trailingWidth - pillWidth)
         if (onBack != null) {
-            XNoteLiquidGlassPanel(backdrop, modifier = Modifier.align(Alignment.CenterStart).size(44.dp)) {
-                EditorSymbolButton("", stringResource(R.string.action_back), Modifier.fillMaxWidth().testTag("xnote-editor-back"),
-                    iconRes = R.drawable.ic_keyline_stroke_chevron_left, onClick = onBack)
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_chevron_left,
+                description = stringResource(R.string.action_back),
+                backdrop = backdrop,
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .size(XNoteButtonSize)
+                    .testTag("xnote-editor-back"),
+            )
+        }
+        LiquidButton(
+            onClick = onChooseNotebook,
+            backdrop = backdrop,
+            enabled = session?.note != null,
+            modifier = Modifier
+                .offset(x = pillLeft)
+                .width(pillWidth)
+                .testTag("xnote-editor-notebook"),
+        ) {
+            Text(
+                text = if (session?.saveStatus == EditorSaveStatus.Error) {
+                    stringResource(R.string.editor_save_failed)
+                } else {
+                    notebookName
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = LocalContentColor.current,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            if (session?.saveStatus != EditorSaveStatus.Error) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_keyline_stroke_chevron_down),
+                    contentDescription = null,
+                    tint = LocalContentColor.current,
+                    modifier = Modifier.size(XNoteIconSizeSmall),
+                )
             }
         }
-        XNoteLiquidGlassPanel(backdrop, modifier = Modifier.offset(x = pillLeft).width(pillWidth)) {
-            EditorSymbolButton(
-                if (session?.saveStatus == EditorSaveStatus.Error) stringResource(R.string.editor_save_failed) else "$notebookName ▾",
-                stringResource(R.string.notes_choose_notebook), Modifier.fillMaxWidth().testTag("xnote-editor-notebook"),
-                enabled = session?.note != null, onClick = onChooseNotebook)
-        }
-        Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            EditorSymbolButton("", stringResource(R.string.action_undo), Modifier.width(44.dp),
-                enabled = session?.canUndo == true, iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left, onClick = { session?.undo() })
-            EditorSymbolButton("", stringResource(R.string.action_redo), Modifier.width(44.dp),
-                enabled = session?.canRedo == true, iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right, onClick = { session?.redo() })
-            XNoteLiquidGlassPanel(backdrop, modifier = Modifier.width(44.dp)) {
-                EditorSymbolButton("", stringResource(R.string.action_more), Modifier.fillMaxWidth().xNotePopupAnchor(moreAnchor),
-                    iconRes = R.drawable.ic_keyline_stroke_more_horizontal, onClick = onMore)
-            }
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            horizontalArrangement = Arrangement.spacedBy(XNoteSpacingExtraSmall),
+        ) {
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
+                description = stringResource(R.string.action_undo),
+                backdrop = backdrop,
+                enabled = session?.canUndo == true,
+                onClick = { session?.undo() },
+            )
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right,
+                description = stringResource(R.string.action_redo),
+                backdrop = backdrop,
+                enabled = session?.canRedo == true,
+                onClick = { session?.redo() },
+            )
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
+                description = stringResource(R.string.action_more),
+                backdrop = backdrop,
+                onClick = onMore,
+                modifier = Modifier
+                    .size(XNoteButtonSize)
+                    .xNotePopupAnchor(moreAnchor),
+            )
         }
     }
 }
@@ -81,6 +172,7 @@ fun EditorToolbarBar(
     modifier: Modifier = Modifier,
 ) {
     var formatVisible by rememberSaveable(session.noteId) { mutableStateOf(false) }
+    var toolsExpanded by rememberSaveable(session.noteId) { mutableStateOf(true) }
     val reduceMotion = LocalXNoteInteractionSettings.current.reduceMotion
     val density = LocalDensity.current.density
     val state = session.toolbarState
@@ -93,46 +185,148 @@ fun EditorToolbarBar(
             ui.linkDialogVisible = true
         } else session.applyAction(selected)
     }
-    Column(modifier.widthIn(max = 560.dp).fillMaxWidth().onSizeChanged { session.toolbarHeightDp = it.height / density }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AnimatedVisibility(formatVisible && !inTable,
+    Column(
+        modifier
+            .widthIn(max = 560.dp)
+            .fillMaxWidth()
+            .onSizeChanged { session.toolbarHeightDp = it.height / density },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AnimatedVisibility(
+            visible = formatVisible && !inTable && toolsExpanded,
             enter = if (reduceMotion) EnterTransition.None else expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
-            exit = if (reduceMotion) ExitTransition.None else shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut()) {
-            XNoteRichTextToolbar(state, action, backdrop,
-                onParagraphStyle = { session.setParagraphStyle(it.toDomain()) })
+            exit = if (reduceMotion) ExitTransition.None else shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
+        ) {
+            XNoteRichTextToolbar(state, action, backdrop, onParagraphStyle = { session.setParagraphStyle(it.toDomain()) })
         }
-        XNoteLiquidGlassPanel(backdrop, shape = XNoteSmoothCornerShape(28.dp),
-            modifier = Modifier.fillMaxWidth().testTag(if (inTable) "xnote-table-toolbar" else "xnote-editor-toolbar")) {
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (inTable) {
-                    listOf(
-                        Triple("+↑", R.string.editor_table_insert_row_above, { session.insertTableRow(false) }),
-                        Triple("+↓", R.string.editor_table_insert_row_below, { session.insertTableRow(true) }),
-                        Triple("+←", R.string.editor_table_insert_column_left, { session.insertTableColumn(false) }),
-                        Triple("+→", R.string.editor_table_insert_column_right, { session.insertTableColumn(true) }),
-                        Triple("−行", R.string.editor_table_delete_row, { session.deleteTableRow() }),
-                        Triple("−列", R.string.editor_table_delete_column, { session.deleteTableColumn() }),
-                        Triple("▦×", R.string.editor_table_delete, { session.deleteTable() }),
-                    ).forEachIndexed { index, (symbol, label, callback) ->
-                        EditorSymbolButton(symbol, stringResource(label), Modifier.weight(1f),
-                            destructive = index >= 4, onClick = callback)
-                    }
-                } else {
-                    EditorSymbolButton(if (imageUi.busy) "…" else "+", stringResource(if (imageUi.busy) R.string.image_importing else R.string.editor_insert),
-                        Modifier.weight(1f).xNotePopupAnchor(insertMenuAnchor), enabled = session.note != null && !imageUi.busy,
-                        iconRes = if (imageUi.busy) null else R.drawable.ic_keyline_stroke_plus, onClick = { imageUi.addRequested = true; formatVisible = false })
-                    EditorSymbolButton("Aa", stringResource(R.string.editor_format), Modifier.weight(1f),
-                        selected = formatVisible, onClick = { formatVisible = !formatVisible })
-                    EditorSymbolButton("☑", stringResource(R.string.rich_text_action_checklist), Modifier.weight(1f),
-                        selected = XNoteRichTextAction.Checklist in state.selectedActions,
-                        enabled = XNoteRichTextAction.Checklist !in state.disabledActions,
-                        iconRes = R.drawable.ic_keyline_stroke_square_check, onClick = { action(XNoteRichTextAction.Checklist) })
-                    EditorSymbolButton("❝", stringResource(R.string.rich_text_action_quote), Modifier.weight(1f),
-                        selected = XNoteRichTextAction.Quote in state.selectedActions,
-                        enabled = XNoteRichTextAction.Quote !in state.disabledActions,
-                        onClick = { action(XNoteRichTextAction.Quote) })
-                    EditorSymbolButton("⌵", stringResource(R.string.editor_keyboard_done), Modifier.weight(1f),
-                        iconRes = R.drawable.ic_keyline_stroke_chevron_down, onClick = { session.focusBlockId = null; onOpenModal(); formatVisible = false })
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(if (inTable) "xnote-table-toolbar" else "xnote-editor-toolbar"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_plus,
+                description = stringResource(if (imageUi.busy) R.string.image_importing else R.string.editor_insert),
+                backdrop = backdrop,
+                enabled = session.note != null && !imageUi.busy,
+                onClick = {
+                    imageUi.addRequested = true
+                    formatVisible = false
+                },
+                modifier = Modifier
+                    .size(XNoteButtonSize)
+                    .xNotePopupAnchor(insertMenuAnchor),
+            )
+            if (inTable) {
+                TableToolbarCapsule(session = session, backdrop = backdrop)
+            } else if (toolsExpanded) {
+                EditorToolsCapsule(
+                    backdrop = backdrop,
+                    formatVisible = formatVisible,
+                    checklistSelected = XNoteRichTextAction.Checklist in state.selectedActions,
+                    checklistEnabled = XNoteRichTextAction.Checklist !in state.disabledActions,
+                    quoteSelected = XNoteRichTextAction.Quote in state.selectedActions,
+                    quoteEnabled = XNoteRichTextAction.Quote !in state.disabledActions,
+                    onFormat = { formatVisible = !formatVisible },
+                    onChecklist = { action(XNoteRichTextAction.Checklist) },
+                    onQuote = { action(XNoteRichTextAction.Quote) },
+                    onCollapse = {
+                        toolsExpanded = false
+                        formatVisible = false
+                        onOpenModal()
+                    },
+                )
+            } else {
+                EditorGlassIconButton(
+                    iconRes = R.drawable.ic_keyline_stroke_chevrons_left,
+                    description = stringResource(R.string.editor_expand_tools),
+                    backdrop = backdrop,
+                    onClick = { toolsExpanded = true },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorToolsCapsule(
+    backdrop: Backdrop,
+    formatVisible: Boolean,
+    checklistSelected: Boolean,
+    checklistEnabled: Boolean,
+    quoteSelected: Boolean,
+    quoteEnabled: Boolean,
+    onFormat: () -> Unit,
+    onChecklist: () -> Unit,
+    onQuote: () -> Unit,
+    onCollapse: () -> Unit,
+) {
+    XNoteLiquidGlassPanel(backdrop = backdrop, shape = Capsule()) {
+        Row(
+            modifier = Modifier.padding(horizontal = XNoteSpacingExtraSmall),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EditorSymbolButton(
+                description = stringResource(R.string.editor_format),
+                iconRes = R.drawable.ic_keyline_stroke_pen_line,
+                selected = formatVisible,
+                modifier = Modifier.size(XNoteButtonSize),
+                onClick = onFormat,
+            )
+            EditorSymbolButton(
+                description = stringResource(R.string.rich_text_action_checklist),
+                iconRes = R.drawable.ic_keyline_stroke_square_check,
+                selected = checklistSelected,
+                enabled = checklistEnabled,
+                modifier = Modifier.size(XNoteButtonSize),
+                onClick = onChecklist,
+            )
+            EditorSymbolButton(
+                description = stringResource(R.string.rich_text_action_quote),
+                iconRes = R.drawable.ic_keyline_stroke_quote,
+                selected = quoteSelected,
+                enabled = quoteEnabled,
+                modifier = Modifier.size(XNoteButtonSize),
+                onClick = onQuote,
+            )
+            EditorSymbolButton(
+                description = stringResource(R.string.editor_collapse_tools),
+                iconRes = R.drawable.ic_keyline_stroke_chevrons_right,
+                modifier = Modifier.size(XNoteButtonSize),
+                onClick = onCollapse,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TableToolbarCapsule(session: NoteEditorSession, backdrop: Backdrop) {
+    val actions = listOf(
+        Triple(R.drawable.ic_keyline_stroke_square_arrow_up, R.string.editor_table_insert_row_above, { session.insertTableRow(false) }),
+        Triple(R.drawable.ic_keyline_stroke_square_arrow_down, R.string.editor_table_insert_row_below, { session.insertTableRow(true) }),
+        Triple(R.drawable.ic_keyline_stroke_square_arrow_left, R.string.editor_table_insert_column_left, { session.insertTableColumn(false) }),
+        Triple(R.drawable.ic_keyline_stroke_square_arrow_right, R.string.editor_table_insert_column_right, { session.insertTableColumn(true) }),
+        Triple(R.drawable.ic_keyline_stroke_list_minus, R.string.editor_table_delete_row, { session.deleteTableRow() }),
+        Triple(R.drawable.ic_keyline_stroke_square_minus, R.string.editor_table_delete_column, { session.deleteTableColumn() }),
+        Triple(R.drawable.ic_keyline_stroke_grid_squares_x, R.string.editor_table_delete, { session.deleteTable() }),
+    )
+    XNoteLiquidGlassPanel(backdrop = backdrop, shape = Capsule()) {
+        Row(
+            modifier = Modifier.padding(horizontal = XNoteSpacingExtraSmall),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            actions.forEachIndexed { index, (iconRes, label, callback) ->
+                EditorSymbolButton(
+                    description = stringResource(label),
+                    iconRes = iconRes,
+                    modifier = Modifier.size(XNoteButtonSize),
+                    destructive = index >= 4,
+                    onClick = callback,
+                )
             }
         }
     }

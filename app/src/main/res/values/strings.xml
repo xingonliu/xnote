@@ -180,6 +180,7 @@
     <string name="export_working">正在保存…</string>
     <string name="editor_insert">插入</string>
     <string name="editor_format">排版格式</string>
-    <string name="editor_keyboard_done">收起键盘</string>
+    <string name="editor_collapse_tools">收起工具</string>
+    <string name="editor_expand_tools">展开工具</string>
     <string name="image_transform_handle">缩放并旋转图片</string>
 </resources>

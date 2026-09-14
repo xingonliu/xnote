@@ -452,10 +452,14 @@ class NotesFlowTest {
         File(context.getExternalFilesDir(null), "editor-dark.png").outputStream().use {
             composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }
-        composeRule.onNodeWithContentDescription("收起键盘").performClick()
+        composeRule.onNodeWithContentDescription("排版格式").performClick()
         composeRule.onNodeWithTag("xnote-format-inspector").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("检查清单").performClick()
         composeRule.onNodeWithContentDescription("引用").performClick()
+        composeRule.onNodeWithContentDescription("收起工具").performClick()
+        composeRule.onNodeWithContentDescription("检查清单").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("展开工具").performClick()
+        composeRule.onNodeWithContentDescription("检查清单").assertIsDisplayed()
     }
 
     @Test
@@ -480,7 +484,7 @@ class NotesFlowTest {
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
         composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("纸面贴纸").performClick()
-        composeRule.onNodeWithContentDescription("收起键盘").performClick()
+        composeRule.onNodeWithContentDescription("收起工具").performClick()
         composeRule.onNodeWithTag("xnote-image-sticker").performTouchInput { click() }
         composeRule.onNodeWithTag("xnote-image-pill").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-image-sticker").performTouchInput {

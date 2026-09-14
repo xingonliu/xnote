@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyline Icons "bracket-arrow-left" rounded stroke, source b83dfe19 — MIT License -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:autoMirrored="true">
+    <path android:pathData="M12.8907 4H18C20.2091 4 22 5.79086 22 8V16C22 18.2091 20.2091 20 18 20H12.8907M2.76928 12H12.8907M7.83 6.5L2.16411 11.6314C1.9453 11.8296 1.9453 12.1704 2.16411 12.3686L7.83 17.5" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>
