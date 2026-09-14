@@ -1,6 +1,6 @@
 package com.xnote.app
 
-import com.xnote.app.design.XNoteButtonSize
+import com.xnote.app.design.XNoteCreateNoteButtonSize
 import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -467,7 +467,7 @@ fun XNoteApp(
             showsBottomNavigation -> XNoteBottomNavigationHeight
             navigationState.destination == AppDestination.Notes &&
                 (navigationState.notesRoute is NotesRoute.Notebook || navigationState.notesRoute is NotesRoute.Collection) ->
-                XNoteButtonSize + XNoteSpacingSmall
+                XNoteCreateNoteButtonSize + XNoteSpacingSmall
             else -> 0.dp
         }
         val contentStartPadding = when {

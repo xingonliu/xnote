@@ -10,6 +10,7 @@ val XNoteDarkPrimaryColor = Color(0xFFFFD60A)
 
 
 val XNoteButtonSize = 40.dp
+val XNoteCreateNoteButtonSize = XNoteButtonSize * 2
 val XNoteMinimumTouchTarget = XNoteButtonSize
 val XNoteButtonHorizontalPadding = 8.dp
 val XNoteButtonContentSpacing = 8.dp

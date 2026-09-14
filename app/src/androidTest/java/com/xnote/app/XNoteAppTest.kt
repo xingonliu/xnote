@@ -12,8 +12,10 @@ import androidx.compose.ui.test.hasSetTextAction
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -29,6 +31,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
+import com.xnote.app.design.XNoteCreateNoteButtonSize
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.domain.model.SystemEpochClock
 import org.junit.After
@@ -69,6 +72,10 @@ class XNoteAppTest {
         composeRule.onNodeWithText("我的笔记本").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-notebook-grid").assertIsDisplayed()
         composeRule.onNodeWithText("笔记").assertIsSelected()
+        composeRule.onNodeWithTag("xnote-create-note")
+            .assertIsDisplayed()
+            .assertWidthIsEqualTo(XNoteCreateNoteButtonSize)
+            .assertHeightIsEqualTo(XNoteCreateNoteButtonSize)
     }
 
     @Test
