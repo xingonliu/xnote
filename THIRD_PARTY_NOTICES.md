@@ -8,14 +8,6 @@ Copyright 2025 Kyant
 
 Licensed under the Apache License, Version 2.0. A complete copy is available at [`LICENSES/Apache-2.0.txt`](./LICENSES/Apache-2.0.txt).
 
-## Haze 渐进模糊采样算法
-
-`XNoteProgressiveBlurShader.kt` 的双通道高斯采样改编自 [Haze 1.7.2 的 HazeShaders.kt](https://github.com/chrisbanes/haze/blob/f55d1a4ee8901ad3f26a76e2d7bc7b0be789e84d/haze/src/commonMain/kotlin/dev/chrisbanes/haze/HazeShaders.kt)。XNote 保留配对采样与浮点累加，使用项目自己的边缘距离曲线、捕获边界钳制和主题叠色，并接入现有 Backdrop 效果管线。
-
-Copyright 2024, Christopher Banes and the Haze project contributors
-
-Licensed under the Apache License, Version 2.0. A complete copy is available at [`LICENSES/Apache-2.0.txt`](./LICENSES/Apache-2.0.txt).
-
 ## Keyline Icons
 
 XNote 使用 [Keyline Icons](https://keylineicons.com/) 的原始 Rounded Stroke 与 Rounded Fill SVG 图标。既有图标来自官方仓库提交 `14cd695f3f2bbe320bbe7a01e65b251df7ba52cf`；编辑排版、表格与图片控制新增图标来自 `b83dfe1909a9916d36d85c1b9d4f324470768c92`。原始项目使用 MIT License。

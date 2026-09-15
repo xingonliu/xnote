@@ -36,7 +36,7 @@ class XNoteProgressiveBlurTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun edgesBlurDetailProgressivelyInBothThemesAndRestoreWhenHidden() {
+    fun edgesFadeIntoBothThemeBackgroundsAndRestoreWhenHidden() {
         var dark by mutableStateOf(false)
         var visible by mutableStateOf(true)
         composeRule.setContent {
@@ -72,10 +72,13 @@ class XNoteProgressiveBlurTest {
             val top = rowContrast(bitmap, (12 * scale).toInt())
             val bottom = rowContrast(bitmap, bitmap.height - 1 - (12 * scale).toInt())
             val transition = rowContrast(bitmap, (120 * scale).toInt())
-            assertTrue("Top edge must remove fine detail: $top / $clear", top < clear * 0.45f)
-            assertTrue("Bottom edge must remove fine detail: $bottom / $clear", bottom < clear * 0.45f)
+            assertTrue("Top edge must fade out source detail: $top / $clear", top < clear * 0.1f)
+            assertTrue("Bottom edge must fade out source detail: $bottom / $clear", bottom < clear * 0.1f)
             assertTrue("Content end must stay clear: $transition / $clear", transition > clear * 0.8f)
             assertTrue("Both edges must match", abs(top - bottom) < clear * 0.1f)
+            val edgeColor = android.graphics.Color.red(bitmap.getPixel(bitmap.width / 2, (12 * scale).toInt()))
+            assertTrue("Edge must dissolve into the theme background, not retain gray blur: $edgeColor",
+                if (isDark) edgeColor < 10 else edgeColor > 235)
             val output = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null),
                 "progressive-blur-${if (isDark) "dark" else "light"}.png")
             output.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

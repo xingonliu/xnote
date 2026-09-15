@@ -16,11 +16,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
+import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 
 // -- Type Definitions
@@ -39,21 +39,19 @@ data class XNoteScrollEdgeState(
 // -- Constants
 
 private val ProgressiveBlurHeight = 128.dp
-private val ProgressiveBlurRadius = 24.dp
-private const val ProgressiveBlurLightTintIntensity = 0.08f
-private const val ProgressiveBlurDarkTintIntensity = 0.12f
+private const val ProgressiveBlurRadiusPx = 1f
 private const val ProgressiveBlurTintShader = """
     uniform shader content;
 
     uniform float2 size;
     layout(color) uniform half4 tint;
-    uniform float tintIntensity;
     uniform float bottomEdge;
 
     half4 main(float2 coord) {
         float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
-        float intensity = 1.0 - smoothstep(0.0, size.y, edgeCoordinate);
-        return mix(content.eval(coord), tint, tintIntensity * intensity * intensity);
+        // Dissolve content into the page before it reaches the screen edge.
+        float tintAlpha = 1.0 - smoothstep(size.y * 0.35, size.y, edgeCoordinate);
+        return mix(content.eval(coord), tint, tintAlpha);
     }
 """
 
@@ -112,13 +110,7 @@ private fun XNoteProgressiveBlurLayer(
     modifier: Modifier = Modifier,
 ) {
     val settings = LocalXNoteInteractionSettings.current
-    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val tint = MaterialTheme.colorScheme.background
-    val tintIntensity = if (isLightTheme) {
-        ProgressiveBlurLightTintIntensity
-    } else {
-        ProgressiveBlurDarkTintIntensity
-    }
     val targetAlpha = if (visible) 1f else 0f
     val alpha = if (settings.reduceMotion) {
         targetAlpha
@@ -142,19 +134,7 @@ private fun XNoteProgressiveBlurLayer(
                 backdrop = backdrop,
                 shape = { RectangleShape },
                 effects = {
-                    // Separate passes keep the variable-radius Gaussian affordable.
-                    repeat(2) { pass ->
-                        runtimeShaderEffect(
-                            "XNoteProgressiveBlur$pass",
-                            XNoteProgressiveBlurShader,
-                            "content",
-                        ) {
-                            setFloatUniform("size", size.width, size.height)
-                            setFloatUniform("blurRadius", ProgressiveBlurRadius.toPx())
-                            setFloatUniform("direction", if (pass == 0) 1f else 0f, if (pass == 0) 0f else 1f)
-                            setFloatUniform("bottomEdge", if (edge == XNoteScrollEdge.Bottom) 1f else 0f)
-                        }
-                    }
+                    blur(ProgressiveBlurRadiusPx)
                     runtimeShaderEffect(
                         "XNoteProgressiveBlurTint",
                         ProgressiveBlurTintShader,
@@ -162,7 +142,6 @@ private fun XNoteProgressiveBlurLayer(
                     ) {
                         setFloatUniform("size", size.width, size.height)
                         setColorUniform("tint", tint)
-                        setFloatUniform("tintIntensity", tintIntensity)
                         setFloatUniform(
                             "bottomEdge",
                             if (edge == XNoteScrollEdge.Bottom) 1f else 0f,
