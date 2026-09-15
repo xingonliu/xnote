@@ -2,7 +2,6 @@ package com.xnote.app.design
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -97,8 +95,7 @@ fun XNoteRichTextToolbar(
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 XNoteParagraphStyle.entries.forEach { style ->
-                    EditorGlassIconButton(
-                        backdrop = backdrop,
+                    EditorSymbolButton(
                         description = stringResource(style.labelRes),
                         iconRes = style.iconRes,
                         selected = state.paragraphStyle == style,
@@ -123,8 +120,7 @@ fun XNoteRichTextToolbar(
             ).forEach { actions ->
                 Row(Modifier.fillMaxWidth()) {
                     actions.forEach { action ->
-                        EditorGlassIconButton(
-                            backdrop = backdrop,
+                        EditorSymbolButton(
                             description = stringResource(action.labelRes),
                             iconRes = action.iconRes,
                             modifier = Modifier.weight(1f),
@@ -181,12 +177,10 @@ fun EditorSymbolButton(
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val selectedForeground = if (colors.primary.luminance() > 0.179f) Color.Black else Color.White
     Box(
         modifier
             .heightIn(min = XNoteButtonSize)
             .clip(CircleShape)
-            .background(if (selected) colors.primary else Color.Transparent)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description; this.selected = selected },
         contentAlignment = Alignment.Center,
@@ -194,7 +188,7 @@ fun EditorSymbolButton(
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
-            tint = (if (selected) selectedForeground else if (destructive) colors.error else colors.onSurface)
+            tint = (if (selected) colors.primary else if (destructive) colors.error else colors.onSurface)
                 .copy(alpha = if (enabled) 1f else 0.35f),
             modifier = Modifier.size(XNoteIconSizeMedium),
         )

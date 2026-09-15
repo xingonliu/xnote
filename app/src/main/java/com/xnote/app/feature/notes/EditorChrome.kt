@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.Capsule
 import com.xnote.app.R
+import com.xnote.app.design.EditorSymbolButton
 import com.xnote.app.design.EditorGlassIconButton
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteButtonSize
@@ -286,16 +287,14 @@ private fun EditorToolsCapsule(
                 },
             ) {
                 Row {
-                    EditorGlassIconButton(
-                        backdrop = backdrop,
+                    EditorSymbolButton(
                         description = stringResource(R.string.editor_format),
                         iconRes = R.drawable.ic_keyline_stroke_pen_line,
                         selected = formatVisible,
                         modifier = Modifier.size(XNoteButtonSize),
                         onClick = onFormat,
                     )
-                    EditorGlassIconButton(
-                        backdrop = backdrop,
+                    EditorSymbolButton(
                         description = stringResource(R.string.rich_text_action_checklist),
                         iconRes = R.drawable.ic_keyline_stroke_square_check,
                         selected = checklistSelected,
@@ -303,8 +302,7 @@ private fun EditorToolsCapsule(
                         modifier = Modifier.size(XNoteButtonSize),
                         onClick = onChecklist,
                     )
-                    EditorGlassIconButton(
-                        backdrop = backdrop,
+                    EditorSymbolButton(
                         description = stringResource(R.string.rich_text_action_quote),
                         iconRes = R.drawable.ic_keyline_stroke_quote,
                         selected = quoteSelected,
@@ -314,8 +312,7 @@ private fun EditorToolsCapsule(
                     )
                 }
             }
-            EditorGlassIconButton(
-                backdrop = backdrop,
+            EditorSymbolButton(
                 description = stringResource(
                     if (expanded) R.string.editor_collapse_tools else R.string.editor_expand_tools,
                 ),
@@ -349,8 +346,7 @@ private fun TableToolbarCapsule(session: NoteEditorSession, backdrop: Backdrop) 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             actions.forEachIndexed { index, (iconRes, label, callback) ->
-                EditorGlassIconButton(
-                    backdrop = backdrop,
+                EditorSymbolButton(
                     description = stringResource(label),
                     iconRes = iconRes,
                     modifier = Modifier.size(XNoteButtonSize),
