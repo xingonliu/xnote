@@ -9,7 +9,7 @@ class XNoteTokensTest {
     @Test
     fun buttonSizeUsesCompactControlGeometry() {
         assertEquals(40.0f, XNoteButtonSize.value)
-        assertEquals(64.0f, XNoteCreateNoteButtonSize.value)
+        assertEquals(52.0f, XNoteCreateNoteButtonSize.value)
         assertEquals(XNoteMinimumTouchTarget, XNoteButtonSize)
         assertEquals(8.0f, XNoteButtonHorizontalPadding.value)
         assertEquals(15.0f, XNoteHeaderTopPadding.value)
