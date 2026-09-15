@@ -97,7 +97,8 @@ fun XNoteRichTextToolbar(
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth()) {
                 XNoteParagraphStyle.entries.forEach { style ->
-                    EditorSymbolButton(
+                    EditorGlassIconButton(
+                        backdrop = backdrop,
                         description = stringResource(style.labelRes),
                         iconRes = style.iconRes,
                         selected = state.paragraphStyle == style,
@@ -122,7 +123,8 @@ fun XNoteRichTextToolbar(
             ).forEach { actions ->
                 Row(Modifier.fillMaxWidth()) {
                     actions.forEach { action ->
-                        EditorSymbolButton(
+                        EditorGlassIconButton(
+                            backdrop = backdrop,
                             description = stringResource(action.labelRes),
                             iconRes = action.iconRes,
                             modifier = Modifier.weight(1f),
@@ -153,7 +155,7 @@ fun EditorGlassIconButton(
         backdrop = backdrop,
         enabled = enabled,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
-        modifier = modifier,
+        modifier = modifier.semantics { this.selected = selected },
     ) {
         Icon(
             painter = painterResource(iconRes),
