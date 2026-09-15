@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.R
 import com.xnote.app.design.liquidglass.LiquidButton
 
@@ -66,56 +67,60 @@ fun XNotePageScaffold(
     content: @Composable BoxScope.() -> Unit,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
+    val scrollBackdrop = rememberLayerBackdrop()
     Box(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .layerBackdrop(backdrop)
-                .fillMaxSize(),
-        ) {
-            if (pageBackground == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
-                )
-            } else {
-                pageBackground()
+        // Capture page content separately so inline glass controls never sample themselves.
+        Box(Modifier.fillMaxSize().layerBackdrop(scrollBackdrop)) {
+            Box(
+                modifier = Modifier
+                    .layerBackdrop(backdrop)
+                    .fillMaxSize(),
+            ) {
+                if (pageBackground == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                    )
+                } else {
+                    pageBackground()
+                }
             }
-        }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-                ),
-        ) {
-            when (val currentState = pageState) {
-                XNotePageState.Content -> content()
-                is XNotePageState.Loading -> XNoteLoadingState(
-                    backdrop = backdrop,
-                    message = currentState.message,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(XNoteSpacingMedium)
-                        .widthIn(max = 560.dp),
-                )
-                is XNotePageState.Error -> XNoteErrorState(
-                    title = currentState.title,
-                    description = currentState.description,
-                    actionLabel = currentState.actionLabel,
-                    onAction = onPageStateAction,
-                    backdrop = backdrop,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(XNoteSpacingMedium)
-                        .widthIn(max = 560.dp),
-                )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+                    ),
+            ) {
+                when (val currentState = pageState) {
+                    XNotePageState.Content -> content()
+                    is XNotePageState.Loading -> XNoteLoadingState(
+                        backdrop = backdrop,
+                        message = currentState.message,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(XNoteSpacingMedium)
+                            .widthIn(max = 560.dp),
+                    )
+                    is XNotePageState.Error -> XNoteErrorState(
+                        title = currentState.title,
+                        description = currentState.description,
+                        actionLabel = currentState.actionLabel,
+                        onAction = onPageStateAction,
+                        backdrop = backdrop,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(XNoteSpacingMedium)
+                            .widthIn(max = 560.dp),
+                    )
+                }
             }
         }
 
         XNoteProgressiveBlur(
-            backdrop = backdrop,
+            backdrop = scrollBackdrop,
             state = scrollEdgeState,
             edges = scrollEdges,
             alwaysVisibleEdges = alwaysVisibleScrollEdges,

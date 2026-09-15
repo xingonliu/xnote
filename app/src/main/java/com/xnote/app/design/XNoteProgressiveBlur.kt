@@ -15,14 +15,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
 
 // -- Type Definitions
@@ -41,9 +39,10 @@ data class XNoteScrollEdgeState(
 // -- Constants
 
 private val ProgressiveBlurHeight = 128.dp
-private val ProgressiveBlurRadius = 16.dp
-private const val ProgressiveBlurTintIntensity = 0.2f
-private const val ProgressiveBlurShader = """
+private val ProgressiveBlurRadius = 24.dp
+private const val ProgressiveBlurLightTintIntensity = 0.08f
+private const val ProgressiveBlurDarkTintIntensity = 0.12f
+private const val ProgressiveBlurTintShader = """
     uniform shader content;
 
     uniform float2 size;
@@ -53,8 +52,8 @@ private const val ProgressiveBlurShader = """
 
     half4 main(float2 coord) {
         float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
-        float mask = smoothstep(size.y, size.y * 0.2, edgeCoordinate);
-        return mix(content.eval(coord) * mask, tint * mask, tintIntensity);
+        float intensity = 1.0 - smoothstep(0.0, size.y, edgeCoordinate);
+        return mix(content.eval(coord), tint, tintIntensity * intensity * intensity);
     }
 """
 
@@ -114,7 +113,12 @@ private fun XNoteProgressiveBlurLayer(
 ) {
     val settings = LocalXNoteInteractionSettings.current
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
-    val tint = if (isLightTheme) Color.White else Color(0xFF808080)
+    val tint = MaterialTheme.colorScheme.background
+    val tintIntensity = if (isLightTheme) {
+        ProgressiveBlurLightTintIntensity
+    } else {
+        ProgressiveBlurDarkTintIntensity
+    }
     val targetAlpha = if (visible) 1f else 0f
     val alpha = if (settings.reduceMotion) {
         targetAlpha
@@ -127,6 +131,8 @@ private fun XNoteProgressiveBlurLayer(
         animatedAlpha
     }
 
+    if (alpha == 0f) return
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -136,15 +142,27 @@ private fun XNoteProgressiveBlurLayer(
                 backdrop = backdrop,
                 shape = { RectangleShape },
                 effects = {
-                    blur(ProgressiveBlurRadius.toPx())
+                    // Separate passes keep the variable-radius Gaussian affordable.
+                    repeat(2) { pass ->
+                        runtimeShaderEffect(
+                            "XNoteProgressiveBlur$pass",
+                            XNoteProgressiveBlurShader,
+                            "content",
+                        ) {
+                            setFloatUniform("size", size.width, size.height)
+                            setFloatUniform("blurRadius", ProgressiveBlurRadius.toPx())
+                            setFloatUniform("direction", if (pass == 0) 1f else 0f, if (pass == 0) 0f else 1f)
+                            setFloatUniform("bottomEdge", if (edge == XNoteScrollEdge.Bottom) 1f else 0f)
+                        }
+                    }
                     runtimeShaderEffect(
-                        "AlphaMask",
-                        ProgressiveBlurShader,
+                        "XNoteProgressiveBlurTint",
+                        ProgressiveBlurTintShader,
                         "content",
                     ) {
                         setFloatUniform("size", size.width, size.height)
                         setColorUniform("tint", tint)
-                        setFloatUniform("tintIntensity", ProgressiveBlurTintIntensity)
+                        setFloatUniform("tintIntensity", tintIntensity)
                         setFloatUniform(
                             "bottomEdge",
                             if (edge == XNoteScrollEdge.Bottom) 1f else 0f,

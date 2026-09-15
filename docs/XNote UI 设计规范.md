@@ -1,6 +1,6 @@
 # XNote UI 设计规范
 
-> 文档版本：v0.25
+> 文档版本：v0.26
 >
 > 适用平台：Android 13（API 33）及以上的手机、平板
 >
@@ -16,7 +16,7 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 1. 笔记内容始终是视觉主体，装饰效果不能降低文字、图片和画笔内容的可读性。
 2. 玻璃交互优先直接采用 AndroidLiquidGlass 官方 catalog 组件；只有官方 catalog 没有对应组件时，才允许基于该库创建项目级组件，不为同一功能重复设计局部样式。
-3. 所有页面统一接入 AndroidLiquidGlass Progressive blur；二级页面顶部和底部必须常驻连续的渐进模糊遮罩。
+3. 所有页面统一接入基于 Backdrop 的可变半径渐进模糊；二级页面顶部和底部必须常驻连续的渐进模糊遮罩。
 4. 二级页面统一使用公共 Header；除笔记编辑页外，Header 中间显示当前页面标题。
 5. 弹窗、抽屉、Toast、Popup、下拉菜单、按钮等通用交互只能通过公共组件提供，业务页面不得复制实现。
 6. 所有由应用绘制的非圆形圆角统一使用接近 iOS 连续曲线的 60% 平滑圆角，不得混用普通四分之一圆圆角。
@@ -42,14 +42,15 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 ## 2. 平台与技术边界
 
-XNote 当前是 Android/Jetpack Compose 应用。页面边缘过渡直接采用 AndroidLiquidGlass catalog 的 Progressive blur 配方，顶部和底部共享统一材质参数。
+XNote 当前是 Android/Jetpack Compose 应用。页面边缘过渡使用 Backdrop 捕获层与双通道可变半径高斯模糊，采样算法参考 Haze 1.7.2；顶部和底部共享统一材质参数。
 
 Android 实现统一封装为 `XNoteProgressiveBlur`，由 `XNotePageScaffold` 接入。它至少包含以下能力：
 
-- 直接组合 `drawPlainBackdrop`、`blur` 与 `runtimeShaderEffect("AlphaMask")`，以方向化 Alpha Mask 形成渐进模糊。
+- `drawPlainBackdrop` 提供背景捕获，两个 `runtimeShaderEffect` 分别执行横向与纵向高斯采样；模糊半径随边缘距离连续衰减，最后独立叠加主题底色。
+- 渐进模糊使用独立捕获层，包含页面背景和正文，Header、Footer 与 Toast 在该层外绘制；正文内玻璃控件继续采样背景层，避免循环采样。
 - 二级页面顶部和底部常驻；一级页面可以根据滚动状态显示需要的边缘。
-- 顶部和底部只改变遮罩方向，共享同一组材质参数。
-- 材质参数与 AndroidLiquidGlass `2.0.1` catalog 示例保持一致：高度 128 dp、模糊半径 4 dp、Tint 强度 0.8，Alpha Mask 在 50% 高度处开始渐隐。
+- 顶部和底部只改变距离方向，共享同一组材质参数。
+- 项目材质参数：覆盖高度 128 dp，最大采样半径 24 dp（最多 150 px），从屏幕边缘到内容端按 smoothstep 衰减到 0；浅色主题底色叠加强度 8%，深色 12%，叠色按模糊强度的平方衰减。这些是近似 iOS 柔和滚动边缘的项目参数，不是 Apple 公布的系统数值。
 - 不拦截触摸、滚动、选择、拖放或无障碍焦点。
 - “减少动画”只取消遮罩显隐过渡，不改变 Progressive blur 材质。
 
@@ -59,7 +60,7 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 
 | 规范语义       | 视觉参照                    | XNote Android 实现                                  |
 | -------------- | --------------------------- | --------------------------------------------------- |
-| 渐进模糊边缘   | iOS 27 页面边缘遮罩         | AndroidLiquidGlass catalog Progressive blur         |
+| 渐进模糊边缘   | iOS 27 页面边缘遮罩         | Backdrop + Haze 参考的可变半径高斯采样             |
 | 指定生效边缘   | 顶部 / 底部                 | `XNoteProgressiveBlur(edges, alwaysVisibleEdges)`   |
 | 页面统一接入   | View hierarchy modifier     | `XNotePageScaffold` 内置效果层                       |
 | 玻璃按钮       | `.buttonStyle(.glass)`      | AndroidLiquidGlass catalog `LiquidButton`           |

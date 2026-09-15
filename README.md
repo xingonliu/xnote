@@ -14,7 +14,7 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方；玻璃本体为 56 dp、滑块为 48 dp，外层导航占位保持 88 dp，并用滑块路径切割出主题色图标与文字。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
 - 界面矢量图标统一来自 Keyline Icons 的 Rounded 资源（既有提交 `14cd695f`，编辑排版新增提交 `b83dfe19`），以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；手机 Tabbar 使用 Fill，其余界面使用 Stroke，并通过 16/20/24/40 dp 语义令牌分级。完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
-- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass catalog Progressive blur；所有二级页面的 Header 与页面底部常驻同一套 128 dp 渐进模糊遮罩。
+- `XNotePageScaffold` 已统一系统安全区、页面加载/错误、Toast Host 与基于 Backdrop 的双通道可变半径渐进模糊（采样算法参考 Haze）；所有二级页面的 Header 与页面底部常驻同一套 128 dp 效果，最大采样半径 24 dp，叠色随主题与边缘距离变化。
 - `XNoteHeader`、Dialog、Drawer、Toast、Popup、Dropdown、加载/空/错误状态与富文本工具栏均由公共设计系统提供；系统动画倍率为 0 时取消弹性、形变和过渡动画。
 - 首页顶部用一个 Inset Grouped 圆角容器组织全部笔记、未分类（灵感收集箱）和最近删除，每行包含 Keyline 图标、数量徽标与箭头。笔记本宫格显示名称、数量、最近编辑笔记的标题或摘要，以及可保存的颜色和图标；长按触发触感反馈和原地 LiquidGlass 菜单，可重命名、更换外观或删除。右上角管理入口支持手柄拖拽排序、边缘自动滚动及无障碍上移/下移，点“完成”保存，取消放弃排序。平板笔记本栏共享这些能力。
 - 删除笔记本时可选择将笔记移到未分类，或连同笔记移入最近删除；笔记本本身无法恢复。数据库版本 3 通过 2→3 自动迁移添加颜色与图标，保留已有笔记数据。创建笔记本后进入详情，新笔记归属当前笔记本，首页快速新建归入未分类。
