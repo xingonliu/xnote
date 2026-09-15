@@ -28,7 +28,7 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 - 浅色页面底色 `#F2F2F7`，内容表面 `#FFFFFF`；深色页面底色 `#000000`，内容表面 `#1C1C1E`。容器、分隔线和次级文字使用中性灰，内容表面不叠加强调色染色。
 - Header、导航和悬浮工具使用公共 Liquid Glass 控件；正文及纸张保持稳定、不透明的内容层。普通按钮使用中性玻璃与黑色图标、文字（深色模式为白色）；带颜色的按钮统一使用黄色与白色图标、文字。危险动作由明确文案与确认对话框表达，菜单中的危险文字保留红色。
-- 全局黄色强调色为浅色 `#E09F3E` / 深色 `#FFD60A`，用于 Tabbar 选中态和有色按钮；首页、笔记本详情与系统集合右下角「+」使用同一令牌，尺寸为 80 × 80 dp（普通圆形按钮的两倍），内部加号为 40 × 40 dp，形状与动效保持不变。
+- 全局黄色强调色为浅色 `#E09F3E` / 深色 `#FFD60A`，用于 Tabbar 选中态和有色按钮；首页、笔记本详情与系统集合右下角「+」使用同一令牌，尺寸为 64 × 64 dp，内部加号为 40 × 40 dp，形状与动效保持不变。
 - 四款内置背景均使用中性纸色及灰色纹理，编辑、阅读、预览和启动页同步适配明暗主题。既有笔记背景标识保持稳定以保留用户选择。
 
 ### 1.2 首页与笔记层级
@@ -128,7 +128,7 @@ Header 在顶部安全区之后保留 15 dp 留白，40 dp 圆形按钮位于留
 
 笔记编辑页不在 Header 中间显示固定页面标题或保存状态。笔记标题属于文档内容，置于正文顶部并可编辑；标题下方以 `yyyy年M月d日` 显示最近一次成功保存的日期，新建笔记保存前显示创建日期。
 
-编辑页仍必须使用统一的左侧圆形 SVG 返回按钮、右侧功能按钮和顶部 Progressive blur。
+编辑页 Header 在顶部安全区下保留 15 dp 留白，全部 40 dp 高按钮与笔记本选择器在同一行垂直居中；左右留白 16 dp，按钮组间距 8 dp，笔记本选择器占用剩余空间并限制最大宽度为 220 dp。Footer 在系统导航栏或键盘安全区上方额外保留 16 dp 留白，手机左右留白 16 dp、平板 24 dp。
 
 编辑页底栏左侧是独立的圆形 Liquid Glass 插入按钮；右侧默认展开为紧凑胶囊，内含排版、待办、引用和收起工具四个图标，间距为 0。收起时胶囊以 180 ms 宽度动画向右收缩为圆形展开按钮，展开时同样向左长出其余图标；启用「减少动画」时直接显隐。插入按钮上方展示相册、相机、表格气泡菜单。排版展开 `XNoteRichTextToolbar` 三行格式检视器，全部使用 Keyline Stroke 图标：段落层级、行内样式、列表缩进与对齐。活跃格式仅将图标显示为 Primary 主题色，减少动画时直接显隐。面板实际高度计入正文底部留白。表格单元格获得焦点时，右侧胶囊切换为行上、行下、列左、列右、删行、删列、删表七个图标动作。Header 返回、笔记本归属、更多和 Footer 左侧插入复用 `LiquidButton`。Header 撤销与重做合并为一个 80 × 40 dp 的 `LiquidButton`，两个 40 dp 点击区域分别按历史状态启用。Header 历史操作与 Footer 右侧胶囊直接共用 `LiquidButton` 的材质和按压形变实现：vibrancy、2 dp blur、12/24 dp lens；父容器只承担玻璃渲染与整体动效，点击和无障碍语义由内部图标提供。Footer 右侧操作共用一个 Liquid Glass 胶囊，格式检视器共用一块玻璃面板；各图标保留独立点击区域，激活时仅图标变为 Primary 主题色，保留无障碍选中语义，禁用时降低图标不透明度。禁止用字符充当图标。
 
@@ -192,7 +192,7 @@ Markdown 只作为格式工具栏命令的输入快捷方式，不创建独立�
 | Small | 16 × 16 dp；辅助、列表元信息和紧凑控件 |
 | Medium | 20 × 20 dp；Header、普通操作、选择与编辑控件 |
 | Large | 24 × 24 dp；浮动或强调操作 |
-| Hero | 40 × 40 dp；空状态、错误状态主图标，以及 80 dp 新建笔记按钮内的加号 |
+| Hero | 40 × 40 dp；空状态、错误状态主图标，以及 64 dp 新建笔记按钮内的加号 |
 | 最小触控区域 | 40 × 40 dp |
 
 - 非 Tabbar 图标尺寸必须引用 `XNoteIconSizeSmall`、`XNoteIconSizeMedium`、`XNoteIconSizeLarge` 或 `XNoteIconSizeHero`；不得在业务页面写 14、15、18、22 等局部尺寸。Bottom Tabs 与平板 Rail 分别引用专用导航尺寸令牌。
@@ -286,7 +286,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
-- `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。新建笔记浮动按钮是唯一例外：使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 80 × 80 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
+- `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。新建笔记浮动按钮是唯一例外：使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 64 × 64 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
 - 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。

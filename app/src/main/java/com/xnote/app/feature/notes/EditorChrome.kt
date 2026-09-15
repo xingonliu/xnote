@@ -11,19 +11,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
@@ -51,6 +49,8 @@ import com.xnote.app.design.EditorSymbolButton
 import com.xnote.app.design.EditorGlassIconButton
 import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteButtonSize
+import com.xnote.app.design.XNoteHeaderTopPadding
+import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNotePopupAnchor
@@ -79,18 +79,15 @@ fun EditorHeader(
     moreAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
+    Row(
         modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
             .height(XNoteHeaderHeight)
-            .padding(start = 12.dp, end = 12.dp, top = 11.dp),
+            .padding(start = XNoteSpacingMedium, end = XNoteSpacingMedium, top = XNoteHeaderTopPadding),
+        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val leadingSpace = if (onBack == null) 0.dp else XNoteButtonSize + XNoteSpacingSmall
-        val trailingWidth = XNoteButtonSize * 3 + XNoteSpacingExtraSmall
-        val pillWidth = (maxWidth - 280.dp).coerceIn(88.dp, 220.dp)
-            .coerceAtMost(maxWidth - leadingSpace - trailingWidth - XNoteSpacingSmall)
-        val pillLeft = ((maxWidth - pillWidth) / 2).coerceIn(leadingSpace, maxWidth - trailingWidth - pillWidth)
         if (onBack != null) {
             EditorGlassIconButton(
                 iconRes = R.drawable.ic_keyline_stroke_chevron_left,
@@ -98,44 +95,44 @@ fun EditorHeader(
                 backdrop = backdrop,
                 onClick = onBack,
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
                     .size(XNoteButtonSize)
                     .testTag("xnote-editor-back"),
             )
         }
-        LiquidButton(
-            onClick = onChooseNotebook,
-            backdrop = backdrop,
-            enabled = session?.note != null,
-            modifier = Modifier
-                .offset(x = pillLeft)
-                .width(pillWidth)
-                .testTag("xnote-editor-notebook"),
-        ) {
-            Text(
-                text = if (session?.saveStatus == EditorSaveStatus.Error) {
-                    stringResource(R.string.editor_save_failed)
-                } else {
-                    notebookName
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = LocalContentColor.current,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (session?.saveStatus != EditorSaveStatus.Error) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_keyline_stroke_chevron_down),
-                    contentDescription = null,
-                    tint = LocalContentColor.current,
-                    modifier = Modifier.size(XNoteIconSizeSmall),
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            LiquidButton(
+                onClick = onChooseNotebook,
+                backdrop = backdrop,
+                enabled = session?.note != null,
+                modifier = Modifier
+                    .widthIn(max = 220.dp).fillMaxWidth()
+                    .testTag("xnote-editor-notebook"),
+            ) {
+                Text(
+                    text = if (session?.saveStatus == EditorSaveStatus.Error) {
+                        stringResource(R.string.editor_save_failed)
+                    } else {
+                        notebookName
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = LocalContentColor.current,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (session?.saveStatus != EditorSaveStatus.Error) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_down),
+                        contentDescription = null,
+                        tint = LocalContentColor.current,
+                        modifier = Modifier.size(XNoteIconSizeSmall),
+                    )
+                }
             }
         }
         Row(
-            modifier = Modifier.align(Alignment.CenterEnd),
-            horizontalArrangement = Arrangement.spacedBy(XNoteSpacingExtraSmall),
+            horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             LiquidButton(backdrop = backdrop, modifier = Modifier.testTag("xnote-editor-history")) {
                 EditorSymbolButton(

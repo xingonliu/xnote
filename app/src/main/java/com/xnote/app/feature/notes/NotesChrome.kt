@@ -220,7 +220,7 @@ fun BoxScope.NotesChrome(
                 .imePadding()
                 .navigationBarsPadding()
                 .padding(horizontal = if (isTablet) 24.dp else XNoteSpacingMedium)
-                .padding(bottom = XNoteSpacingSmall),
+                .padding(bottom = XNoteSpacingMedium),
         )
         NoteImageChrome(
             session = editorSession, library = library, backdrop = backdrop,
