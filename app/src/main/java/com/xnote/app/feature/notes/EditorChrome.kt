@@ -46,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
-import com.kyant.shapes.Capsule
 import com.xnote.app.R
 import com.xnote.app.design.EditorSymbolButton
 import com.xnote.app.design.EditorGlassIconButton
@@ -54,7 +53,6 @@ import com.xnote.app.design.LocalXNoteInteractionSettings
 import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteIconSizeSmall
-import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
@@ -89,7 +87,7 @@ fun EditorHeader(
             .padding(start = 12.dp, end = 12.dp, top = 11.dp),
     ) {
         val leadingSpace = if (onBack == null) 0.dp else XNoteButtonSize + XNoteSpacingSmall
-        val trailingWidth = XNoteButtonSize * 3 + XNoteSpacingExtraSmall * 2
+        val trailingWidth = XNoteButtonSize * 3 + XNoteSpacingExtraSmall
         val pillWidth = (maxWidth - 280.dp).coerceIn(88.dp, 220.dp)
             .coerceAtMost(maxWidth - leadingSpace - trailingWidth - XNoteSpacingSmall)
         val pillLeft = ((maxWidth - pillWidth) / 2).coerceIn(leadingSpace, maxWidth - trailingWidth - pillWidth)
@@ -139,20 +137,22 @@ fun EditorHeader(
             modifier = Modifier.align(Alignment.CenterEnd),
             horizontalArrangement = Arrangement.spacedBy(XNoteSpacingExtraSmall),
         ) {
-            EditorGlassIconButton(
-                iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
-                description = stringResource(R.string.action_undo),
-                backdrop = backdrop,
-                enabled = session?.canUndo == true,
-                onClick = { session?.undo() },
-            )
-            EditorGlassIconButton(
-                iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right,
-                description = stringResource(R.string.action_redo),
-                backdrop = backdrop,
-                enabled = session?.canRedo == true,
-                onClick = { session?.redo() },
-            )
+            LiquidButton(backdrop = backdrop, modifier = Modifier.testTag("xnote-editor-history")) {
+                EditorSymbolButton(
+                    iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
+                    description = stringResource(R.string.action_undo),
+                    modifier = Modifier.size(XNoteButtonSize),
+                    enabled = session?.canUndo == true,
+                    onClick = { session?.undo() },
+                )
+                EditorSymbolButton(
+                    iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right,
+                    description = stringResource(R.string.action_redo),
+                    modifier = Modifier.size(XNoteButtonSize),
+                    enabled = session?.canRedo == true,
+                    onClick = { session?.redo() },
+                )
+            }
             EditorGlassIconButton(
                 iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                 description = stringResource(R.string.action_more),
@@ -271,7 +271,7 @@ private fun EditorToolsCapsule(
 ) {
     val widthSpec = tween<IntSize>(XNoteShortAnimationDurationMillis)
     val fadeSpec = tween<Float>(XNoteShortAnimationDurationMillis)
-    XNoteLiquidGlassPanel(backdrop = backdrop, shape = Capsule()) {
+    LiquidButton(backdrop = backdrop) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(
                 visible = expanded,
@@ -339,7 +339,7 @@ private fun TableToolbarCapsule(session: NoteEditorSession, backdrop: Backdrop) 
         Triple(R.drawable.ic_keyline_stroke_square_minus, R.string.editor_table_delete_column, { session.deleteTableColumn() }),
         Triple(R.drawable.ic_keyline_stroke_grid_squares_x, R.string.editor_table_delete, { session.deleteTable() }),
     )
-    XNoteLiquidGlassPanel(backdrop = backdrop, shape = Capsule()) {
+    LiquidButton(backdrop = backdrop) {
         Row(
             modifier = Modifier.padding(horizontal = XNoteSpacingExtraSmall),
             horizontalArrangement = Arrangement.spacedBy(0.dp),

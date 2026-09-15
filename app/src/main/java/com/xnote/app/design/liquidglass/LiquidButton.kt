@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceAtMost
 import androidx.compose.ui.util.lerp
@@ -52,6 +53,51 @@ fun LiquidButton(
     isInteractive: Boolean = true,
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
+    content: @Composable RowScope.() -> Unit,
+) {
+    LiquidButtonSurface(
+        onClick = onClick,
+        backdrop = backdrop,
+        modifier = modifier,
+        isInteractive = isInteractive,
+        tint = tint,
+        surfaceColor = surfaceColor,
+        horizontalPadding = XNoteButtonHorizontalPadding,
+        contentSpacing = XNoteButtonContentSpacing,
+        content = content,
+    )
+}
+
+@Composable
+fun LiquidButton(
+    backdrop: Backdrop,
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    LiquidButtonSurface(
+        onClick = null,
+        backdrop = backdrop,
+        modifier = modifier,
+        isInteractive = true,
+        tint = Color.Unspecified,
+        surfaceColor = Color.Unspecified,
+        horizontalPadding = 0.dp,
+        contentSpacing = 0.dp,
+        content = content,
+    )
+}
+
+// A group shares the button's material and motion; its children own click semantics.
+@Composable
+private fun LiquidButtonSurface(
+    onClick: (() -> Unit)?,
+    backdrop: Backdrop,
+    modifier: Modifier,
+    isInteractive: Boolean,
+    tint: Color,
+    surfaceColor: Color,
+    horizontalPadding: Dp,
+    contentSpacing: Dp,
     content: @Composable RowScope.() -> Unit,
 ) {
     val interactionSettings = LocalXNoteInteractionSettings.current
@@ -107,11 +153,17 @@ fun LiquidButton(
                     }
                 },
             )
-            .clickable(
-                interactionSource = null,
-                indication = if (hasInteractiveMotion) null else LocalIndication.current,
-                role = Role.Button,
-                onClick = onClick,
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = null,
+                        indication = if (hasInteractiveMotion) null else LocalIndication.current,
+                        role = Role.Button,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
             )
             .then(
                 if (hasInteractiveMotion) {
@@ -123,8 +175,8 @@ fun LiquidButton(
                 },
             )
             .height(XNoteButtonSize)
-            .padding(horizontal = XNoteButtonHorizontalPadding),
-        horizontalArrangement = Arrangement.spacedBy(XNoteButtonContentSpacing, Alignment.CenterHorizontally),
+            .padding(horizontal = horizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(contentSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
         content = {
             CompositionLocalProvider(
