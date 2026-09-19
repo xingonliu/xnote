@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -256,6 +257,10 @@ class NotesFlowTest {
         composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
         composeRule.onNodeWithTag("xnote-collection-all").performClick()
         composeRule.onNodeWithText("图片验收").performClick()
+        val viewport = composeRule.onNode(hasScrollAction()).fetchSemanticsNode().boundsInRoot
+        val toolbar = composeRule.onNodeWithTag("xnote-editor-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("Editor content must scroll behind the whole toolbar before fading at the screen edge",
+            viewport.bottom >= toolbar.bottom)
         composeRule.onNodeWithContentDescription("插入").performClick()
         composeRule.onNodeWithText("相机").assertIsDisplayed()
         composeRule.onNodeWithText("相册").assertIsDisplayed()

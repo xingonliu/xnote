@@ -49,8 +49,8 @@ private const val ProgressiveBlurTintShader = """
 
     half4 main(float2 coord) {
         float edgeCoordinate = mix(coord.y, size.y - coord.y, bottomEdge);
-        // Dissolve content into the page before it reaches the screen edge.
-        float tintAlpha = 1.0 - smoothstep(size.y * 0.35, size.y, edgeCoordinate);
+        // Reach full tint only at the screen edge, with no opaque plateau behind the controls.
+        float tintAlpha = 1.0 - smoothstep(0.0, size.y, edgeCoordinate);
         return mix(content.eval(coord), tint, tintAlpha);
     }
 """

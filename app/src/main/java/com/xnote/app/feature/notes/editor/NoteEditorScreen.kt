@@ -109,12 +109,13 @@ fun NoteEditorScreen(
 
     val layoutDirection = LocalLayoutDirection.current
     Column(
-        modifier = modifier.fillMaxSize().imePadding().navigationBarsPadding()
-            .padding(bottom = (session.toolbarHeightDp + 8f).dp)
-            .verticalScroll(scrollState).padding(
+        // Keep toolbar clearance inside the scrollable content so its viewport reaches the edge fade.
+        modifier = modifier.fillMaxSize().imePadding()
+            .verticalScroll(scrollState).navigationBarsPadding().padding(
                 start = contentPadding.calculateStartPadding(layoutDirection),
                 top = contentPadding.calculateTopPadding(),
                 end = contentPadding.calculateEndPadding(layoutDirection),
+                bottom = (session.toolbarHeightDp + 8f).dp,
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

@@ -76,6 +76,14 @@ class XNoteProgressiveBlurTest {
             assertTrue("Bottom edge must fade out source detail: $bottom / $clear", bottom < clear * 0.1f)
             assertTrue("Content end must stay clear: $transition / $clear", transition > clear * 0.8f)
             assertTrue("Both edges must match", abs(top - bottom) < clear * 0.1f)
+            for (distance in listOf(32, 48, 64, 96)) {
+                val topDetail = rowContrast(bitmap, (distance * scale).toInt())
+                val bottomDetail = rowContrast(bitmap, bitmap.height - 1 - (distance * scale).toInt())
+                assertTrue("Fade must retain detail behind controls at $distance dp: $topDetail / $clear",
+                    topDetail > clear * 0.1f)
+                assertTrue("Both fades must match at $distance dp",
+                    abs(topDetail - bottomDetail) < clear * 0.05f)
+            }
             val edgeColor = android.graphics.Color.red(bitmap.getPixel(bitmap.width / 2, (12 * scale).toInt()))
             assertTrue("Edge must dissolve into the theme background, not retain gray blur: $edgeColor",
                 if (isDark) edgeColor < 10 else edgeColor > 235)
