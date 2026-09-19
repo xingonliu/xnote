@@ -126,7 +126,6 @@ fun NoteEditorScreen(
 @Composable
 private fun NotePaper(session: NoteEditorSession) {
     val imageOrigins = remember(session.noteId) { mutableStateMapOf<String, Float>() }
-    val imageDisplayHeights = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val imageBottoms = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val density = LocalDensity.current.density
     val blocks = session.document.visibleBlocks()
@@ -161,9 +160,15 @@ private fun NotePaper(session: NoteEditorSession) {
             blocks.forEach { block ->
                 key(block.id) {
                     if (block is ImageBlock) {
-                        Spacer(Modifier.fillMaxWidth().height((imageDisplayHeights[block.id] ?: 0f).dp).onPlaced {
-                            imageOrigins[block.id] = it.positionInParent().y
-                        })
+                        NoteImageBlock(
+                            block = block,
+                            session = session,
+                            originY = (imageOrigins[block.id] ?: 0f) / density,
+                            modifier = Modifier.fillMaxWidth().onPlaced {
+                                imageOrigins[block.id] = it.positionInParent().y
+                            },
+                            onBottomChanged = { imageBottoms[block.id] = it },
+                        )
                     } else {
                         EditorBlock(block, session, labels[block.id], block.id == firstTextId)
                     }
@@ -179,17 +184,6 @@ private fun NotePaper(session: NoteEditorSession) {
                 }
             }
             Spacer(Modifier.height(24.dp))
-        }
-        images.forEach { image ->
-            key(image.id) {
-                NoteImageBlock(
-                    block = image, session = session,
-                    originY = (imageOrigins[image.id] ?: 0f) / density,
-                    modifier = Modifier.matchParentSize(),
-                    onBottomChanged = { imageBottoms[image.id] = it },
-                    onDisplayHeightChanged = { imageDisplayHeights[image.id] = it },
-                )
-            }
         }
     }
 }

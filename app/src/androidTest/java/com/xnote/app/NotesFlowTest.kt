@@ -289,6 +289,51 @@ class NotesFlowTest {
     }
 
     @Test
+    fun deletingImageKeepsRemainingImagesAtTheirTextAnchors() = runTest {
+        val source = File(filesRoot, "image-delete.png")
+        source.parentFile?.mkdirs()
+        val bitmap = android.graphics.Bitmap.createBitmap(600, 200, android.graphics.Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.BLUE)
+        source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val attachment = com.xnote.app.data.files.importNoteImage(context, library, android.net.Uri.fromFile(source), "delete-test")
+        val note = library.createNote(null)
+        val images = listOf("first", "middle", "last").map {
+            com.xnote.app.domain.document.ImageBlock(it, attachment.id, scale = 0.4f)
+        }
+        library.saveNote(note.copy(title = "删除图片布局", document = NoteDocument(blocks = listOf(
+            TextBlock("before", inlines = listOf(InlineRun("正文"))),
+        ) + images + TextBlock("after", inlines = listOf(InlineRun("继续输入"))))))
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
+        composeRule.onNodeWithText("删除图片布局").performClick()
+        composeRule.onNodeWithContentDescription("收起工具").performClick()
+        composeRule.waitForIdle()
+        fun bounds(id: String) = composeRule.onNodeWithTag("xnote-image-$id").fetchSemanticsNode().boundsInRoot
+        val original = images.associate { it.id to bounds(it.id) }
+        for (deleted in listOf("middle", "first", "last")) {
+            composeRule.onNodeWithTag("xnote-image-$deleted").performTouchInput { click() }
+            composeRule.onNodeWithContentDescription("删除图片").performClick()
+            composeRule.waitForIdle()
+            composeRule.onNodeWithTag("xnote-image-$deleted").assertDoesNotExist()
+            var previousBottom = composeRule.onNodeWithTag("xnote-editor-body").fetchSemanticsNode().boundsInRoot.bottom
+            for (image in images.filter { it.id != deleted }) {
+                val actual = bounds(image.id)
+                val before = original.getValue(image.id)
+                assertEquals("${image.id} horizontal position after deleting $deleted", before.left, actual.left, 3f)
+                assertEquals(before.width, actual.width, 3f)
+                assertEquals(before.height, actual.height, 3f)
+                assertTrue("${image.id} must follow its preceding content after deleting $deleted: $actual", actual.top > previousBottom)
+                previousBottom = actual.bottom
+            }
+            assertTrue(composeRule.onNodeWithTag("xnote-editor-text-after").fetchSemanticsNode().boundsInRoot.top > previousBottom)
+            composeRule.onNodeWithContentDescription("撤销").performClick()
+            composeRule.waitForIdle()
+            for (image in images) assertEquals(original.getValue(image.id).top, bounds(image.id).top, 3f)
+        }
+    }
+
+    @Test
     fun shrinkingImageReflowsFollowingImageAndTextAndUndoRestoresSpacing() = runTest {
         val source = File(filesRoot, "image-flow.png")
         source.parentFile?.mkdirs()

@@ -50,7 +50,6 @@ fun NoteImageBlock(
     originY: Float,
     modifier: Modifier = Modifier,
     onBottomChanged: (Float) -> Unit,
-    onDisplayHeightChanged: (Float) -> Unit,
 ) {
     var bitmap by remember(block.attachmentId) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(block.attachmentId) { mutableStateOf(false) }
@@ -76,17 +75,16 @@ fun NoteImageBlock(
             failed = true
         }
     }
-    BoxWithConstraints(modifier.zIndex(block.zIndex.toFloat())) {
+    BoxWithConstraints(modifier.zIndex(1f + block.zIndex.toFloat())) {
         val baseWidth = maxWidth.value * 0.7f
         val ratio = bitmap?.let { it.height.toFloat() / it.width } ?: 0.65f
         val width = baseWidth * block.scale
         val height = width * ratio
         val angle = Math.toRadians(block.rotationDegrees.toDouble())
         val displayHeight = abs(sin(angle)).toFloat() * width + abs(cos(angle)).toFloat() * height
-        val center = Offset(maxWidth.value / 2f + block.offsetX, originY + displayHeight / 2f + block.offsetY)
+        val center = Offset(maxWidth.value / 2f + block.offsetX, displayHeight / 2f + block.offsetY)
         SideEffect {
-            onDisplayHeightChanged(displayHeight)
-            onBottomChanged(center.y + displayHeight / 2f + 44f)
+            onBottomChanged(originY + center.y + displayHeight / 2f + 44f)
         }
         fun updatePlacement() {
             val coordinates = bodyCoordinates ?: return
@@ -135,15 +133,19 @@ fun NoteImageBlock(
                         style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
                 }
             }
-        Box(bodyModifier) {
-            val image = bitmap
-            if (image == null) {
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    Text(stringResource(if (failed) R.string.image_load_failed else R.string.image_loading))
+        // Keep the image and its flow height in the same layout so removing siblings
+        // cannot separate the rendered image from its text anchor.
+        Box(Modifier.fillMaxWidth().height(displayHeight.dp)) {
+            Box(bodyModifier) {
+                val image = bitmap
+                if (image == null) {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                        Text(stringResource(if (failed) R.string.image_load_failed else R.string.image_loading))
+                    }
+                } else {
+                    Image(image, stringResource(R.string.image_description),
+                        Modifier.fillMaxSize().clip(XNoteSmoothCornerShape(12.dp)))
                 }
-            } else {
-                Image(image, stringResource(R.string.image_description),
-                    Modifier.fillMaxSize().clip(XNoteSmoothCornerShape(12.dp)))
             }
         }
     }
