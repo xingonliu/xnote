@@ -64,16 +64,59 @@ class ExportFlowTest {
         compose.onNodeWithTag("xnote-editor-title").assertTextEquals("即时导出标题")
     }
 
+    @Test fun customImageBackgroundIsLoadedBeforeCapturingEveryPage() {
+        val note = runBlocking {
+            val bitmap = Bitmap.createBitmap(60, 100, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
+            val bytes = java.io.ByteArrayOutputStream().apply { bitmap.compress(Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
+            bitmap.recycle()
+            val attachment = library.putAttachment(AttachmentKind.Image, "image/png", "png", bytes.inputStream())
+            library.saveNote(library.createNote(null).copy(title = "自定义背景导出",
+                backgroundKey = BackgroundKey.Image(attachment.id, 0),
+                document = NoteDocument(blocks = listOf(TextBlock("long", inlines = listOf(InlineRun("图片背景分页。\n".repeat(85))))))))
+        }
+        compose.setContent { XNoteTheme(darkTheme = false, reduceMotion = true) {
+            ExportScreen(note.id, library, defaultBackgroundKey(), {})
+        } }
+        awaitPreview()
+        val files = exportFiles()
+        assertTrue(files.size > 1)
+        files.forEach { file ->
+            val bitmap = BitmapFactory.decodeFile(file.path)
+            val pixel = bitmap.getPixel(5, 5)
+            assertEquals("Zero opacity must preserve the original blue", Color.BLUE, pixel)
+            assertEquals(255, Color.alpha(pixel))
+            bitmap.recycle()
+        }
+        screenshot("export-custom-background")
+    }
+
+    @Test fun fullyOpaqueBackgroundMaskExportsThemePaper() {
+        val note = runBlocking {
+            val bitmap = Bitmap.createBitmap(60, 100, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
+            val bytes = java.io.ByteArrayOutputStream().apply { bitmap.compress(Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
+            bitmap.recycle()
+            val attachment = library.putAttachment(AttachmentKind.Image, "image/png", "png", bytes.inputStream())
+            library.saveNote(library.createNote(null).copy(title = "完全不透明遮罩", backgroundKey = BackgroundKey.Image(attachment.id, 100)))
+        }
+        compose.setContent { XNoteTheme(darkTheme = false, reduceMotion = true) {
+            ExportScreen(note.id, library, defaultBackgroundKey(), {})
+        } }
+        awaitPreview()
+        val bitmap = BitmapFactory.decodeFile(exportFiles().single().path)
+        assertEquals(Color.WHITE, bitmap.getPixel(5, 5))
+        bitmap.recycle()
+    }
+
     @Test fun multiPageFreezesBackgroundAndThemeAndSharesExactFiles() {
         val note = runBlocking { library.saveNote(library.createNote(null).copy(title = "分页导出",
             document = NoteDocument(blocks = listOf(TextBlock("long", inlines = listOf(InlineRun("分页正文与背景保持一致。\n".repeat(85)))))))) }
-        var background by mutableStateOf(BackgroundKey(GridBuiltinBackgroundId))
+        var background by mutableStateOf(BackgroundKey.Builtin(GridBuiltinBackgroundId))
         var dark by mutableStateOf(false)
         compose.setContent { XNoteTheme(darkTheme = dark, reduceMotion = true) {
             ExportScreen(note.id, library, background, {})
         } }
         compose.waitUntil(20_000) { exportFiles().isNotEmpty() }
-        compose.runOnIdle { background = BackgroundKey(CreamBuiltinBackgroundId); dark = true }
+        compose.runOnIdle { background = BackgroundKey.Builtin(CreamBuiltinBackgroundId); dark = true }
         awaitPreview()
         val files = exportFiles()
         assertTrue(files.size > 1)
@@ -103,7 +146,7 @@ class ExportFlowTest {
             val bytes = java.io.ByteArrayOutputStream().apply { bitmap.compress(Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
             bitmap.recycle()
             val attachment = library.putAttachment(AttachmentKind.Image, "image/png", "png", bytes.inputStream(), widthPx = 200, heightPx = 100)
-            library.saveNote(library.createNote(null).copy(title = "导出图片与表格", backgroundKey = BackgroundKey(RuledBuiltinBackgroundId),
+            library.saveNote(library.createNote(null).copy(title = "导出图片与表格", backgroundKey = BackgroundKey.Builtin(RuledBuiltinBackgroundId),
                 document = NoteDocument(blocks = listOf(
                     TextBlock("quote", quoted = true, inlines = listOf(InlineRun("保留富文本与纸张", bold = true, highlight = true))),
                     ImageBlock("image", attachment.id, scale = 0.4f, rotationDegrees = 25f),
@@ -111,7 +154,7 @@ class ExportFlowTest {
                 ))))
         }
         compose.setContent { CompositionLocalProvider(LocalDensity provides Density(1f, 1f)) {
-            XNoteTheme(darkTheme = true, reduceMotion = true) { ExportScreen(note.id, library, BackgroundKey(DefaultBuiltinBackgroundId), {}) }
+            XNoteTheme(darkTheme = true, reduceMotion = true) { ExportScreen(note.id, library, BackgroundKey.Builtin(DefaultBuiltinBackgroundId), {}) }
         } }
         awaitPreview()
         val files = exportFiles()
@@ -136,7 +179,7 @@ class ExportFlowTest {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, 1.8f)) {
-                XNoteTheme(reduceMotion = true) { ExportScreen(note.id, library, BackgroundKey(DefaultBuiltinBackgroundId), {}) }
+                XNoteTheme(reduceMotion = true) { ExportScreen(note.id, library, BackgroundKey.Builtin(DefaultBuiltinBackgroundId), {}) }
             }
         }
         awaitPreview()
@@ -148,7 +191,7 @@ class ExportFlowTest {
     }
 
     @Test fun missingNoteCanRetryAndFailedGalleryWriteRollsBack() {
-        compose.setContent { XNoteTheme(reduceMotion = true) { ExportScreen("missing", library, BackgroundKey(DefaultBuiltinBackgroundId), {}) } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { ExportScreen("missing", library, BackgroundKey.Builtin(DefaultBuiltinBackgroundId), {}) } }
         compose.onNodeWithText("导出失败，请重试").assertIsDisplayed()
         compose.onNodeWithText("重试").performClick()
         compose.onNodeWithTag("xnote-export-save").assertIsNotEnabled()

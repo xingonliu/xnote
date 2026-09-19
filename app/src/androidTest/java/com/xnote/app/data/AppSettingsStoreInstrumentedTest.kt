@@ -76,7 +76,7 @@ class AppSettingsStoreInstrumentedTest {
     @Test
     fun defaultBackgroundPersistsAcrossStoreInstances() = runTest {
         val store = AppSettingsStore(context)
-        val selected = BackgroundKey(GridBuiltinBackgroundId)
+        val selected = BackgroundKey.Builtin(GridBuiltinBackgroundId)
         try {
             store.setDefaultBackground(selected)
 

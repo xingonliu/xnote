@@ -58,7 +58,6 @@ import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.editor.NoteImageUiState
 import com.xnote.app.feature.notes.editor.NoteImageChrome
-import com.xnote.app.feature.background.XNoteBackgroundPicker
 import com.xnote.app.navigation.NoteCollection
 import com.xnote.app.navigation.NotesRoute
 import com.xnote.app.domain.model.BackgroundKey
@@ -354,24 +353,14 @@ fun BoxScope.NotesChrome(
         placement = XNotePopupPlacement.BelowEnd,
     )
 
-    XNoteDrawer(
-        visible = ui.backgroundPickerVisible && route is NotesRoute.Editor,
-        onDismissRequest = { ui.backgroundPickerVisible = false },
-        title = stringResource(R.string.background_picker_title),
-        backdrop = backdrop,
-        placement = drawerPlacement,
-    ) {
-        XNoteBackgroundPicker(
-            selectedKey = editorSession?.note?.backgroundKey,
-            previewBackground = editorBackground,
-            scopeDescription = stringResource(R.string.background_scope_current_note),
-            onSelect = { key ->
-                editorSession?.let { session ->
-                    scope.launch { session.setBackground(key) }
-                }
-            },
-            allowDefaultInheritance = true,
-        )
+    if (route is NotesRoute.Editor && editorSession != null) {
+        androidx.compose.runtime.key(editorSession.noteId) {
+            NoteBackgroundChrome(
+                session = editorSession, library = library, background = editorBackground,
+                visible = ui.backgroundPickerVisible, onDismiss = { ui.backgroundPickerVisible = false },
+                backdrop = backdrop, placement = drawerPlacement, toast = toastHostState,
+            )
+        }
     }
 
     XNoteDrawer(

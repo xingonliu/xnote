@@ -68,7 +68,7 @@ class ReadingFlowTest {
         val notes = runBlocking {
             listOf("第一篇", "第二篇").mapIndexed { index, title ->
                 library.saveNote(library.createNote(book.id).copy(title = title, sortIndex = index.toLong(),
-                    backgroundKey = if (index == 1) BackgroundKey(GridBuiltinBackgroundId) else null,
+                    backgroundKey = if (index == 1) BackgroundKey.Builtin(GridBuiltinBackgroundId) else null,
                     document = NoteDocument(blocks = listOf(TextBlock("body-$index", inlines = listOf(InlineRun("正文$title")))))))
             }
         }
@@ -149,7 +149,7 @@ class ReadingFlowTest {
             val original = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(original.density, fontScale)) {
                 XNoteTheme(reduceMotion = true) { ReaderScreen(NotesRoute.Reader(noteId = note.id), listOf(note), NoteListSort.Manual,
-                    library, BackgroundKey(RuledBuiltinBackgroundId), {}, {}) }
+                    library, BackgroundKey.Builtin(RuledBuiltinBackgroundId), {}, {}) }
             }
         }
         compose.onNodeWithTag("xnote-reader-next").performClick()
@@ -176,7 +176,7 @@ class ReadingFlowTest {
             val bytes = java.io.ByteArrayOutputStream().apply { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, this) }.toByteArray()
             bitmap.recycle()
             val attachment = library.putAttachment(AttachmentKind.Image, "image/png", "png", bytes.inputStream(), widthPx = 600, heightPx = 240)
-            library.saveNote(library.createNote(library.createNotebook("阅读笔记本").id).copy(title = "阅读与留白", backgroundKey = BackgroundKey(CreamBuiltinBackgroundId),
+            library.saveNote(library.createNote(library.createNotebook("阅读笔记本").id).copy(title = "阅读与留白", backgroundKey = BackgroundKey.Builtin(CreamBuiltinBackgroundId),
                 document = NoteDocument(blocks = listOf(
                     TextBlock("intro", inlines = listOf(InlineRun("纸张背景、富文本与图片在分页中保持一致。", highlight = true))),
                     ImageBlock("image", attachment.id, scale = 0.8f, rotationDegrees = 12f, offsetX = 20f),
@@ -191,7 +191,7 @@ class ReadingFlowTest {
             }
             CompositionLocalProvider(LocalDensity provides Density(1f, 1f), LocalConfiguration provides darkConfiguration) {
                 XNoteTheme(darkTheme = true, reduceMotion = true) { ReaderScreen(NotesRoute.Reader(notebookId = note.notebookId), listOf(note),
-                    NoteListSort.Manual, library, BackgroundKey(DefaultBuiltinBackgroundId), {}, {}) }
+                    NoteListSort.Manual, library, BackgroundKey.Builtin(DefaultBuiltinBackgroundId), {}, {}) }
             }
         }
         compose.onNodeWithTag("xnote-reader-media").assertIsDisplayed()

@@ -112,6 +112,7 @@ class NoteEditorSession(
 
     private val history = EditorHistory()
 
+    private var pendingBackground by mutableStateOf<BackgroundKey.Image?>(null)
     private var saveJob: Job? = null
     private var lastSavedTitle = ""
     private var lastSavedDocument = emptyNoteDocument()
@@ -121,6 +122,9 @@ class NoteEditorSession(
     private var closing = false
 
     // -- Derived Values
+
+    val backgroundKey: BackgroundKey?
+        get() = pendingBackground ?: note?.backgroundKey
 
     val toolbarState: XNoteRichTextToolbarState
         get() = toolbarStateFor(document, selection, typingMarks)
@@ -161,6 +165,14 @@ class NoteEditorSession(
     suspend fun setBackground(backgroundKey: BackgroundKey?) {
         flushSave()
         note = library.setNoteBackground(noteId, backgroundKey)
+        pendingBackground = null
+    }
+
+    fun setBackgroundMaskOpacity(opacity: Int) {
+        val background = backgroundKey as? BackgroundKey.Image ?: return
+        if (background.maskOpacity == opacity) return
+        pendingBackground = background.copy(maskOpacity = opacity)
+        scheduleSave()
     }
 
     fun updateTitle(value: String) {
@@ -474,6 +486,7 @@ class NoteEditorSession(
         val versionToSave = editVersion
         val titleToSave = title
         val documentToSave = document
+        val backgroundToSave = pendingBackground
         if (versionToSave == savedVersion &&
             titleToSave == lastSavedTitle &&
             documentToSave == lastSavedDocument
@@ -484,7 +497,9 @@ class NoteEditorSession(
             return
         }
         try {
+            if (backgroundToSave != null) library.setNoteBackground(current.id, backgroundToSave)
             val saved = library.saveNoteContent(current.id, titleToSave, documentToSave)
+            if (pendingBackground == backgroundToSave) pendingBackground = null
             note = saved
             title = saved.title
             lastSavedTitle = saved.title

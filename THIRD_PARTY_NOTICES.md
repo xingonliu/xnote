@@ -2,7 +2,7 @@
 
 ## AndroidLiquidGlass 2.0.1
 
-XNote 使用 [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) 的 `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1`，并基于上游提交 `65ab177e90e5c1d8c62e70cf7755841982da65f6` 的 catalog 源码纳入 `LiquidBottomTabs`、`LiquidBottomTab`、`LiquidButton` 及其交互辅助实现。XNote 对 catalog 源码补充了包名、代码结构、尺寸、禁用态和无障碍输入，并按项目设计规范调整了控件尺寸和按压高光强度。
+XNote 使用 [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) 的 `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1`，并基于上游提交 `65ab177e90e5c1d8c62e70cf7755841982da65f6` 的 catalog 源码纳入 `LiquidBottomTabs`、`LiquidBottomTab`、`LiquidButton`、`LiquidSlider` 及其交互辅助实现。XNote 对 catalog 源码补充了包名、代码结构、尺寸、禁用态和无障碍输入，并按项目设计规范调整了控件尺寸和按压高光强度。
 
 Copyright 2025 Kyant
 

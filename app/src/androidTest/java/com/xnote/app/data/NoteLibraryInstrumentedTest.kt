@@ -332,7 +332,7 @@ class NoteLibraryInstrumentedTest {
         val source = library.createNotebook("来源")
         val destination = library.createNotebook("目标")
         val note = library.createNote(source.id)
-        val background = BackgroundKey(GridBuiltinBackgroundId)
+        val background = BackgroundKey.Builtin(GridBuiltinBackgroundId)
 
         library.setNoteBackground(note.id, background)
         library.moveNotes(listOf(note.id), destination.id)

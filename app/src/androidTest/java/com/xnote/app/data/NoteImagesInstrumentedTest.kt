@@ -25,6 +25,59 @@ import java.io.File
 
 class NoteImagesInstrumentedTest {
     @Test
+    fun customBackgroundSurvivesReopenTrashAndReplacementCleanup() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "background-${System.nanoTime()}.db"
+        val root = File(context.cacheDir, "background-${System.nanoTime()}").apply { mkdirs() }
+        var database = XNoteDatabase.create(context, name)
+        var library = NoteLibrary(database, AttachmentFileStore(root), SystemEpochClock)
+        try {
+            val source = File(root, "source.png")
+            val bitmap = Bitmap.createBitmap(40, 80, Bitmap.Config.ARGB_8888)
+            bitmap.eraseColor(android.graphics.Color.BLUE)
+            source.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+            val note = library.createNote(null)
+            val session = NoteEditorSession(library, note.id, this)
+            session.load()
+            val first = importNoteImage(context, library, Uri.fromFile(source), session.attachmentOwner)
+            val key = com.xnote.app.domain.model.BackgroundKey.Image(first.id, 37)
+            session.setBackground(key.copy(maskOpacity = 72))
+            session.setBackgroundMaskOpacity(0)
+            session.setBackgroundMaskOpacity(100)
+            session.setBackgroundMaskOpacity(37)
+            assertEquals(key, session.backgroundKey)
+            session.flushSave()
+            session.releaseAttachments()
+            source.delete()
+            database.close()
+            database = XNoteDatabase.create(context, name)
+            library = NoteLibrary(database, AttachmentFileStore(root), SystemEpochClock)
+            assertEquals(key, library.getNote(note.id)?.backgroundKey)
+            library.purgeExpiredTrash()
+            assertNotNull(com.xnote.app.feature.background.loadBackgroundImage(key, library))
+            library.trashNotes(listOf(note.id))
+            library.purgeExpiredTrash()
+            assertTrue(library.attachmentFile(first).exists())
+            library.restoreNotes(listOf(note.id))
+            val second = library.attachmentFile(first).inputStream().use {
+                library.putAttachment(com.xnote.app.domain.model.AttachmentKind.Image, "image/png", "png", it)
+            }
+            library.setNoteBackground(note.id, com.xnote.app.domain.model.BackgroundKey.Image(second.id))
+            library.purgeExpiredTrash()
+            assertNull(library.getAttachment(first.id))
+            assertTrue(library.attachmentFile(second).exists())
+            library.setNoteBackground(note.id, null)
+            library.purgeExpiredTrash()
+            assertFalse(library.attachmentFile(second).exists())
+        } finally {
+            database.close()
+            context.deleteDatabase(name)
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun imageImportReplacementUndoCleanupAndDatabaseReopen() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val name = "images-${System.nanoTime()}.db"

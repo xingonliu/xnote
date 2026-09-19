@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -41,6 +43,9 @@ fun XNoteBackgroundPicker(
     onSelect: (BackgroundKey?) -> Unit,
     modifier: Modifier = Modifier,
     allowDefaultInheritance: Boolean = false,
+    backgroundImage: ImageBitmap? = null,
+    imageAction: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -51,11 +56,13 @@ fun XNoteBackgroundPicker(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        BackgroundPreview(previewBackground)
+        BackgroundPreview(previewBackground, backgroundImage)
+        imageAction?.invoke()
         if (allowDefaultInheritance) {
             DefaultInheritanceChoice(
                 selected = selectedKey == null,
                 onClick = { onSelect(null) },
+                enabled = enabled,
             )
         }
         XNoteBuiltinBackgroundPresets.chunked(2).forEach { rowPresets ->
@@ -64,12 +71,13 @@ fun XNoteBackgroundPicker(
                 horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
             ) {
                 rowPresets.forEach { preset ->
-                    val background = BackgroundKey(preset.id)
+                    val background = BackgroundKey.Builtin(preset.id)
                     BackgroundChoice(
                         label = stringResource(preset.nameRes),
                         background = background,
                         selected = selectedKey == background,
                         onClick = { onSelect(background) },
+                        enabled = enabled,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -80,13 +88,15 @@ fun XNoteBackgroundPicker(
 }
 
 @Composable
-private fun BackgroundPreview(background: BackgroundKey) {
+private fun BackgroundPreview(background: BackgroundKey, backgroundImage: ImageBitmap?) {
     val shape = XNoteSmoothCornerShape(XNoteRadiusMedium)
     XNoteNoteSurface(
         background = background,
+        backgroundImage = backgroundImage,
         modifier = Modifier
             .fillMaxWidth()
             .height(156.dp)
+            .testTag("xnote-background-preview")
             .clip(shape)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.32f), shape),
     ) {
@@ -114,6 +124,7 @@ private fun BackgroundPreview(background: BackgroundKey) {
 private fun DefaultInheritanceChoice(
     selected: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean,
 ) {
     val shape = XNoteSmoothCornerShape(XNoteRadiusMedium)
     Row(
@@ -132,6 +143,7 @@ private fun DefaultInheritanceChoice(
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.54f), shape)
             .selectable(
                 selected = selected,
+                enabled = enabled,
                 role = Role.RadioButton,
                 onClick = onClick,
             )
@@ -169,6 +181,7 @@ private fun BackgroundChoice(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean,
 ) {
     val shape = XNoteSmoothCornerShape(XNoteRadiusMedium)
     Column(
@@ -186,6 +199,7 @@ private fun BackgroundChoice(
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.42f), shape)
             .selectable(
                 selected = selected,
+                enabled = enabled,
                 role = Role.RadioButton,
                 onClick = onClick,
             )

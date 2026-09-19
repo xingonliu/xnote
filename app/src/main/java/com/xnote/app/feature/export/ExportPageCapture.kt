@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.Dp
 import com.xnote.app.data.files.decodeNoteImage
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.domain.model.BackgroundKey
+import com.xnote.app.feature.background.loadBackgroundImage
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.reader.*
 import kotlinx.coroutines.CancellationException
@@ -38,6 +39,7 @@ internal fun ExportPageCapture(
 ) {
     val layer = rememberGraphicsLayer()
     val drawn = remember { CompletableDeferred<Unit>() }
+    var backgroundImage by remember { mutableStateOf<ImageBitmap?>(null) }
     var media by remember { mutableStateOf<Map<String, ImageBitmap>?>(null) }
     LaunchedEffect(Unit) {
         try {
@@ -52,6 +54,7 @@ internal fun ExportPageCapture(
                     // Use the same unreadable-media placeholder as the reader.
                 }
             }
+            backgroundImage = loadBackgroundImage(background, library)
             media = images
             drawn.await()
             val bitmap = layer.toImageBitmap().asAndroidBitmap()
@@ -74,7 +77,7 @@ internal fun ExportPageCapture(
             layer.record { this@drawWithContent.drawContent() }
             drawLayer(layer)
             drawn.complete(Unit)
-        }) {
+        }, backgroundImage = backgroundImage) {
             ReadingPageContent(page, library, Modifier.fillMaxSize().padding(margin), loadedMedia = loaded)
         }
     }

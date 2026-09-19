@@ -22,7 +22,7 @@ import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.*
 import com.xnote.app.design.liquidglass.LiquidButton
-import com.xnote.app.domain.document.attachmentIds
+import com.xnote.app.domain.document.referencedAttachmentIds
 import com.xnote.app.domain.model.*
 import com.xnote.app.feature.reader.*
 import kotlinx.coroutines.CancellationException
@@ -77,7 +77,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
         try {
             val snapshot = note ?: library.getNote(noteId)?.takeUnless { it.isTrashed } ?: error("Missing note")
             note = snapshot
-            val ids = snapshot.document.attachmentIds()
+            val ids = snapshot.referencedAttachmentIds()
             library.retainSessionAttachments(owner, ids)
             val metadata = ids.mapNotNull { id -> library.getAttachment(id)?.let { id to it } }.toMap()
             directory = withContext(Dispatchers.IO) { createExportDirectory(context) }

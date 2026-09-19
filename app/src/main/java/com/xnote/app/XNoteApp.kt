@@ -98,6 +98,7 @@ import com.xnote.app.domain.model.resolveBackgroundKey
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.profile.AppearanceScreen
 import com.xnote.app.feature.profile.ProfileDetailScreen
+import com.xnote.app.feature.background.rememberBackgroundImage
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.TabletNotesWorkspace
 import com.xnote.app.feature.notes.NotesChrome
@@ -201,7 +202,7 @@ fun XNoteApp(
         defaultBackground = appSettings.defaultBackground,
     )
     val editorBackground = resolveBackgroundKey(
-        noteBackground = editorSession?.note?.backgroundKey,
+        noteBackground = editorSession?.backgroundKey,
         defaultBackground = appSettings.defaultBackground,
     )
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -533,6 +534,7 @@ fun XNoteApp(
                     XNoteNoteSurface(
                         background = editorBackground,
                         modifier = Modifier.fillMaxSize(),
+                        backgroundImage = rememberBackgroundImage(editorBackground, noteLibrary),
                     )
                 }
             } else {

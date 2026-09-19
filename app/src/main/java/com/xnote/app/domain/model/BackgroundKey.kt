@@ -2,9 +2,16 @@ package com.xnote.app.domain.model
 
 // -- Type Definitions
 
-data class BackgroundKey(val id: String) {
-    init {
-        require(id in BuiltinBackgroundIds) { "Unsupported built-in background: $id" }
+sealed interface BackgroundKey {
+    data class Builtin(val id: String) : BackgroundKey {
+        init { require(id in BuiltinBackgroundIds) { "Unsupported built-in background: $id" } }
+    }
+
+    data class Image(val attachmentId: String, val maskOpacity: Int = 72) : BackgroundKey {
+        init {
+            require(attachmentId.isNotBlank()) { "Missing background attachment ID" }
+            require(maskOpacity in 0..100) { "Background mask opacity must be between 0 and 100" }
+        }
     }
 }
 
@@ -24,15 +31,27 @@ private val BuiltinBackgroundIds = setOf(
 
 // -- Functions
 
-fun BackgroundKey.encode(): String = "builtin:$id"
-
-fun parseBackgroundKey(raw: String?): BackgroundKey? {
-    if (raw?.startsWith("builtin:") != true) return null
-    val id = raw.removePrefix("builtin:")
-    return if (id in BuiltinBackgroundIds) BackgroundKey(id) else null
+fun BackgroundKey.encode(): String = when (this) {
+    is BackgroundKey.Builtin -> "builtin:$id"
+    is BackgroundKey.Image -> "image:$maskOpacity:$attachmentId"
 }
 
-fun defaultBackgroundKey(): BackgroundKey = BackgroundKey(DefaultBuiltinBackgroundId)
+fun parseBackgroundKey(raw: String?): BackgroundKey? {
+    val id = raw?.substringAfter(':', "") ?: return null
+    return when {
+        raw.startsWith("builtin:") && id in BuiltinBackgroundIds -> BackgroundKey.Builtin(id)
+        raw.startsWith("image:") -> {
+            val opacity = id.substringBefore(':').toIntOrNull()
+            val attachmentId = id.substringAfter(':', "")
+            if (opacity != null && opacity in 0..100 && attachmentId.isNotBlank()) {
+                BackgroundKey.Image(attachmentId, opacity)
+            } else null
+        }
+        else -> null
+    }
+}
+
+fun defaultBackgroundKey(): BackgroundKey = BackgroundKey.Builtin(DefaultBuiltinBackgroundId)
 
 fun resolveBackgroundKey(
     noteBackground: BackgroundKey?,

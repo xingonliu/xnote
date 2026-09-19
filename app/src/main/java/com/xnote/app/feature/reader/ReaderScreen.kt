@@ -21,6 +21,7 @@ import com.xnote.app.design.*
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.document.attachmentIds
 import com.xnote.app.domain.model.*
+import com.xnote.app.feature.background.rememberBackgroundImage
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.navigation.NotesRoute
 
@@ -78,7 +79,7 @@ fun ReaderScreen(
             scrollEdges = edges,
             alwaysVisibleScrollEdges = edges,
             bottomOverlayHeight = 96.dp,
-            pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize()) },
+            pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), rememberBackgroundImage(background, library)) },
             content = {
                 Box(Modifier.fillMaxSize().padding(top = top, bottom = bottom, start = horizontal, end = horizontal),
                     contentAlignment = Alignment.TopCenter) {

@@ -21,6 +21,7 @@ import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.*
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.*
+import com.xnote.app.feature.background.rememberBackgroundImage
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
@@ -141,7 +142,7 @@ fun TabletNotesWorkspace(
                     XNotePageScaffold(editorBackdrop, modifier = Modifier.weight(1f).testTag("xnote-tablet-content"),
                         scrollEdges = edges, alwaysVisibleScrollEdges = edges,
                         scrollEdgeState = rememberXNoteScrollEdgeState(editorScroll),
-                        pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize()) }, content = {
+                        pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), rememberBackgroundImage(background, library)) }, content = {
                             if (editor != null && editorSession != null) {
                                 NoteEditorScreen(editorSession, editorBackdrop,
                                     PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = XNoteEditorToolbarHeight + 16.dp), editorScroll)

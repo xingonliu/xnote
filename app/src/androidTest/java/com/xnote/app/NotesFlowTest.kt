@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
@@ -786,8 +787,100 @@ class NotesFlowTest {
         composeRule.waitUntil(5_000) {
             runBlocking {
                 settings.settings.first().defaultBackground ==
-                    BackgroundKey(GridBuiltinBackgroundId)
+                    BackgroundKey.Builtin(GridBuiltinBackgroundId)
             }
+        }
+    }
+
+    @Test
+    fun customBackgroundPickerImportsReplacesCancelsAndRestoresDefault() {
+        val source = File(context.cacheDir, "background-ui-${System.nanoTime()}.png")
+        val bitmap = android.graphics.Bitmap.createBitmap(60, 100, android.graphics.Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.BLUE)
+        source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        var result: android.net.Uri? = android.net.Uri.fromFile(source)
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(requestCode: Int,
+                contract: androidx.activity.result.contract.ActivityResultContract<I, O>,
+                input: I, options: androidx.core.app.ActivityOptionsCompat?) {
+                assertTrue(contract is androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia)
+                assertEquals(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                    (input as androidx.activity.result.PickVisualMediaRequest).mediaType)
+                dispatchResult(requestCode, android.app.Activity.RESULT_OK,
+                    android.content.Intent().setData(result))
+            }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner {
+            override val activityResultRegistry = registry
+        }
+        val note = runBlocking { library.saveNote(library.createNote(null).copy(title = "图片背景测试")) }
+        try {
+            composeRule.setContent {
+                CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+                    XNoteTheme(reduceMotion = true) { XNoteApp(library) }
+                }
+            }
+            composeRule.onNodeWithTag("xnote-collection-all").performClick()
+            composeRule.onNodeWithText("图片背景测试").performClick()
+            composeRule.onNodeWithContentDescription("更多").performClick()
+            composeRule.onNodeWithText("笔记背景").performClick()
+            composeRule.onNodeWithText("选择自定义图片").performClick()
+            composeRule.waitUntil(5_000) {
+                runBlocking { library.getNote(note.id)?.backgroundKey is BackgroundKey.Image }
+            }
+            val slider = composeRule.onNodeWithTag("xnote-background-opacity")
+            listOf(0, 100, 35).forEach { opacity ->
+                slider.performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(opacity.toFloat()) }
+                composeRule.waitUntil(5_000) {
+                    runBlocking { (library.getNote(note.id)?.backgroundKey as? BackgroundKey.Image)?.maskOpacity == opacity }
+                }
+                composeRule.onNodeWithText("遮罩不透明度 $opacity%").assertIsDisplayed()
+            }
+            slider.performTouchInput {
+                swipe(androidx.compose.ui.geometry.Offset(width * 0.35f, centerY),
+                    androidx.compose.ui.geometry.Offset(width * 0.60f, centerY), durationMillis = 500)
+            }
+            composeRule.waitUntil(5_000) {
+                runBlocking { (library.getNote(note.id)?.backgroundKey as? BackgroundKey.Image)?.maskOpacity in 55..65 }
+            }
+            val first = runBlocking { library.getNote(note.id)!!.backgroundKey as BackgroundKey.Image }
+            composeRule.onNodeWithText("替换自定义图片（已选中）").performScrollTo().performClick()
+            composeRule.waitUntil(5_000) { runBlocking { library.getNote(note.id)?.backgroundKey != first } }
+            val replacement = runBlocking { library.getNote(note.id)!!.backgroundKey as BackgroundKey.Image }
+            assertEquals(first.maskOpacity, replacement.maskOpacity)
+            composeRule.waitUntil(5_000) {
+                val preview = composeRule.onNodeWithTag("xnote-background-preview").captureToImage().asAndroidBitmap()
+                val pixel = preview.getPixel(preview.width / 2, 12)
+                android.graphics.Color.blue(pixel) > android.graphics.Color.red(pixel) + 50
+            }
+            composeRule.waitForIdle()
+            File(context.getExternalFilesDir(null), "custom-background-picker.png").outputStream().use {
+                androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                    .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            result = null
+            composeRule.onNodeWithText("替换自定义图片（已选中）").performClick()
+            composeRule.waitForIdle()
+            assertEquals(replacement, runBlocking { library.getNote(note.id)?.backgroundKey })
+            source.writeText("invalid image")
+            result = android.net.Uri.fromFile(source)
+            composeRule.onNodeWithText("替换自定义图片（已选中）").performClick()
+            composeRule.waitUntil(5_000) {
+                composeRule.onAllNodesWithText("背景保存失败，请重试").fetchSemanticsNodes().isNotEmpty()
+            }
+            assertEquals(replacement, runBlocking { library.getNote(note.id)?.backgroundKey })
+            composeRule.waitUntil(10_000) {
+                composeRule.onAllNodesWithText("替换自定义图片（已选中）").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithText("横线纸").performScrollTo().performClick()
+            composeRule.waitUntil(5_000) {
+                runBlocking { library.getNote(note.id)?.backgroundKey == BackgroundKey.Builtin(RuledBuiltinBackgroundId) }
+            }
+            composeRule.onNodeWithText("使用默认背景").performScrollTo().performClick()
+            composeRule.waitUntil(5_000) { runBlocking { library.getNote(note.id)?.backgroundKey == null } }
+        } finally {
+            source.delete()
         }
     }
 
@@ -814,7 +907,7 @@ class NotesFlowTest {
         composeRule.waitUntil(5_000) {
             runBlocking {
                 library.getNote(note.id)?.backgroundKey ==
-                    BackgroundKey(RuledBuiltinBackgroundId)
+                    BackgroundKey.Builtin(RuledBuiltinBackgroundId)
             }
         }
 

@@ -305,7 +305,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `LiquidButton` | 官方 catalog | 图标、胶囊、确认与浮动操作 |
 | `XNoteDialog` | 官方 catalog `DialogContent` 材质配方 | 阻断式确认与关键说明 |
 | `LiquidToggle` | 官方 catalog，按需纳入 | 设置开关 |
-| `LiquidSlider` | 官方 catalog，按需纳入 | 连续数值设置 |
+| `LiquidSlider` | 官方 catalog，已纳入 | 自定义图片背景遮罩不透明度（0–100%） |
 | `XNoteLiquidGlassPanel` | catalog 无对应组件时的项目适配 | 卡片、工具栏与同窗口面板 |
 | 平板 Navigation Rail | catalog 无竖向组件时的项目适配 | 平板一级导航 |
 
@@ -421,7 +421,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 
 ### 9.2 笔记背景
 
-- 背景只允许从纯白纸、浅灰纹理、横线纸、方格纸四款内置预设中选择，不提供图片导入或其他自定义背景；纸色与纹理颜色必须使用浅色/深色成对方案，不能依赖同一固定颜色覆盖两个主题。
+- 默认背景可从纯白纸、浅灰纹理、横线纸、方格纸四款内置预设中选择；编辑页另提供“选择自定义图片”和“替换自定义图片”入口。自定义图片居中等比裁切铺满画布，覆盖当前主题纸色；遮罩不透明度使用官方 `LiquidSlider` 在 0–100% 间调整（初始 72%），显示实时百分比，随当前笔记自动保存；预览、编辑、阅读及导出保持一致。内置纸色与纹理使用浅色/深色成对方案。
 - 笔记正文统一由 `XNoteNoteSurface` 承载，在笔记编辑、阅读模式、润色 Diff、导出预览和最终导出中复用相同背景渲染规则。
 - 编辑页不绘制独立页面底色。`XNoteNoteSurface` 作为页面唯一背景全屏延伸到系统栏、Header、底部工具栏和导航栏下方；Dialog、Drawer、Toast、Popup 与 DropdownMenu 仍作为独立 Overlay 绘制在背景之上。
 - 编辑页的更多菜单提供“笔记背景”入口。手机使用 `XNoteDrawer` 底部形态，平板使用锚定面板或受限宽度 Drawer。

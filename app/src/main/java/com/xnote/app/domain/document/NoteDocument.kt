@@ -1,5 +1,6 @@
 package com.xnote.app.domain.document
 
+import com.xnote.app.domain.model.BackgroundKey
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.newNoteId
 import kotlinx.serialization.Serializable
@@ -36,4 +37,5 @@ fun NoteDocument.attachmentIds(): Set<String> {
     return ids
 }
 
-fun Note.referencedAttachmentIds(): Set<String> = document.attachmentIds()
+fun Note.referencedAttachmentIds(): Set<String> = document.attachmentIds() +
+    listOfNotNull((backgroundKey as? BackgroundKey.Image)?.attachmentId)

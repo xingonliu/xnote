@@ -1,5 +1,8 @@
 package com.xnote.app.feature.background
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -48,10 +51,16 @@ val XNoteBuiltinBackgroundPresets = listOf(
 fun XNoteNoteSurface(
     background: BackgroundKey,
     modifier: Modifier = Modifier,
+    backgroundImage: ImageBitmap? = null,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     Box(modifier = modifier) {
-        BuiltinBackground(background.id, Modifier.fillMaxSize())
+        BuiltinBackground((background as? BackgroundKey.Builtin)?.id ?: DefaultBuiltinBackgroundId, Modifier.fillMaxSize())
+        if (background is BackgroundKey.Image && backgroundImage != null) {
+            Image(backgroundImage, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            // Keep text legible in both themes without changing the stored image.
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = background.maskOpacity / 100f)))
+        }
         content()
     }
 }
