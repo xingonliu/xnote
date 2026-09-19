@@ -2,6 +2,7 @@ package com.xnote.app
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -9,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -23,6 +25,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.design.XNotePageScaffold
 import com.xnote.app.design.XNoteScrollEdge
 import com.xnote.app.design.XNoteTheme
+import com.xnote.app.design.liquidglass.LiquidButton
 import java.io.File
 import kotlin.math.abs
 import org.junit.Assert.assertTrue
@@ -96,6 +99,32 @@ class XNoteProgressiveBlurTest {
         val restored = composeRule.onNodeWithTag("blur-fixture").captureToImage().asAndroidBitmap()
         assertTrue("Hidden edges must restore source detail",
             rowContrast(restored, restored.height / 32) > rowContrast(restored, restored.height / 2) * 0.95f)
+    }
+
+    @Test
+    fun transparentOverlayGlassSamplesContentInsteadOfOnlyPaper() {
+        composeRule.setContent {
+            XNoteTheme(darkTheme = true, reduceMotion = true) {
+                Box(Modifier.size(240.dp, 384.dp).testTag("glass-fixture")) {
+                    XNotePageScaffold(
+                        backdrop = rememberLayerBackdrop(),
+                        scrollEdges = emptySet(),
+                        pageBackground = { Box(Modifier.fillMaxSize().background(Color.Blue)) },
+                        content = { Box(Modifier.fillMaxSize().background(Color.Red)) },
+                        overlay = { contentBackdrop ->
+                            LiquidButton(
+                                backdrop = contentBackdrop,
+                                modifier = Modifier.align(Alignment.Center).size(80.dp, 40.dp),
+                            ) {}
+                        },
+                    )
+                }
+            }
+        }
+        val bitmap = composeRule.onNodeWithTag("glass-fixture").captureToImage().asAndroidBitmap()
+        val pixel = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
+        assertTrue("Transparent glass must sample the red content rather than the blue paper",
+            android.graphics.Color.red(pixel) > android.graphics.Color.blue(pixel) + 100)
     }
 
     // -- Functions

@@ -138,10 +138,7 @@ fun BoxScope.NotesChrome(
         is NotesRoute.Editor -> {
             EditorHeader(
                 session = editorSession,
-                notebookName = notebooks.firstOrNull { it.id == editorSession?.note?.notebookId }?.name
-                    ?: stringResource(R.string.notes_scope_unfiled),
                 backdrop = backdrop, onBack = if (showBack) onPop else null,
-                onChooseNotebook = { dismissEditorInput(); ui.moveVisible = true },
                 onMore = { ui.moreVisible = true }, moreAnchor = moreMenuAnchor,
                 modifier = Modifier.align(Alignment.TopCenter),
             )

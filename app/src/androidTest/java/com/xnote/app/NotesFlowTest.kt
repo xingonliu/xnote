@@ -443,11 +443,10 @@ class NotesFlowTest {
     }
 
     @Test
-    fun editorHeaderMovesNoteAndLaterSaveKeepsTheDestination() = runTest {
+    fun editorHeaderShowsUndoAndSaveKeepsNotebook() = runTest {
         val source = library.createNotebook("来源本")
-        val destination = library.createNotebook("目标本")
         val note = library.createNote(source.id)
-        library.saveNote(note.copy(title = "待移动笔记"))
+        library.saveNote(note.copy(title = "编辑页验收"))
 
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
@@ -456,20 +455,20 @@ class NotesFlowTest {
         }
 
         composeRule.onNodeWithTag("xnote-collection-all").performClick()
-        composeRule.onNodeWithText("待移动笔记").performClick()
+        composeRule.onNodeWithText("编辑页验收").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithTag("xnote-editor-title").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithContentDescription("选择笔记本").performClick()
-        composeRule.onNodeWithText("目标本").performClick()
-        composeRule.onNodeWithTag("xnote-editor-notebook").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-editor-notebook").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("重做").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("撤销").assertIsDisplayed()
         composeRule.onNodeWithTag("xnote-editor-title").performTextInput("已编辑")
         composeRule.onNodeWithContentDescription("返回").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("全部笔记").fetchSemanticsNodes().isNotEmpty()
         }
 
-        assertEquals(destination.id, library.getNote(note.id)?.notebookId)
+        assertEquals(source.id, library.getNote(note.id)?.notebookId)
     }
 
     @Test

@@ -578,7 +578,7 @@ fun XNoteApp(
                     onOpenProfileDetail = { profilePage = it },
                 )
             },
-            overlay = {
+            overlay = { contentBackdrop ->
                 if (showsShellHeader) {
                     XNoteHeader(
                         title = if (navigationState.isSearchOpen) {
@@ -657,7 +657,7 @@ fun XNoteApp(
                         ui = uiState,
                         notebooks = notebooks,
                         notebookStats = notebookStatsFrom(activeNotes),
-                        backdrop = backdrop,
+                        backdrop = if (isEditor) contentBackdrop else backdrop,
                         isTablet = isTablet,
                         editorSession = editorSession,
                         editorBackground = editorBackground,

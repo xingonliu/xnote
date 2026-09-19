@@ -11,9 +11,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,10 +24,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,9 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -52,7 +46,6 @@ import com.xnote.app.design.XNoteButtonSize
 import com.xnote.app.design.XNoteHeaderTopPadding
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteHeaderHeight
-import com.xnote.app.design.XNoteIconSizeSmall
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbar
@@ -61,7 +54,6 @@ import com.xnote.app.design.XNoteSpacingExtraSmall
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.design.xNotePopupAnchor
-import com.xnote.app.feature.notes.editor.EditorSaveStatus
 import com.xnote.app.feature.notes.editor.NoteEditorSession
 import com.xnote.app.feature.notes.editor.NoteImageUiState
 import com.xnote.app.feature.notes.editor.toDomain
@@ -71,10 +63,8 @@ import com.xnote.app.feature.notes.editor.toDomain
 @Composable
 fun EditorHeader(
     session: NoteEditorSession?,
-    notebookName: String,
     backdrop: Backdrop,
     onBack: (() -> Unit)?,
-    onChooseNotebook: () -> Unit,
     onMore: () -> Unit,
     moreAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
@@ -99,57 +89,19 @@ fun EditorHeader(
                     .testTag("xnote-editor-back"),
             )
         }
-        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            LiquidButton(
-                onClick = onChooseNotebook,
-                backdrop = backdrop,
-                enabled = session?.note != null,
-                modifier = Modifier
-                    .widthIn(max = 220.dp).fillMaxWidth()
-                    .testTag("xnote-editor-notebook"),
-            ) {
-                Text(
-                    text = if (session?.saveStatus == EditorSaveStatus.Error) {
-                        stringResource(R.string.editor_save_failed)
-                    } else {
-                        notebookName
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = LocalContentColor.current,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (session?.saveStatus != EditorSaveStatus.Error) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_down),
-                        contentDescription = null,
-                        tint = LocalContentColor.current,
-                        modifier = Modifier.size(XNoteIconSizeSmall),
-                    )
-                }
-            }
-        }
+        Spacer(Modifier.weight(1f))
         Row(
             horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LiquidButton(backdrop = backdrop, modifier = Modifier.testTag("xnote-editor-history")) {
-                EditorSymbolButton(
-                    iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
-                    description = stringResource(R.string.action_undo),
-                    modifier = Modifier.size(XNoteButtonSize),
-                    enabled = session?.canUndo == true,
-                    onClick = { session?.undo() },
-                )
-                EditorSymbolButton(
-                    iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_right,
-                    description = stringResource(R.string.action_redo),
-                    modifier = Modifier.size(XNoteButtonSize),
-                    enabled = session?.canRedo == true,
-                    onClick = { session?.redo() },
-                )
-            }
+            EditorGlassIconButton(
+                iconRes = R.drawable.ic_keyline_stroke_arrow_u_turn_left,
+                description = stringResource(R.string.action_undo),
+                backdrop = backdrop,
+                enabled = session?.canUndo == true,
+                onClick = { session?.undo() },
+                modifier = Modifier.size(XNoteButtonSize).testTag("xnote-editor-history"),
+            )
             EditorGlassIconButton(
                 iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
                 description = stringResource(R.string.action_more),

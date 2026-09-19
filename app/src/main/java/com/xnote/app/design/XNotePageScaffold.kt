@@ -65,7 +65,7 @@ fun XNotePageScaffold(
     onPageStateAction: (() -> Unit)? = null,
     pageBackground: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
-    overlay: @Composable BoxScope.() -> Unit = {},
+    overlay: @Composable BoxScope.(Backdrop) -> Unit = {},
 ) {
     val scrollBackdrop = rememberLayerBackdrop()
     Box(modifier = modifier.fillMaxSize()) {
@@ -126,7 +126,8 @@ fun XNotePageScaffold(
             alwaysVisibleEdges = alwaysVisibleScrollEdges,
         )
 
-        overlay()
+        // Overlay glass samples the complete page; inline controls retain the background-only source.
+        overlay(scrollBackdrop)
 
         if (toastHostState != null) {
             XNoteToastHost(

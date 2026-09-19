@@ -148,8 +148,8 @@ fun TabletNotesWorkspace(
                             } else {
                                 Text("选择一篇笔记开始编辑", style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.Center).padding(24.dp))
                             }
-                        }, overlay = {
-                            if (editor != null) NotesChrome(editor, library, editorUi, notebooks, notebookStatsFrom(notes), editorBackdrop, true,
+                        }, overlay = { contentBackdrop ->
+                            if (editor != null) NotesChrome(editor, library, editorUi, notebooks, notebookStatsFrom(notes), contentBackdrop, true,
                                 editorSession, background, editorAnchor, toast, onOpenNotebook, onCreateNote, onBack, onReadNote, onExport, {})
                         })
                 }
