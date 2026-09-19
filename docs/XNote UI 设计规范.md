@@ -26,7 +26,7 @@ XNote 的界面以 Apple Notes 的清晰、克制和内容优先为视觉方向�
 
 参考 [WWDC26 Design guide](https://developer.apple.com/wwdc26/guides/design/)、[Materials](https://developer.apple.com/design/human-interface-guidelines/materials) 与 [Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)，在 Android 上适配内容优先、分层与清晰的交互语义。以下色值是项目适配令牌，不是 Apple 对所有应用强制规定的色值。
 
-- 浅色页面底色 `#F2F2F7`，内容表面 `#FFFFFF`；深色页面底色 `#000000`，内容表面 `#1C1C1E`。容器、分隔线和次级文字使用中性灰，内容表面不叠加强调色染色。
+- 浅色页面底色 `#FFFFFF`，内容表面 `#FFFFFF`；深色页面底色 `#000000`，内容表面 `#1C1C1E`。容器、分隔线和次级文字使用中性灰，内容表面不叠加强调色染色。
 - Header、导航和悬浮工具使用公共 Liquid Glass 控件；正文及纸张保持稳定、不透明的内容层。普通按钮使用中性玻璃与黑色图标、文字（深色模式为白色）；带颜色的按钮统一使用黄色与白色图标、文字。危险动作由明确文案与确认对话框表达，菜单中的危险文字保留红色。
 - 全局黄色强调色为浅色 `#E09F3E` / 深色 `#FFD60A`，用于 Tabbar 选中态和有色按钮；首页、笔记本详情与系统集合右下角「+」使用同一令牌，尺寸为 52 × 52 dp，内部加号为 40 × 40 dp，形状与动效保持不变。
 - 四款内置背景均使用中性纸色及灰色纹理，编辑、阅读、预览和启动页同步适配明暗主题。既有笔记背景标识保持稳定以保留用户选择。
