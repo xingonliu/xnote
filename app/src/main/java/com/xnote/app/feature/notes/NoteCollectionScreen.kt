@@ -69,19 +69,15 @@ fun NoteCollectionScreen(
     modifier: Modifier = Modifier,
     openedNoteId: String? = null,
 ) {
+    // -- State and Variables
+
     var notes by remember(library, notesScope) { mutableStateOf<List<Note>>(emptyList()) }
+    var notesLoaded by remember(library, notesScope) { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(library, notesScope, sort, dragging) {
-        if (dragging) return@LaunchedEffect
-        when (notesScope) {
-            NotesScope.All -> library.observeAllActiveNotes(sort)
-            NotesScope.Unfiled -> library.observeUnfiledNotes(sort)
-            is NotesScope.Notebook -> library.observeNotesInNotebook(notesScope.id, sort)
-        }.collect { notes = it }
-    }
+    // -- Derived Values
 
     val untitled = stringResource(R.string.notes_untitled)
     val selectionMode = selectedIds.isNotEmpty()
@@ -90,6 +86,24 @@ fun NoteCollectionScreen(
         characterCount = notes.sumOf { it.visibleCharacterCount },
     )
     val allowDrag = notesScope is NotesScope.Notebook && sort == NoteListSort.Manual && !selectionMode
+
+    // -- Lifecycle Hooks
+
+    LaunchedEffect(library, notesScope, sort, dragging) {
+        if (dragging) return@LaunchedEffect
+        when (notesScope) {
+            NotesScope.All -> library.observeAllActiveNotes(sort)
+            NotesScope.Unfiled -> library.observeUnfiledNotes(sort)
+            is NotesScope.Notebook -> library.observeNotesInNotebook(notesScope.id, sort)
+        }.collect {
+            notes = it
+            notesLoaded = true
+        }
+    }
+
+    // -- UI
+
+    if (!notesLoaded) return
 
     LazyColumn(
         state = listState,
