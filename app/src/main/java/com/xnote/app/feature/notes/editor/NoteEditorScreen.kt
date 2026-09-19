@@ -126,7 +126,7 @@ fun NoteEditorScreen(
 @Composable
 private fun NotePaper(session: NoteEditorSession) {
     val imageOrigins = remember(session.noteId) { mutableStateMapOf<String, Float>() }
-    val imageBaseHeights = remember(session.noteId) { mutableStateMapOf<String, Float>() }
+    val imageDisplayHeights = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val imageBottoms = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val density = LocalDensity.current.density
     val blocks = session.document.visibleBlocks()
@@ -161,17 +161,13 @@ private fun NotePaper(session: NoteEditorSession) {
             blocks.forEach { block ->
                 key(block.id) {
                     if (block is ImageBlock) {
-                        Spacer(Modifier.fillMaxWidth().height(0.dp).onPlaced {
+                        Spacer(Modifier.fillMaxWidth().height((imageDisplayHeights[block.id] ?: 0f).dp).onPlaced {
                             imageOrigins[block.id] = it.positionInParent().y
                         })
                     } else {
                         EditorBlock(block, session, labels[block.id], block.id == firstTextId)
                     }
                     val nextBlock = session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1)
-                    if (block is ImageBlock && nextBlock !is ImageBlock) {
-                        // Reserve the insertion footprint; later transforms never reflow text.
-                        Spacer(Modifier.height((imageBaseHeights[block.id] ?: 180f).dp))
-                    }
                     if (block !is TextBlock && nextBlock !is TextBlock) {
                         Box(Modifier.fillMaxWidth().height(XNoteMinimumTouchTarget)
                             .testTag(when (block) {
@@ -191,7 +187,7 @@ private fun NotePaper(session: NoteEditorSession) {
                     originY = (imageOrigins[image.id] ?: 0f) / density,
                     modifier = Modifier.matchParentSize(),
                     onBottomChanged = { imageBottoms[image.id] = it },
-                    onBaseHeightChanged = { imageBaseHeights[image.id] = it },
+                    onDisplayHeightChanged = { imageDisplayHeights[image.id] = it },
                 )
             }
         }

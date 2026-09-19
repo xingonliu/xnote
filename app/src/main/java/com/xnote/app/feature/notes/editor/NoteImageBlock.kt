@@ -50,7 +50,7 @@ fun NoteImageBlock(
     originY: Float,
     modifier: Modifier = Modifier,
     onBottomChanged: (Float) -> Unit,
-    onBaseHeightChanged: (Float) -> Unit,
+    onDisplayHeightChanged: (Float) -> Unit,
 ) {
     var bitmap by remember(block.attachmentId) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(block.attachmentId) { mutableStateOf(false) }
@@ -81,11 +81,12 @@ fun NoteImageBlock(
         val ratio = bitmap?.let { it.height.toFloat() / it.width } ?: 0.65f
         val width = baseWidth * block.scale
         val height = width * ratio
-        val center = Offset(maxWidth.value / 2f + block.offsetX, originY + baseWidth * ratio / 2f + block.offsetY)
         val angle = Math.toRadians(block.rotationDegrees.toDouble())
+        val displayHeight = abs(sin(angle)).toFloat() * width + abs(cos(angle)).toFloat() * height
+        val center = Offset(maxWidth.value / 2f + block.offsetX, originY + displayHeight / 2f + block.offsetY)
         SideEffect {
-            onBaseHeightChanged(baseWidth * ratio)
-            onBottomChanged(center.y + (abs(sin(angle)).toFloat() * width + abs(cos(angle)).toFloat() * height) / 2f + 44f)
+            onDisplayHeightChanged(displayHeight)
+            onBottomChanged(center.y + displayHeight / 2f + 44f)
         }
         fun updatePlacement() {
             val coordinates = bodyCoordinates ?: return

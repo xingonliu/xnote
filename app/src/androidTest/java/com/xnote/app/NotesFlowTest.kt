@@ -288,6 +288,62 @@ class NotesFlowTest {
     }
 
     @Test
+    fun shrinkingImageReflowsFollowingImageAndTextAndUndoRestoresSpacing() = runTest {
+        val source = File(filesRoot, "image-flow.png")
+        source.parentFile?.mkdirs()
+        val bitmap = android.graphics.Bitmap.createBitmap(600, 400, android.graphics.Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.BLUE)
+        source.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val attachment = com.xnote.app.data.files.importNoteImage(context, library, android.net.Uri.fromFile(source), "flow-test")
+        val note = library.createNote(null)
+        library.saveNote(note.copy(title = "图片动态占位", document = NoteDocument(blocks = listOf(
+            TextBlock("before", inlines = listOf(InlineRun("正文"))),
+            com.xnote.app.domain.document.ImageBlock("first", attachment.id, scale = 0.8f),
+            com.xnote.app.domain.document.ImageBlock("second", attachment.id, scale = 0.3f),
+            TextBlock("after", inlines = listOf(InlineRun("继续输入"))),
+        ))))
+        composeRule.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(noteLibrary = library) } }
+        composeRule.onNodeWithTag("xnote-collection-all").performClick()
+        composeRule.onNodeWithText("图片动态占位").performClick()
+        composeRule.onNodeWithContentDescription("收起工具").performClick()
+        composeRule.waitForIdle()
+        fun bounds(tag: String) = composeRule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        val firstBefore = bounds("xnote-image-first")
+        val secondBefore = bounds("xnote-image-second")
+        val textBefore = bounds("xnote-editor-text-after")
+        assertTrue(secondBefore.top > firstBefore.bottom)
+        assertTrue(textBefore.top > secondBefore.bottom)
+        composeRule.onNodeWithTag("xnote-image-first").performTouchInput {
+            val pivot = center
+            down(0, pivot - androidx.compose.ui.geometry.Offset(60f, 0f))
+            down(1, pivot + androidx.compose.ui.geometry.Offset(60f, 0f))
+            moveTo(0, pivot - androidx.compose.ui.geometry.Offset(30f, 0f), delayMillis = 100)
+            moveTo(1, pivot + androidx.compose.ui.geometry.Offset(30f, 0f), delayMillis = 100)
+            up(0)
+            up(1)
+        }
+        composeRule.waitForIdle()
+        val firstAfter = bounds("xnote-image-first")
+        val secondAfter = bounds("xnote-image-second")
+        val textAfter = bounds("xnote-editor-text-after")
+        assertEquals(firstBefore.height / 2f, firstAfter.height, 3f)
+        assertEquals(firstBefore.top, firstAfter.top, 3f)
+        assertEquals(firstBefore.height - firstAfter.height, secondBefore.top - secondAfter.top, 3f)
+        assertEquals(secondBefore.top - secondAfter.top, textBefore.top - textAfter.top, 3f)
+        assertEquals(textBefore.top - secondBefore.bottom, textAfter.top - secondAfter.bottom, 3f)
+        composeRule.onNodeWithContentDescription("撤销").performClick()
+        composeRule.waitForIdle()
+        assertEquals(firstBefore.height, bounds("xnote-image-first").height, 3f)
+        assertEquals(textBefore.top, bounds("xnote-editor-text-after").top, 3f)
+        composeRule.onNodeWithTag("xnote-editor-text-after").performClick().performTextInput("缩放后续写")
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.waitForIdle()
+        val saved = library.getNote(note.id)!!.document
+        assertTrue((saved.blocks.last() as TextBlock).inlines.joinToString("") { it.text }.contains("缩放后续写"))
+    }
+
+    @Test
     fun existingImageAtDocumentEndAllowsTypingAfterItAndSaving() {
         val note = runBlocking {
             val source = File(context.cacheDir, "ui-image-tail-${System.nanoTime()}.png")
