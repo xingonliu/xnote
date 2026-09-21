@@ -25,6 +25,7 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 )
 
 private val DefaultBackgroundKey = stringPreferencesKey("default_background_key")
+private val EditorAutoThemeKey = booleanPreferencesKey("editor_auto_theme_enabled")
 private val ThemeModeKey = stringPreferencesKey("theme_mode")
 private val MarkdownShortcutsKey = booleanPreferencesKey("markdown_shortcuts_enabled")
 private val ReduceMotionKey = booleanPreferencesKey("reduce_motion")
@@ -55,6 +56,8 @@ class AppSettingsStore(
         }
     }
 
+    override suspend fun setEditorAutoThemeEnabled(enabled: Boolean) { dataStore.edit { it[EditorAutoThemeKey] = enabled } }
+
     override suspend fun setThemeMode(mode: ThemeMode) {
         dataStore.edit { preferences ->
             preferences[ThemeModeKey] = mode.storageValue()
@@ -75,6 +78,7 @@ private fun Preferences.toAppSettings(): AppSettings {
             ?: defaultBackgroundKey(),
         themeMode = this[ThemeModeKey].toThemeMode(),
         markdownShortcutsEnabled = this[MarkdownShortcutsKey] ?: true,
+        editorAutoThemeEnabled = this[EditorAutoThemeKey] ?: true,
         reduceMotion = this[ReduceMotionKey] ?: false,
         highContrast = this[HighContrastKey] ?: false,
         fontSize = AppFontSize.entries.firstOrNull { it.name == this[FontSizeKey] } ?: AppFontSize.Standard,

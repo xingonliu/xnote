@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
+import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNoteDialog
@@ -88,6 +89,7 @@ fun BoxScope.NotesChrome(
     onOpenReader: () -> Unit,
     onExport: () -> Unit,
     onSelectionBarHeightChanged: (Int) -> Unit,
+    settings: AppSettingsRepository,
     showBack: Boolean = true,
 ) {
     val scope = rememberCoroutineScope()
@@ -356,7 +358,7 @@ fun BoxScope.NotesChrome(
     if (route is NotesRoute.Editor && editorSession != null) {
         androidx.compose.runtime.key(editorSession.noteId) {
             NoteBackgroundChrome(
-                session = editorSession, library = library, background = editorBackground,
+                session = editorSession, library = library, background = editorBackground, settings = settings,
                 visible = ui.backgroundPickerVisible, onDismiss = { ui.backgroundPickerVisible = false },
                 backdrop = backdrop, placement = drawerPlacement, toast = toastHostState,
             )

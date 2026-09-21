@@ -98,7 +98,7 @@ import com.xnote.app.domain.model.resolveBackgroundKey
 import com.xnote.app.feature.PlaceholderScreen
 import com.xnote.app.feature.profile.AppearanceScreen
 import com.xnote.app.feature.profile.ProfileDetailScreen
-import com.xnote.app.feature.background.rememberBackgroundImage
+import com.xnote.app.feature.background.EditorBackgroundTheme
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.TabletNotesWorkspace
 import com.xnote.app.feature.notes.NotesChrome
@@ -413,6 +413,7 @@ fun XNoteApp(
             navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
         if (usesWorkspace) {
             TabletNotesWorkspace(
+                settings = settingsRepository, appSettings = appSettings,
                 navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes, homeUi = homeUi,
                 trashCount = trashedNotes.size,
                 onOpenRecycleBin = { updateNavigationState(navigationState.openRecycleBin()) },
@@ -522,213 +523,220 @@ fun XNoteApp(
             emptySet()
         }
 
-        XNotePageScaffold(
-            backdrop = backdrop,
-            scrollEdgeState = scrollEdgeState,
-            scrollEdges = scrollEdges,
-            alwaysVisibleScrollEdges = alwaysVisibleScrollEdges,
-            bottomOverlayHeight = bottomOverlayHeight,
-            toastHostState = toastHostState,
-            pageBackground = if (isEditor) {
-                {
-                    XNoteNoteSurface(
-                        background = editorBackground,
-                        modifier = Modifier.fillMaxSize(),
-                        backgroundImage = rememberBackgroundImage(editorBackground, noteLibrary),
-                    )
-                }
-            } else {
-                null
-            },
-            content = {
-                DestinationContent(
-                    navigationState = navigationState,
-                    noteLibrary = noteLibrary,
-                    uiState = uiState,
-                    homeUi = homeUi,
-                    notebooks = notebooks,
-                    activeNotes = activeNotes,
-                    backdrop = backdrop,
-                    contentPadding = contentPadding,
-                    editorContentPadding = editorContentPadding,
-                    listState = listState,
-                    notebookListState = notebookListState,
-                    editorScrollState = editorScrollState,
-                    editorSession = editorSession,
-                    settings = settingsRepository,
-                    appearanceScrollState = appearanceScrollState,
-                    searchQuery = searchQuery,
-                    searchNotebookId = searchNotebookId,
-                    searchResults = searchResults,
-                    recentQueries = recentQueries,
-                    trashedNotes = trashedNotes,
-                    recycleBinUiState = recycleBinUiState,
-                    sortMenuAnchor = sortMenuAnchor,
-                    toastHostState = toastHostState,
-                    onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
-                    onOpenNotebook = ::openNotebook,
-                    onOpenCollection = ::openCollection,
-                    onSearchQueryChange = { searchQuery = it },
-                    onSearch = ::recordSearch,
-                    onSearchNotebookSelected = { searchNotebookId = it },
-                    onOpenRecycleBin = {
-                        updateNavigationState(navigationState.openRecycleBin())
-                    },
-                    onOpenAppearance = {
-                        updateNavigationState(navigationState.openAppearance())
-                    },
-                    onOpenProfileDetail = { profilePage = it },
-                )
-            },
-            overlay = { contentBackdrop ->
-                if (showsShellHeader) {
-                    XNoteHeader(
-                        title = if (navigationState.isSearchOpen) {
-                            stringResource(R.string.search_title)
-                        } else {
-                            stringResource(navigationState.destination.titleRes)
-                        },
+        EditorBackgroundTheme(
+            editorBackground, noteLibrary, appSettings,
+            active = isEditor && !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen,
+            updateSystemBars = true,
+        ) { backgroundImage ->
+            XNotePageScaffold(
+                backdrop = backdrop,
+                scrollEdgeState = scrollEdgeState,
+                scrollEdges = scrollEdges,
+                alwaysVisibleScrollEdges = alwaysVisibleScrollEdges,
+                bottomOverlayHeight = bottomOverlayHeight,
+                toastHostState = toastHostState,
+                pageBackground = if (isEditor) {
+                    {
+                        XNoteNoteSurface(
+                            background = editorBackground,
+                            modifier = Modifier.fillMaxSize(),
+                            backgroundImage = backgroundImage,
+                        )
+                    }
+                } else {
+                    null
+                },
+                content = {
+                    DestinationContent(
+                        navigationState = navigationState,
+                        noteLibrary = noteLibrary,
+                        uiState = uiState,
+                        homeUi = homeUi,
+                        notebooks = notebooks,
+                        activeNotes = activeNotes,
                         backdrop = backdrop,
-                        onBack = if (navigationState.isSearchOpen) {
-                            { updateNavigationState(navigationState.closeSearch()) }
-                        } else {
-                            null
+                        contentPadding = contentPadding,
+                        editorContentPadding = editorContentPadding,
+                        listState = listState,
+                        notebookListState = notebookListState,
+                        editorScrollState = editorScrollState,
+                        editorSession = editorSession,
+                        settings = settingsRepository,
+                        appearanceScrollState = appearanceScrollState,
+                        searchQuery = searchQuery,
+                        searchNotebookId = searchNotebookId,
+                        searchResults = searchResults,
+                        recentQueries = recentQueries,
+                        trashedNotes = trashedNotes,
+                        recycleBinUiState = recycleBinUiState,
+                        sortMenuAnchor = sortMenuAnchor,
+                        toastHostState = toastHostState,
+                        onOpenNote = { updateNavigationState(navigationState.openEditor(it)) },
+                        onOpenNotebook = ::openNotebook,
+                        onOpenCollection = ::openCollection,
+                        onSearchQueryChange = { searchQuery = it },
+                        onSearch = ::recordSearch,
+                        onSearchNotebookSelected = { searchNotebookId = it },
+                        onOpenRecycleBin = {
+                            updateNavigationState(navigationState.openRecycleBin())
                         },
-                        actions = if (navigationState.isSearchOpen) {
-                            if (recentQueries.isEmpty()) {
-                                emptyList()
+                        onOpenAppearance = {
+                            updateNavigationState(navigationState.openAppearance())
+                        },
+                        onOpenProfileDetail = { profilePage = it },
+                    )
+                },
+                overlay = { contentBackdrop ->
+                    if (showsShellHeader) {
+                        XNoteHeader(
+                            title = if (navigationState.isSearchOpen) {
+                                stringResource(R.string.search_title)
+                            } else {
+                                stringResource(navigationState.destination.titleRes)
+                            },
+                            backdrop = backdrop,
+                            onBack = if (navigationState.isSearchOpen) {
+                                { updateNavigationState(navigationState.closeSearch()) }
+                            } else {
+                                null
+                            },
+                            actions = if (navigationState.isSearchOpen) {
+                                if (recentQueries.isEmpty()) {
+                                    emptyList()
+                                } else {
+                                    listOf(
+                                        XNoteHeaderAction(
+                                            iconRes = R.drawable.ic_keyline_stroke_bin,
+                                            contentDescription = stringResource(R.string.search_clear_history),
+                                            onClick = { appScope.launch { searchHistory.clear() } },
+                                        ),
+                                    )
+                                }
                             } else {
                                 listOf(
                                     XNoteHeaderAction(
-                                        iconRes = R.drawable.ic_keyline_stroke_bin,
-                                        contentDescription = stringResource(R.string.search_clear_history),
-                                        onClick = { appScope.launch { searchHistory.clear() } },
+                                        iconRes = R.drawable.ic_keyline_stroke_search,
+                                        contentDescription = stringResource(R.string.action_search),
+                                        onClick = {
+                                            updateNavigationState(navigationState.openSearch())
+                                        },
                                     ),
                                 )
-                            }
-                        } else {
-                            listOf(
-                                XNoteHeaderAction(
-                                    iconRes = R.drawable.ic_keyline_stroke_search,
-                                    contentDescription = stringResource(R.string.action_search),
-                                    onClick = {
-                                        updateNavigationState(navigationState.openSearch())
-                                    },
-                                ),
-                            )
-                        },
-                        horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                }
-
-                if (showsPrimaryChrome) {
-                    if (isTablet) {
-                        XNoteNavigationRail(
-                            currentDestination = navigationState.destination,
-                            onDestinationSelected = {
-                                updateNavigationState(navigationState.openDestination(it))
                             },
-                            backdrop = backdrop,
-                            modifier = Modifier.align(Alignment.CenterStart),
-                        )
-                    } else {
-                        XNoteBottomNavigation(
-                            currentDestination = navigationState.destination,
-                            onDestinationSelected = {
-                                updateNavigationState(navigationState.openDestination(it))
-                            },
-                            onDestinationReselected = ::resetDestination,
-                            backdrop = backdrop,
-                            modifier = Modifier.align(Alignment.BottomCenter),
+                            horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
+                            modifier = Modifier.align(Alignment.TopCenter),
                         )
                     }
-                }
 
-                if (!navigationState.isSearchOpen &&
-                    !navigationState.isRecycleBinOpen &&
-                    !navigationState.isAppearanceOpen &&
-                    navigationState.destination == AppDestination.Notes
-                ) {
-                    NotesChrome(
-                        onSelectionBarHeightChanged = { height ->
-                            noteSelectionBarHeight = with(density) { height.toDp() }
-                        },
-                        route = navigationState.notesRoute,
-                        library = noteLibrary,
-                        ui = uiState,
-                        notebooks = notebooks,
-                        notebookStats = notebookStatsFrom(activeNotes),
-                        backdrop = if (isEditor) contentBackdrop else backdrop,
-                        isTablet = isTablet,
-                        editorSession = editorSession,
-                        editorBackground = editorBackground,
-                        sortMenuAnchor = sortMenuAnchor,
-                        toastHostState = toastHostState,
-                        onOpenNotebook = ::openNotebook,
-                        onCreateNote = ::createNote,
-                        onPop = ::popNotes,
-                        onExport = {
-                            uiState.moreVisible = false
-                            appScope.launch {
-                                editorSession?.flushSave()
-                                if (editorSession?.saveStatus != EditorSaveStatus.Error) {
-                                    editorSession?.note?.let { updateNavigationState(navigationState.openExport(it.id)) }
-                                }
-                            }
-                        },
-                        onOpenReader = {
-                            uiState.moreVisible = false
-                            uiState.selectedIds = emptySet()
-                            appScope.launch {
-                                editorSession?.flushSave()
-                                if (editorSession?.saveStatus != EditorSaveStatus.Error) {
-                                    val nextState = when (val route = navigationState.notesRoute) {
-                                        is NotesRoute.Notebook -> navigationState.openReader(notebookId = route.notebookId)
-                                        is NotesRoute.Editor -> navigationState.openReader(noteId = route.noteId)
-                                        else -> navigationState
+                    if (showsPrimaryChrome) {
+                        if (isTablet) {
+                            XNoteNavigationRail(
+                                currentDestination = navigationState.destination,
+                                onDestinationSelected = {
+                                    updateNavigationState(navigationState.openDestination(it))
+                                },
+                                backdrop = backdrop,
+                                modifier = Modifier.align(Alignment.CenterStart),
+                            )
+                        } else {
+                            XNoteBottomNavigation(
+                                currentDestination = navigationState.destination,
+                                onDestinationSelected = {
+                                    updateNavigationState(navigationState.openDestination(it))
+                                },
+                                onDestinationReselected = ::resetDestination,
+                                backdrop = backdrop,
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                            )
+                        }
+                    }
+
+                    if (!navigationState.isSearchOpen &&
+                        !navigationState.isRecycleBinOpen &&
+                        !navigationState.isAppearanceOpen &&
+                        navigationState.destination == AppDestination.Notes
+                    ) {
+                        NotesChrome(
+                            onSelectionBarHeightChanged = { height ->
+                                noteSelectionBarHeight = with(density) { height.toDp() }
+                            },
+                            route = navigationState.notesRoute,
+                            library = noteLibrary,
+                            ui = uiState,
+                            notebooks = notebooks,
+                            notebookStats = notebookStatsFrom(activeNotes),
+                            backdrop = if (isEditor) contentBackdrop else backdrop,
+                            isTablet = isTablet,
+                            editorSession = editorSession,
+                            editorBackground = editorBackground,
+                            settings = settingsRepository,
+                            sortMenuAnchor = sortMenuAnchor,
+                            toastHostState = toastHostState,
+                            onOpenNotebook = ::openNotebook,
+                            onCreateNote = ::createNote,
+                            onPop = ::popNotes,
+                            onExport = {
+                                uiState.moreVisible = false
+                                appScope.launch {
+                                    editorSession?.flushSave()
+                                    if (editorSession?.saveStatus != EditorSaveStatus.Error) {
+                                        editorSession?.note?.let { updateNavigationState(navigationState.openExport(it.id)) }
                                     }
-                                    readerStateHolder.removeState(encodeNotesStack(nextState.notesStack))
-                                    updateNavigationState(nextState)
                                 }
-                            }
-                        },
-                    )
-                }
+                            },
+                            onOpenReader = {
+                                uiState.moreVisible = false
+                                uiState.selectedIds = emptySet()
+                                appScope.launch {
+                                    editorSession?.flushSave()
+                                    if (editorSession?.saveStatus != EditorSaveStatus.Error) {
+                                        val nextState = when (val route = navigationState.notesRoute) {
+                                            is NotesRoute.Notebook -> navigationState.openReader(notebookId = route.notebookId)
+                                            is NotesRoute.Editor -> navigationState.openReader(noteId = route.noteId)
+                                            else -> navigationState
+                                        }
+                                        readerStateHolder.removeState(encodeNotesStack(nextState.notesStack))
+                                        updateNavigationState(nextState)
+                                    }
+                                }
+                            },
+                        )
+                    }
 
-                if (navigationState.destination == AppDestination.Notes && navigationState.notesRoute == NotesRoute.Home &&
-                    !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen) {
-                    NotebookHomeOverlays(homeUi, notebooks, activeNotes, noteLibrary, backdrop)
-                }
+                    if (navigationState.destination == AppDestination.Notes && navigationState.notesRoute == NotesRoute.Home &&
+                        !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen) {
+                        NotebookHomeOverlays(homeUi, notebooks, activeNotes, noteLibrary, backdrop)
+                    }
 
-                if (navigationState.isRecycleBinOpen) {
-                    RecycleBinChrome(
-                        notes = trashedNotes,
-                        ui = recycleBinUiState,
-                        library = noteLibrary,
-                        backdrop = backdrop,
-                        isTablet = isTablet,
-                        toastHostState = toastHostState,
-                        onBack = {
-                            recycleBinUiState.finishSelection()
-                            updateNavigationState(navigationState.closeRecycleBin())
-                        },
-                    )
-                }
+                    if (navigationState.isRecycleBinOpen) {
+                        RecycleBinChrome(
+                            notes = trashedNotes,
+                            ui = recycleBinUiState,
+                            library = noteLibrary,
+                            backdrop = backdrop,
+                            isTablet = isTablet,
+                            toastHostState = toastHostState,
+                            onBack = {
+                                recycleBinUiState.finishSelection()
+                                updateNavigationState(navigationState.closeRecycleBin())
+                            },
+                        )
+                    }
 
-                if (navigationState.isAppearanceOpen) {
-                    XNoteHeader(
-                        title = stringResource(R.string.profile_appearance_section),
-                        backdrop = backdrop,
-                        onBack = {
-                            updateNavigationState(navigationState.closeAppearance())
-                        },
-                        horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                }
-            },
-        )
+                    if (navigationState.isAppearanceOpen) {
+                        XNoteHeader(
+                            title = stringResource(R.string.profile_appearance_section),
+                            backdrop = backdrop,
+                            onBack = {
+                                updateNavigationState(navigationState.closeAppearance())
+                            },
+                            horizontalPadding = if (isTablet) 24.dp else XNoteSpacingMedium,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
+                },
+            )
+        }
     }
 }
 

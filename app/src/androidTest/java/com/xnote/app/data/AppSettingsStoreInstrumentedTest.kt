@@ -53,6 +53,17 @@ class AppSettingsStoreInstrumentedTest {
         } finally { store.setThemeMode(original) }
     }
 
+    @Test fun editorAutoThemePersistsAcrossStoreInstances() = runTest {
+        val store = AppSettingsStore(context)
+        val original = store.settings.first()
+        try {
+            store.setEditorAutoThemeEnabled(false)
+            assertEquals(original.copy(editorAutoThemeEnabled = false), AppSettingsStore(context).settings.first())
+            store.setEditorAutoThemeEnabled(true)
+            assertEquals(original.copy(editorAutoThemeEnabled = true), AppSettingsStore(context).settings.first())
+        } finally { store.setEditorAutoThemeEnabled(original.editorAutoThemeEnabled) }
+    }
+
     @Test fun appearancePersistsTogetherWithoutOverwritingBackgroundOrShortcuts() = runTest {
         val store = AppSettingsStore(context)
         val original = store.settings.first()

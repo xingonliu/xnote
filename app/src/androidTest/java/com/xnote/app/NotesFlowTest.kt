@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onRoot
@@ -948,6 +950,8 @@ class NotesFlowTest {
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("笔记背景").performClick()
         composeRule.onNodeWithText("仅当前笔记").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-editor-auto-theme").assertIsOn().performClick().assertIsOff()
+        composeRule.onNodeWithTag("xnote-editor-auto-theme").performClick().assertIsOn()
         composeRule.onNodeWithText("横线纸").performScrollTo().performClick()
         composeRule.waitUntil(5_000) {
             runBlocking {
@@ -963,7 +967,7 @@ class NotesFlowTest {
     }
 
     @Test
-    fun editorBackgroundPickerDismissesTheKeyboardAndShowsEveryPreset() {
+    fun editorBackgroundPickerDismissesTheKeyboardAndKeepsEveryPresetReachable() {
         composeRule.setContent {
             XNoteTheme(reduceMotion = true) {
                 XNoteApp(noteLibrary = library)
@@ -978,9 +982,13 @@ class NotesFlowTest {
         composeRule.onNodeWithContentDescription("更多").performClick()
         composeRule.onNodeWithText("笔记背景").performClick()
 
-        composeRule.onNodeWithText("纯白纸").assertIsDisplayed()
-        composeRule.onNodeWithText("浅灰纹理").assertIsDisplayed()
-        composeRule.onNodeWithText("横线纸").assertIsDisplayed()
-        composeRule.onNodeWithText("方格纸").assertIsDisplayed()
+        composeRule.onNodeWithTag("xnote-editor-auto-theme").assertIsDisplayed().assertIsOn()
+        File(context.getExternalFilesDir(null), "editor-auto-theme-picker.png").outputStream().use {
+            composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        composeRule.onNodeWithText("纯白纸").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("浅灰纹理").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("横线纸").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("方格纸").performScrollTo().assertIsDisplayed()
     }
 }

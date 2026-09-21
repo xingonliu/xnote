@@ -17,11 +17,12 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.R
+import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.*
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.*
-import com.xnote.app.feature.background.rememberBackgroundImage
+import com.xnote.app.feature.background.EditorBackgroundTheme
 import com.xnote.app.feature.background.XNoteNoteSurface
 import com.xnote.app.feature.notes.editor.NoteEditorScreen
 import com.xnote.app.feature.notes.editor.NoteEditorSession
@@ -32,6 +33,8 @@ import com.xnote.app.navigation.*
 
 @Composable
 fun TabletNotesWorkspace(
+    settings: AppSettingsRepository,
+    appSettings: AppSettings,
     navigation: XNoteNavigationState,
     library: NoteLibrary,
     notebooks: List<Notebook>,
@@ -128,7 +131,7 @@ fun TabletNotesWorkspace(
                             NotesChrome(parentRoute, library, ui, notebooks, notebookStatsFrom(notes), listBackdrop, true, editorSession,
                                 background, listAnchor, toast, onOpenNotebook, onCreateNote,
                                 { onOpenCollection(NoteCollection.All) }, { notebookId?.let(onReadNotebook) }, {}, { selectionHeight = it },
-                                showBack = parentRoute != NotesRoute.Collection(NoteCollection.All) || editor != null)
+                                settings = settings, showBack = parentRoute != NotesRoute.Collection(NoteCollection.All) || editor != null)
                         } else {
                             XNoteHeader("搜索", listBackdrop, onBack = { onSearchVisible(false) }, actions = listOf(
                                 XNoteHeaderAction(R.drawable.ic_keyline_stroke_bin, "清空最近搜索", onClearHistory, enabled = recentQueries.isNotEmpty())))
@@ -139,20 +142,22 @@ fun TabletNotesWorkspace(
                     })
                 if (full || editor != null) {
                     VerticalDivider()
-                    XNotePageScaffold(editorBackdrop, modifier = Modifier.weight(1f).testTag("xnote-tablet-content"),
-                        scrollEdges = edges, alwaysVisibleScrollEdges = edges,
-                        scrollEdgeState = rememberXNoteScrollEdgeState(editorScroll),
-                        pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), rememberBackgroundImage(background, library)) }, content = {
-                            if (editor != null && editorSession != null) {
-                                NoteEditorScreen(editorSession, editorBackdrop,
-                                    PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = XNoteEditorToolbarHeight + 16.dp), editorScroll)
-                            } else {
-                                Text("选择一篇笔记开始编辑", style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.Center).padding(24.dp))
-                            }
-                        }, overlay = { contentBackdrop ->
-                            if (editor != null) NotesChrome(editor, library, editorUi, notebooks, notebookStatsFrom(notes), contentBackdrop, true,
-                                editorSession, background, editorAnchor, toast, onOpenNotebook, onCreateNote, onBack, onReadNote, onExport, {})
-                        })
+                    EditorBackgroundTheme(background, library, appSettings, active = editor != null) { backgroundImage ->
+                        XNotePageScaffold(editorBackdrop, modifier = Modifier.weight(1f).testTag("xnote-tablet-content"),
+                            scrollEdges = edges, alwaysVisibleScrollEdges = edges,
+                            scrollEdgeState = rememberXNoteScrollEdgeState(editorScroll),
+                            pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), backgroundImage) }, content = {
+                                if (editor != null && editorSession != null) {
+                                    NoteEditorScreen(editorSession, editorBackdrop,
+                                        PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = XNoteEditorToolbarHeight + 16.dp), editorScroll)
+                                } else {
+                                    Text("选择一篇笔记开始编辑", style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+                                }
+                            }, overlay = { contentBackdrop ->
+                                if (editor != null) NotesChrome(editor, library, editorUi, notebooks, notebookStatsFrom(notes), contentBackdrop, true,
+                                    editorSession, background, editorAnchor, toast, onOpenNotebook, onCreateNote, onBack, onReadNote, onExport, {}, settings = settings)
+                            })
+                    }
                 }
             }
         }, overlay = {

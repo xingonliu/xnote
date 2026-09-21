@@ -18,6 +18,7 @@ data class AppSettings(
     val defaultBackground: BackgroundKey,
     val themeMode: ThemeMode,
     val markdownShortcutsEnabled: Boolean,
+    val editorAutoThemeEnabled: Boolean = true,
     val reduceMotion: Boolean = false,
     val highContrast: Boolean = false,
     val fontSize: AppFontSize = AppFontSize.Standard,

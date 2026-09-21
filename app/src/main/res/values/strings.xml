@@ -188,4 +188,6 @@
     <string name="background_saving">正在保存背景…</string>
     <string name="background_save_failed">背景保存失败，请重试</string>
     <string name="background_mask_opacity">遮罩不透明度 %1$d%%</string>
+    <string name="editor_auto_theme_title">根据背景自动切换深浅模式</string>
+    <string name="editor_auto_theme_summary">适用于所有笔记编辑页，按背景图片主色判断；关闭或无图片时跟随应用外观</string>
 </resources>

@@ -17,6 +17,7 @@ interface AppSettingsRepository {
     suspend fun setDefaultBackground(background: BackgroundKey)
 
     suspend fun setMarkdownShortcutsEnabled(enabled: Boolean)
+    suspend fun setEditorAutoThemeEnabled(enabled: Boolean)
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setReduceMotion(enabled: Boolean)
     suspend fun setHighContrast(enabled: Boolean)
@@ -39,6 +40,7 @@ class InMemoryAppSettingsRepository(
         state.value = state.value.copy(markdownShortcutsEnabled = enabled)
     }
 
+    override suspend fun setEditorAutoThemeEnabled(enabled: Boolean) { state.value = state.value.copy(editorAutoThemeEnabled = enabled) }
     override suspend fun setThemeMode(mode: ThemeMode) { state.value = state.value.copy(themeMode = mode) }
     override suspend fun setReduceMotion(enabled: Boolean) { state.value = state.value.copy(reduceMotion = enabled) }
     override suspend fun setHighContrast(enabled: Boolean) { state.value = state.value.copy(highContrast = enabled) }

@@ -15,6 +15,14 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import com.xnote.app.design.liquidglass.LiquidButton
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import com.xnote.app.domain.model.defaultAppSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -28,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.data.files.importNoteImage
+import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteDrawer
 import com.xnote.app.design.XNoteDrawerPlacement
@@ -43,6 +52,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun NoteBackgroundChrome(
+    settings: AppSettingsRepository,
     session: NoteEditorSession,
     library: NoteLibrary,
     background: BackgroundKey,
@@ -52,6 +62,7 @@ internal fun NoteBackgroundChrome(
     placement: XNoteDrawerPlacement,
     toast: SnackbarHostState,
 ) {
+    val preferences by settings.settings.collectAsState(defaultAppSettings())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -85,6 +96,26 @@ internal fun NoteBackgroundChrome(
         backdrop = backdrop,
         placement = placement,
     ) {
+        Row(
+            Modifier.fillMaxWidth().testTag("xnote-editor-auto-theme").toggleable(
+                value = preferences.editorAutoThemeEnabled,
+                role = Role.Switch,
+                onValueChange = { enabled ->
+                    scope.launch {
+                        try { settings.setEditorAutoThemeEnabled(enabled) }
+                        catch (error: CancellationException) { throw error }
+                        catch (_: Exception) { toast.showSnackbar(failure) }
+                    }
+                },
+            ).padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                Text(stringResource(R.string.editor_auto_theme_title), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.editor_auto_theme_summary), style = MaterialTheme.typography.bodyMedium)
+            }
+            Switch(checked = preferences.editorAutoThemeEnabled, onCheckedChange = null)
+        }
         XNoteBackgroundPicker(
             selectedKey = session.backgroundKey,
             previewBackground = background,
