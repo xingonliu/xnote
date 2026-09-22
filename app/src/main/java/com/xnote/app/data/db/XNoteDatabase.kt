@@ -17,9 +17,20 @@ import kotlinx.coroutines.Dispatchers
         NoteFtsEntity::class,
         NoteRevisionEntity::class,
         AttachmentEntity::class,
+        AgentPermissionEntity::class,
+        AgentSegmentEntity::class,
+        AgentMessageEntity::class,
+        AgentRunEntity::class,
+        AgentQueueEntity::class,
+        AgentToolEventEntity::class,
+        AgentSnapshotEntity::class,
+        AgentSnapshotRefEntity::class,
+        AgentChangeEntity::class,
+        AgentReviewEntity::class,
+        AgentAttachmentRefEntity::class,
     ],
-    version = 3,
-    autoMigrations = [AutoMigration(from = 2, to = 3)],
+    version = 4,
+    autoMigrations = [AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {
@@ -28,6 +39,7 @@ abstract class XNoteDatabase : RoomDatabase() {
     abstract fun noteFts(): NoteFtsDao
     abstract fun revisions(): NoteRevisionDao
     abstract fun attachments(): AttachmentDao
+    abstract fun agent(): AgentDao
 
     companion object {
         const val FileName = "xnote.db"
@@ -47,7 +59,6 @@ abstract class XNoteDatabase : RoomDatabase() {
             return Room.databaseBuilder(context, XNoteDatabase::class.java, name)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
-                .fallbackToDestructiveMigration(true)
         }
     }
 }

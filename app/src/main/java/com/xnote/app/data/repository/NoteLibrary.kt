@@ -450,6 +450,7 @@ class NoteLibrary(
         val remainingNotes = notes.getAll().map { it.toDomain() }
         val remainingRevisions = revisions.getAll().map { it.toDomain() }
         val referenced = linkedSetOf<String>()
+        referenced += database.agent().referencedAttachmentIds()
         sessionAttachments.values.forEach { referenced += it }
         remainingNotes.forEach { referenced += it.referencedAttachmentIds() }
         remainingRevisions.forEach { referenced += it.referencedAttachmentIds() }
