@@ -14,6 +14,7 @@ datastore = "1.2.1"
 work = "2.11.2"
 serialization-json = "1.11.0"
 coroutines = "1.11.0"
+okhttp = "5.5.0"
 # AndroidLiquidGlass KMP release used by the official component catalog.
 #noinspection NewerVersionAvailable
 backdrop = "2.0.1"
@@ -24,6 +25,7 @@ androidx-test-runner = "1.7.0"
 androidx-test-core = "1.7.0"
 
 [libraries]
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }

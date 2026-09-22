@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
@@ -143,6 +144,9 @@ fun XNoteApp(
     noteLibrary: NoteLibrary,
     searchHistory: SearchHistoryRepository = EmptySearchHistoryRepository,
     settings: AppSettingsRepository? = null,
+    modelProfiles: com.xnote.app.data.agent.ModelProfileStore? = null,
+    modelClient: com.xnote.app.data.agent.ModelClient = com.xnote.app.data.agent.HttpModelClient(),
+    agentTimeline: com.xnote.app.data.agent.AgentTimeline? = null,
 ) {
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -376,6 +380,10 @@ fun XNoteApp(
     }
 
     profilePage?.let { page ->
+        if (page == "模型与服务商" && modelProfiles != null) {
+            com.xnote.app.feature.agent.ModelSettingsScreen(modelProfiles, modelClient, onBack = { profilePage = null })
+            return
+        }
         ProfileDetailScreen(page, activeNotes, notebooks, onBack = { profilePage = null }, onOpenNote = {
             profilePage = null
             statisticsNoteId = it
@@ -445,7 +453,8 @@ fun XNoteApp(
         val isEditor = navigationState.destination == AppDestination.Notes &&
             navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor
-        val showsBottomNavigation = !isTablet && showsPrimaryChrome
+        val agentKeyboardVisible = navigationState.destination == AppDestination.Agent && WindowInsets.ime.getBottom(density) > 0
+        val showsBottomNavigation = !isTablet && showsPrimaryChrome && !agentKeyboardVisible
         val showsRecycleSelection = navigationState.isRecycleBinOpen &&
             recycleBinUiState.selectionMode
         val isSecondaryPage = navigationState.isSearchOpen ||
@@ -549,6 +558,7 @@ fun XNoteApp(
                 },
                 content = {
                     DestinationContent(
+                        agentTimeline = agentTimeline,
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
                         uiState = uiState,
@@ -639,7 +649,7 @@ fun XNoteApp(
                                 backdrop = backdrop,
                                 modifier = Modifier.align(Alignment.CenterStart),
                             )
-                        } else {
+                        } else if (showsBottomNavigation) {
                             XNoteBottomNavigation(
                                 currentDestination = navigationState.destination,
                                 onDestinationSelected = {
@@ -743,6 +753,7 @@ fun XNoteApp(
 
 @Composable
 private fun DestinationContent(
+    agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
@@ -881,7 +892,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> PlaceholderScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, backdrop, contentPadding, modifier) else PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

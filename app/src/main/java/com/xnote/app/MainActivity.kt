@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
                     noteLibrary = container.noteLibrary,
                     searchHistory = container.searchHistory,
                     settings = container.settings,
+                    modelProfiles = container.modelProfiles,
+                    modelClient = container.modelClient,
+                    agentTimeline = container.agentTimeline,
                 )
             }
         }

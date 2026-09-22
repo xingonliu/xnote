@@ -32,12 +32,12 @@ fun ProfileScreen(
         item { ProfileEntry("统计", "文字量、内容数量与最近笔记") { onOpenDetail("统计") } }
         item { ProfileEntry(stringResource(R.string.recycle_bin_title), stringResource(R.string.recycle_bin_profile_summary, trashCount), onOpenRecycleBin) }
         item { ProfileEntry("存储与隐私", "本地占用与缓存清理") { onOpenDetail("存储与隐私") } }
+        item { ProfileEntry("模型与服务商", "配置 OpenAI、Anthropic 或 Gemini 协议") { onOpenDetail("模型与服务商") } }
         item { ProfileEntry(stringResource(R.string.profile_appearance_section), "主题、动画、对比度、字体、阅读与默认背景", onOpenAppearance) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(vertical = 16.dp)) {
                 listOf(
                     "贴纸库" to "将在图片抠图与贴纸功能完成后开放。",
-                    "模型与服务商" to "尚未接入模型服务，暂不支持配置服务商。",
                     "Agent 权限" to "Agent 笔记工具尚未接入，暂不申请笔记操作权限。",
                     "Skill 管理" to "将在 Agent 扩展能力完成后开放。",
                     "MCP 管理" to "尚未接入外部工具服务器。",

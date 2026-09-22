@@ -24,6 +24,9 @@ class XNoteContainer(
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val database: XNoteDatabase = XNoteDatabase.create(appContext)
+    val modelProfiles = com.xnote.app.data.agent.ModelProfileStore(database, com.xnote.app.data.agent.AndroidModelCredentialStore(appContext))
+    val modelClient: com.xnote.app.data.agent.ModelClient = com.xnote.app.data.agent.HttpModelClient()
+    val agentTimeline = com.xnote.app.data.agent.AgentTimeline(database, modelProfiles, modelClient, applicationScope)
     val settings = AppSettingsStore(appContext)
     val searchHistory = SearchHistoryStore(appContext)
     val noteLibrary = NoteLibrary(

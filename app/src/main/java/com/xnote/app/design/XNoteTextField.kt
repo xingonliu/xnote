@@ -30,6 +30,8 @@ fun XNoteTextField(
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     imeAction: ImeAction = ImeAction.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
+    keyboardType: androidx.compose.ui.text.input.KeyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
 ) {
     val foreground = MaterialTheme.colorScheme.onSurface
     BasicTextField(
@@ -44,11 +46,13 @@ fun XNoteTextField(
             .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
         enabled = enabled,
         singleLine = singleLine,
+        visualTransformation = visualTransformation,
         textStyle = textStyle.copy(color = foreground),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = KeyboardOptions(
             capitalization = KeyboardCapitalization.Sentences,
             imeAction = imeAction,
+            keyboardType = keyboardType,
         ),
         keyboardActions = keyboardActions,
         decorationBox = { inner ->

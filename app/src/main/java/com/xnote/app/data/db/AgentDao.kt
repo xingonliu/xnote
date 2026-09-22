@@ -10,6 +10,30 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AgentDao {
+    @Query("SELECT * FROM agent_draft WHERE id = 1")
+    suspend fun draft(): AgentDraftEntity?
+
+    @Upsert
+    suspend fun saveDraft(value: AgentDraftEntity)
+
+    @Query("SELECT * FROM agent_runs ORDER BY createdAtEpochMs, id")
+    fun observeRuns(): Flow<List<AgentRunEntity>>
+
+    @Query("SELECT * FROM agent_runs WHERE id = :id")
+    suspend fun run(id: String): AgentRunEntity?
+
+    @Query("SELECT * FROM model_profiles ORDER BY id")
+    fun observeProfiles(): Flow<List<ModelProfileEntity>>
+
+    @Query("SELECT * FROM model_profiles ORDER BY id")
+    suspend fun profiles(): List<ModelProfileEntity>
+
+    @Upsert
+    suspend fun saveProfile(value: ModelProfileEntity)
+
+    @Query("DELETE FROM model_profiles WHERE id = :id")
+    suspend fun deleteProfile(id: String)
+
     @Query("SELECT * FROM agent_permissions WHERE id = 1")
     suspend fun permission(): AgentPermissionEntity?
 

@@ -51,6 +51,7 @@ fun LiquidButton(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     isInteractive: Boolean = true,
+    enabled: Boolean = true,
     tint: Color = Color.Unspecified,
     surfaceColor: Color = Color.Unspecified,
     content: @Composable RowScope.() -> Unit,
@@ -60,6 +61,7 @@ fun LiquidButton(
         backdrop = backdrop,
         modifier = modifier,
         isInteractive = isInteractive,
+        enabled = enabled,
         tint = tint,
         surfaceColor = surfaceColor,
         horizontalPadding = XNoteButtonHorizontalPadding,
@@ -79,6 +81,7 @@ fun LiquidButton(
         backdrop = backdrop,
         modifier = modifier,
         isInteractive = true,
+        enabled = true,
         tint = Color.Unspecified,
         surfaceColor = Color.Unspecified,
         horizontalPadding = 0.dp,
@@ -94,6 +97,7 @@ private fun LiquidButtonSurface(
     backdrop: Backdrop,
     modifier: Modifier,
     isInteractive: Boolean,
+    enabled: Boolean,
     tint: Color,
     surfaceColor: Color,
     horizontalPadding: Dp,
@@ -106,7 +110,7 @@ private fun LiquidButtonSurface(
     val interactiveHighlight = remember(animationScope) {
         InteractiveHighlight(animationScope = animationScope)
     }
-    val hasInteractiveMotion = isInteractive && !interactionSettings.reduceMotion
+    val hasInteractiveMotion = enabled && isInteractive && !interactionSettings.reduceMotion
 
     Row(
         modifier
@@ -156,6 +160,7 @@ private fun LiquidButtonSurface(
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
+                        enabled = enabled,
                         interactionSource = null,
                         indication = if (hasInteractiveMotion) null else LocalIndication.current,
                         role = Role.Button,
