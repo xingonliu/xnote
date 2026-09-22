@@ -1,13 +1,12 @@
 package com.xnote.app.feature.background
 
-import android.graphics.Bitmap
 import androidx.activity.compose.LocalActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.luminance
-import androidx.core.graphics.scale
+import androidx.compose.ui.unit.IntSize
 import androidx.core.view.WindowCompat
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteTheme
@@ -27,30 +26,21 @@ fun EditorBackgroundTheme(
     settings: AppSettings,
     active: Boolean,
     updateSystemBars: Boolean = false,
-    content: @Composable (ImageBitmap?) -> Unit,
+    content: @Composable (ImageBitmap?, (IntSize) -> Unit) -> Unit,
 ) {
     val inheritedDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val image = rememberBackgroundImage(if (active) background else defaultBackgroundKey(), library)
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+    val onViewportSizeChanged: (IntSize) -> Unit = remember { { viewport = it } }
     var imageDark by remember(image) { mutableStateOf<Boolean?>(null) }
     val dark = if (active && settings.editorAutoThemeEnabled) imageDark ?: inheritedDark else inheritedDark
     val window = LocalActivity.current?.window
     val restoredDark by rememberUpdatedState(inheritedDark)
 
-    LaunchedEffect(image, settings.editorAutoThemeEnabled) {
-        imageDark = if (settings.editorAutoThemeEnabled && image != null) {
+    LaunchedEffect(image, viewport, settings.editorAutoThemeEnabled) {
+        imageDark = if (settings.editorAutoThemeEnabled && image != null && viewport.width > 0 && viewport.height > 0) {
             withContext(Dispatchers.Default) {
-                val source = image.asAndroidBitmap()
-                val scaled = source.scale(minOf(64, source.width), minOf(64, source.height))
-                // ImageDecoder may return a GPU bitmap; pixel access requires software storage.
-                val sample = if (scaled.config == Bitmap.Config.HARDWARE) scaled.copy(Bitmap.Config.ARGB_8888, false) else scaled
-                try {
-                    val pixels = IntArray(sample.width * sample.height)
-                    sample.getPixels(pixels, 0, sample.width, 0, 0, sample.width, sample.height)
-                    backgroundImageUsesDarkTheme(pixels)
-                } finally {
-                    if (sample !== scaled) sample.recycle()
-                    if (scaled !== source) scaled.recycle()
-                }
+                backgroundImageUsesDarkTheme(sampleVisibleBackground(image.asAndroidBitmap(), viewport), BackgroundThemeSampleSize)
             }
         } else null
     }
@@ -75,5 +65,5 @@ fun EditorBackgroundTheme(
         reduceMotion = settings.reduceMotion,
         highContrast = settings.highContrast,
         readingLayout = settings.readingLayout,
-    ) { content(image) }
+    ) { content(image, onViewportSizeChanged) }
 }

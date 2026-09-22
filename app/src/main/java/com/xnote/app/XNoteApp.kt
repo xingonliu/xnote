@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -527,7 +528,7 @@ fun XNoteApp(
             editorBackground, noteLibrary, appSettings,
             active = isEditor && !navigationState.isSearchOpen && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen,
             updateSystemBars = true,
-        ) { backgroundImage ->
+        ) { backgroundImage, onBackgroundSizeChanged ->
             XNotePageScaffold(
                 backdrop = backdrop,
                 scrollEdgeState = scrollEdgeState,
@@ -539,7 +540,7 @@ fun XNoteApp(
                     {
                         XNoteNoteSurface(
                             background = editorBackground,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().onSizeChanged(onBackgroundSizeChanged),
                             backgroundImage = backgroundImage,
                         )
                     }

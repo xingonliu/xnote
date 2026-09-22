@@ -11,6 +11,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -142,11 +143,11 @@ fun TabletNotesWorkspace(
                     })
                 if (full || editor != null) {
                     VerticalDivider()
-                    EditorBackgroundTheme(background, library, appSettings, active = editor != null) { backgroundImage ->
+                    EditorBackgroundTheme(background, library, appSettings, active = editor != null) { backgroundImage, onBackgroundSizeChanged ->
                         XNotePageScaffold(editorBackdrop, modifier = Modifier.weight(1f).testTag("xnote-tablet-content"),
                             scrollEdges = edges, alwaysVisibleScrollEdges = edges,
                             scrollEdgeState = rememberXNoteScrollEdgeState(editorScroll),
-                            pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), backgroundImage) }, content = {
+                            pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize().onSizeChanged(onBackgroundSizeChanged), backgroundImage) }, content = {
                                 if (editor != null && editorSession != null) {
                                     NoteEditorScreen(editorSession, editorBackdrop,
                                         PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = XNoteEditorToolbarHeight + 16.dp), editorScroll)

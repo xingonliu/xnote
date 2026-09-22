@@ -6,6 +6,14 @@ import android.view.Window
 import androidx.activity.compose.LocalActivity
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
+import com.xnote.app.feature.background.sampleVisibleBackground
+import com.xnote.app.feature.background.XNoteNoteSurface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -47,6 +55,63 @@ class EditorBackgroundThemeTest {
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(cleanup).around(compose)
 
+    @Test fun centeredCropExcludesInvisibleColorsInBothOrientations() {
+        for (landscape in listOf(true, false)) {
+            val width = if (landscape) 320 else 80
+            val height = if (landscape) 80 else 320
+            val source = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val pixels = IntArray(width * height) {
+                val position = if (landscape) it % width else it / width
+                if (position in 120 until 200) 0xFFF0F0F0.toInt() else 0xFF101010.toInt()
+            }
+            source.setPixels(pixels, 0, width, 0, 0, width, height)
+            try {
+                assertEquals(false, backgroundImageUsesDarkTheme(sampleVisibleBackground(source, IntSize(80, 80)), 64))
+                assertEquals(true, backgroundImageUsesDarkTheme(sampleVisibleBackground(source, IntSize(width, height)), 64))
+                assertEquals(false, source.isRecycled)
+            } finally { source.recycle() }
+        }
+        val tiny = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        tiny.eraseColor(0xFFFFFFFF.toInt())
+        try {
+            assertEquals(false, backgroundImageUsesDarkTheme(sampleVisibleBackground(tiny, IntSize(100, 1)), 64))
+        } finally { tiny.recycle() }
+    }
+
+    @Test fun resizingEditorReevaluatesVisibleCropWithoutChangingOuterTheme() {
+        val background = runBlocking {
+            val bitmap = Bitmap.createBitmap(320, 80, Bitmap.Config.ARGB_8888)
+            val pixels = IntArray(320 * 80) { if (it % 320 in 120 until 200) 0xFFF0F0F0.toInt() else 0xFF101010.toInt() }
+            bitmap.setPixels(pixels, 0, 320, 0, 0, 320, 80)
+            val bytes = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            bitmap.recycle()
+            val attachment = library.putAttachment(AttachmentKind.Image, "image/png", "png", ByteArrayInputStream(bytes))
+            BackgroundKey.Image(attachment.id, maskOpacity = 0)
+        }
+        var wide by mutableStateOf(true)
+        compose.setContent {
+            XNoteTheme(darkTheme = true, reduceMotion = true) {
+                Column {
+                    Text("outer-dark-${MaterialTheme.colorScheme.background.luminance() < 0.5f}")
+                    EditorBackgroundTheme(background, library, defaultAppSettings().copy(reduceMotion = true), active = true) { image, onSizeChanged ->
+                        XNoteNoteSurface(background,
+                            Modifier.size(if (wide) 320.dp else 80.dp, 80.dp).onSizeChanged(onSizeChanged), image)
+                        Text("crop-dark-${MaterialTheme.colorScheme.background.luminance() < 0.5f}-${image != null}")
+                    }
+                }
+            }
+        }
+        fun awaitTheme(dark: Boolean) {
+            compose.waitUntil(5_000) { compose.onAllNodesWithText("crop-dark-$dark-true").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("outer-dark-true").assertExists()
+        }
+        awaitTheme(true)
+        compose.runOnIdle { wide = false }
+        awaitTheme(false)
+        compose.runOnIdle { wide = true }
+        awaitTheme(true)
+    }
+
     @Test fun imageReplacementToggleFallbackAndLocalThemeStayConsistent() {
         fun background(color: Int): BackgroundKey.Image = runBlocking {
             val bitmap = Bitmap.createBitmap(80, 80, Bitmap.Config.ARGB_8888)
@@ -72,7 +137,8 @@ class EditorBackgroundThemeTest {
                 Column {
                     Text("outer-${MaterialTheme.colorScheme.background.luminance() < 0.5f}")
                     EditorBackgroundTheme(selected, library,
-                        defaultAppSettings().copy(editorAutoThemeEnabled = enabled, reduceMotion = true), active, updateSystemBars = true) { image ->
+                        defaultAppSettings().copy(editorAutoThemeEnabled = enabled, reduceMotion = true), active, updateSystemBars = true) { image, onBackgroundSizeChanged ->
+                        Box(Modifier.size(80.dp).onSizeChanged(onBackgroundSizeChanged))
                         innerScale = LocalDensity.current.fontScale
                         Text("editor-${MaterialTheme.colorScheme.background.luminance() < 0.5f}-${image != null}")
                     }
