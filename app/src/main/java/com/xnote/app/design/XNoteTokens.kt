@@ -16,6 +16,7 @@ val XNoteButtonHorizontalPadding = 8.dp
 val XNoteButtonContentSpacing = 8.dp
 val XNoteHeaderTopPadding = 15.dp
 val XNoteHeaderHeight = XNoteHeaderTopPadding + XNoteButtonSize
+val XNoteProgressiveBlurHeight = 128.dp
 val XNoteBottomNavigationHeight = 88.dp
 val XNoteMaximumContentWidth = 840.dp
 

@@ -58,7 +58,7 @@ class S10FlowTest {
         compose.onAllNodesWithText("4", useUnmergedTree = true)[0].assertExists()
         screenshot("statistics-phone")
         compose.onNodeWithTag("xnote-statistics").performScrollToNode(hasText("最近创建"))
-        compose.onAllNodesWithText("统计入口")[0].performClick()
+        compose.onAllNodesWithText("统计入口")[0].performScrollTo().performClick()
         compose.onNodeWithTag("xnote-editor-title").assertTextEquals("统计入口")
         compose.onNodeWithContentDescription("返回").performClick()
         compose.onNodeWithTag("xnote-statistics").assertIsDisplayed()

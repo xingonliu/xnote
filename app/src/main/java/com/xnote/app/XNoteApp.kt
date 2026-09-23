@@ -66,6 +66,7 @@ import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
 import com.xnote.app.design.XNoteHeader
+import com.xnote.app.design.xNoteScrollEdgePadding
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
 import com.xnote.app.design.XNoteBottomTabIconSize
@@ -476,6 +477,8 @@ fun XNoteApp(
             showsRecycleSelection -> XNoteRecycleSelectionHeight
             showsNoteSelection -> noteSelectionBarHeight +
                 if (showsBottomNavigation) XNoteBottomNavigationHeight + XNoteSpacingSmall else XNoteSpacingMedium
+            showsBottomNavigation && navigationState.destination == AppDestination.Notes ->
+                XNoteBottomNavigationHeight + XNoteSpacingSmall + XNoteCreateNoteButtonSize
             showsBottomNavigation -> XNoteBottomNavigationHeight
             navigationState.destination == AppDestination.Notes &&
                 (navigationState.notesRoute is NotesRoute.Notebook || navigationState.notesRoute is NotesRoute.Collection) ->
@@ -488,18 +491,20 @@ fun XNoteApp(
             else -> XNoteSpacingMedium
         }
         val contentEndPadding = if (isTablet) 24.dp else XNoteSpacingMedium
-        val contentTopPadding = statusBarHeight + XNoteHeaderHeight + XNoteSpacingMedium
+        val contentTopPadding = xNoteScrollEdgePadding(statusBarHeight + XNoteHeaderHeight)
         val contentPadding = PaddingValues(
             start = contentStartPadding,
             top = contentTopPadding,
             end = contentEndPadding,
-            bottom = navigationBarHeight + bottomOverlayHeight + XNoteSpacingMedium,
+            bottom = if (bottomOverlayHeight > 0.dp) {
+                xNoteScrollEdgePadding(navigationBarHeight + bottomOverlayHeight)
+            } else navigationBarHeight + XNoteSpacingMedium,
         )
         val editorContentPadding = PaddingValues(
             start = contentStartPadding,
             top = contentTopPadding,
             end = contentEndPadding,
-            bottom = bottomOverlayHeight + XNoteSpacingMedium,
+            bottom = xNoteScrollEdgePadding(bottomOverlayHeight),
         )
         val listState = when {
             navigationState.isSearchOpen -> searchListState

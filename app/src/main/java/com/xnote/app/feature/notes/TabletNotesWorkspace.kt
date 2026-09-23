@@ -84,7 +84,7 @@ fun TabletNotesWorkspace(
     var selectionHeight by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val insets = WindowInsets.safeDrawing.asPaddingValues()
-    val top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp
+    val top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight)
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
     val listEdges = if (navigation.isSearchOpen) setOf(XNoteScrollEdge.Top) else edges
     val editorEdges = if (editor == null) setOf(XNoteScrollEdge.Top) else edges
@@ -119,7 +119,9 @@ fun TabletNotesWorkspace(
                     toastHostState = toast,
                     content = {
                         val padding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 48.dp,
-                            bottom = insets.calculateBottomPadding() + if (ui.selectedIds.isNotEmpty()) with(density) { selectionHeight.toDp() } + 16.dp else 88.dp)
+                            bottom = if (navigation.isSearchOpen) insets.calculateBottomPadding() + 24.dp
+                            else xNoteScrollEdgePadding(insets.calculateBottomPadding() +
+                                if (ui.selectedIds.isNotEmpty()) with(density) { selectionHeight.toDp() } else 72.dp))
                         if (navigation.isSearchOpen) {
                             SearchScreen(query, searchNotebookId, results, recentQueries, notebooks, listBackdrop, padding,
                                 searchListState, onQueryChange, onSearch, onSearchNotebook, onOpenNote)
@@ -152,7 +154,7 @@ fun TabletNotesWorkspace(
                             pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize().onSizeChanged(onBackgroundSizeChanged), backgroundImage) }, content = {
                                 if (editor != null && editorSession != null) {
                                     NoteEditorScreen(editorSession, editorBackdrop,
-                                        PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = XNoteEditorToolbarHeight + 16.dp), editorScroll)
+                                        PaddingValues(start = 24.dp, end = 24.dp, top = top, bottom = xNoteScrollEdgePadding(XNoteEditorToolbarHeight)), editorScroll)
                                 } else {
                                     Text("选择一篇笔记开始编辑", style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.Center).padding(24.dp))
                                 }

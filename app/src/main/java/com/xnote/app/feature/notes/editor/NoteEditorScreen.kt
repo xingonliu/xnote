@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import com.xnote.app.R
+import com.xnote.app.design.xNoteScrollEdgePadding
 import com.xnote.app.design.XNoteErrorState
 import com.xnote.app.design.XNoteIconSizeMedium
 import com.xnote.app.design.XNoteMaximumContentWidth
@@ -115,7 +116,7 @@ fun NoteEditorScreen(
                 start = contentPadding.calculateStartPadding(layoutDirection),
                 top = contentPadding.calculateTopPadding(),
                 end = contentPadding.calculateEndPadding(layoutDirection),
-                bottom = (session.toolbarHeightDp + 8f).dp,
+                bottom = maxOf(contentPadding.calculateBottomPadding(), xNoteScrollEdgePadding(session.toolbarHeightDp.dp)),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

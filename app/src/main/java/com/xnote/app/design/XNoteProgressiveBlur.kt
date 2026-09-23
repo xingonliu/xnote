@@ -17,7 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
@@ -38,7 +38,6 @@ data class XNoteScrollEdgeState(
 
 // -- Constants
 
-private val ProgressiveBlurHeight = 128.dp
 private const val ProgressiveBlurRadiusPx = 1f
 private const val ProgressiveBlurTintShader = """
     uniform shader content;
@@ -54,6 +53,12 @@ private const val ProgressiveBlurTintShader = """
         return mix(content.eval(coord), tint, tintAlpha);
     }
 """
+
+// -- Functions
+
+// Both values are measured from the same viewport edge, including system insets when applicable.
+fun xNoteScrollEdgePadding(overlayHeight: Dp): Dp =
+    maxOf(XNoteProgressiveBlurHeight, overlayHeight) + XNoteSpacingMedium
 
 // -- Composables
 
@@ -128,7 +133,7 @@ private fun XNoteProgressiveBlurLayer(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(ProgressiveBlurHeight)
+            .height(XNoteProgressiveBlurHeight)
             .clearAndSetSemantics { }
             .drawPlainBackdrop(
                 backdrop = backdrop,

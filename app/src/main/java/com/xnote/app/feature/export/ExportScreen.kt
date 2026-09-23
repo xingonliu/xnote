@@ -128,9 +128,9 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                         scrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         alwaysVisibleScrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         content = {
-                            Box(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp,
-                                bottom = if (controlsHeight == 0) insets.calculateBottomPadding() + 156.dp
-                                else with(initialDensity) { controlsHeight.toDp() } + 16.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.fillMaxSize().padding(top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
+                                bottom = xNoteScrollEdgePadding(if (controlsHeight == 0) insets.calculateBottomPadding() + 140.dp
+                                else with(initialDensity) { controlsHeight.toDp() })), contentAlignment = Alignment.Center) {
                                 when {
                                     failure -> XNoteErrorState(errorMessage, backdrop, actionLabel = stringResource(R.string.export_retry),
                                         onAction = { attempt++ })

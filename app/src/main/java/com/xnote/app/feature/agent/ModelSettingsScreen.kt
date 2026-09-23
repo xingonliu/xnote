@@ -53,7 +53,7 @@ fun ModelSettingsScreen(
         XNotePageScaffold(backdrop = backdrop, scrollEdges = edges, alwaysVisibleScrollEdges = edges, content = {
             val insets = WindowInsets.safeDrawing.asPaddingValues()
             Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(
-                start = 24.dp, end = 24.dp, top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp,
+                start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
                 bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 error?.let { Text(it, Modifier.testTag("model-status"), color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 if (selected == null) {

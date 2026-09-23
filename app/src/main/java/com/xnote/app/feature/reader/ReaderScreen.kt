@@ -70,9 +70,9 @@ fun ReaderScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val tablet = maxWidth >= 600.dp
         val insets = WindowInsets.safeDrawing.asPaddingValues()
-        val top = insets.calculateTopPadding() + XNoteHeaderHeight + XNoteSpacingMedium
-        val bottom = if (controlsHeight > 0) with(density) { controlsHeight.toDp() } + XNoteSpacingMedium
-            else insets.calculateBottomPadding() + 96.dp
+        val top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight)
+        val bottom = xNoteScrollEdgePadding(if (controlsHeight > 0) with(density) { controlsHeight.toDp() }
+            else insets.calculateBottomPadding() + 80.dp)
         val horizontal = if (tablet) 24.dp else XNoteSpacingMedium
         XNotePageScaffold(
             backdrop = backdrop,

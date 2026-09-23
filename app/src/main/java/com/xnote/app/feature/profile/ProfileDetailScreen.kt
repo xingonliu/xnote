@@ -32,7 +32,7 @@ fun ProfileDetailScreen(page: String, notes: List<Note>, notebooks: List<Noteboo
     BackHandler(onBack = onBack)
     XNotePageScaffold(backdrop = backdrop, scrollEdges = edges, alwaysVisibleScrollEdges = edges, content = {
         val insets = WindowInsets.safeDrawing.asPaddingValues()
-        val padding = PaddingValues(start = 24.dp, end = 24.dp, top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp,
+        val padding = PaddingValues(start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
             bottom = insets.calculateBottomPadding() + 24.dp)
         when (page) {
             "统计" -> StatisticsContent(notes, notebooks, padding, onOpenNote)
