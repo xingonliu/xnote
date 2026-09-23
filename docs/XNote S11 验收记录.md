@@ -21,20 +21,22 @@
 
 实现入口：`domain/agent/ModelContracts.kt`、`data/agent/Model*`、`feature/agent/ModelSettingsScreen.kt`。
 
-- P18 从“我的 → 模型与服务商”进入；主页只展示已配置列表与新增入口；新增和编辑为独立页面，编辑页管理测试、默认项和删除。预设通过 OpenRouter 公开目录拉取文字模型，主流供应商优先、同供应商按发布时间倒序，支持搜索与刷新；选择后补全模型 ID、OpenRouter 基地址、OpenAI 兼容协议及容量预算，填写 OpenRouter API Key。自定义手填地址和模型 ID，支持三种协议。目录失败可重试或使用自定义，编辑已有配置不依赖目录成功。
+- P18 从“我的 → 模型与服务商”进入；主页只展示已配置列表与新增入口；新增和编辑为独立页面，编辑页管理测试、默认项和删除。预设从 Models.dev 拉取厂商、官方模型 ID、发布日期、容量和 SDK 适配信息；厂商缺少 `api` 时，通过 All LLM Provider List 的 slug/aliases 匹配并补齐官方基地址。两份 JSON 在运行时并行拉取，不内置厂商地址表或模型名单。主流厂商优先，其余按厂商名称排序；同厂商按发布时间倒序。厂商、模型、自定义协议复用 `XNoteSelectField` 与 `XNoteSelectMenu`，由 `XNoteDropdownMenu` 提供锚定菜单、搜索与滚动。选择后补全官方地址、协议、模型及预算，使用对应厂商自己的 API Key；切换厂商清空当前输入的密钥。自定义手填地址和模型 ID，支持三种协议。目录失败可重试或使用自定义，编辑已有配置不依赖目录成功。
 - Room 5 新增 Profile 表，4→5 自动迁移保留 Agent 事实源。普通配置不包含 API Key；凭据使用 Android Keystore AES/GCM 加密，密文位于 `noBackupFilesDir/model-credentials`。替换和删除成功后移除旧密文。界面不回填密钥，临时输入不写入保存状态。
 - 配置保存递增版本；当前运行和待处理队列使用的配置禁止替换、删除或切换默认项。修改无关配置不会干扰当前运行；无有效默认项时明确要求处理，不自动选其他配置。认证信息只进入请求 Header，不放进 URL、消息、普通配置或错误日志。
 - 统一消息、文字增量、工具调用、工具结果、用量与结束原因；OpenAI 需要结束原因和 `[DONE]`，Anthropic 需要结束原因和 `message_stop`，Gemini 需要 `finishReason`。EOF 不冒充完成；输出上限与过滤结果独立于正常完成。Gemini 工具回传保留原始 parts 与 thoughtSignature。
-- 能力测试提示最多三次请求及可能产生费用；先测试文字流式，再用无副作用的函数验证调用及结果回传。仅文字成功时仍可聊天，工具保持未验证。模型、服务、密钥或预算配置变化使能力验证失效。
+- 能力测试提示最多三次请求及可能产生费用；先测试文字流式，再用无副作用的函数验证调用及结果回传。仅文字成功时仍可聊天，工具保持未验证。模型、厂商适配、服务、密钥或预算配置变化使能力验证失效。
 - OkHttp 5.5.0 处理 HTTPS、取消与超时；不自动重试或跟随重定向。连接/写入 15 秒、读取 90 秒、单请求总时长 180 秒；SSE 单事件最多 1 Mi 字符、总响应最多 4 Mi 字符。网络、认证、配额、服务、协议、超时分别给出固定提示，不展示服务错误正文。
-- 目录请求无需凭据，15 秒总超时，响应上限 8 MiB，不自动重试或跟随重定向；仅选择支持文字输入与输出的模型，不自动证明工具能力。预设上下文采用目录值（不超过本地 200 万上限），输出取 4096、目录输出上限及上下文预留后的较小值；用户可调整。
+- 两份目录请求均不携带用户凭据，各 15 秒总超时、响应上限 8 MiB，不自动重试或跟随重定向；仅选择支持文字输入与输出的模型，不自动证明工具能力。预设上下文采用目录值（不超过本地 200 万上限），输出取 4096、目录输出上限及上下文预留后的较小值；用户可调整。
 - 自定义 Profile 默认上下文 32768 Token、输出 4096 Token，要求用户依据服务能力填写；它们是预算输入，不能作为已验证的模型容量。测试输出最多 1024 Token；工具预算预留 1024 Token。用量取服务返回值，不显示推测费用。
 
 验证：`ModelProtocolTest` 在三种协议上覆盖文字、取消、HTTP 认证失败、工具参数分片与结果序列化、结束标记、SSE 边界和秘密隔离；`ModelProfileStoreTest` 验证 Keystore 密文、删除及配置锁；`ModelSettingsFlowTest` 验证新增、编辑、能力状态与删除。2026-09-22 上述测试通过。通过本地 `XNOTE_LIVE_CONFIG` 指向用户的 `apikey.env`，OpenAI 兼容服务上的 `gpt-5.6-terra` 已通过文字流式、工具调用及工具结果回传三步真实请求；密钥不写进代码或测试输出。Anthropic、Gemini 当前为受控协议测试，尚无对应真实服务凭据；三家真实服务全覆盖仍由 S11.12 验收。
 
-2026-09-23 配置页面验收：`testDebugUnitTest` 共 131 项，130 项通过、1 项需真实服务凭据的测试跳过；`assembleDebug` 成功，`lintDebug` 0 错误、16 条既有警告。Android 16 模拟器上 `ModelSettingsFlowTest` 与 `ModelProfileStoreTest` 共 5 项通过，覆盖自定义新增/编辑/测试/删除、预设自动补全与持久化、目录失败重试、离线编辑已有预设、取消返回及凭据和配置锁。`ModelCatalogTest` 覆盖供应商排序、最新模型排序、去重、文字能力筛选、预算边界和无效目录。已核对模型列表页与独立新增页截图。公开目录实测返回 454 个条目；本次未使用 OpenRouter 付费推理请求作为验证。预设模式随 Profile 保存，自定义 OpenRouter 地址仍保留手填模式；变更服务地址时要求填写对应凭据。
+目录规则：依据远端 SDK 类型映射已实现的 OpenAI 兼容、Anthropic Messages 和 Gemini 协议。主目录地址优先，补充目录仅填缺失地址；根域名形式的 Anthropic/Gemini 地址补齐对应版本路径。缺失地址、不安全 URL、未知适配器、模型级接口覆盖、已弃用或不支持文字的条目不展示。当前不提供仅支持 Responses 的 OpenAI 专用模型。远端刷新不会改写已保存配置，离线编辑沿用其厂商名称、地址、协议与模型。主流排序为 OpenAI、Anthropic、Google、DeepSeek、智谱/Z.AI、Kimi、MiniMax、Qwen、xAI。目录数据不是可用性或工具能力证明，仍需用户测试连接。
 
-目录依据：[OpenRouter 模型目录](https://openrouter.ai/docs/guides/overview/models)，通过 Context7 核查公开接口、模型元数据与凭据要求。
+目录来源：[Models.dev](https://models.dev)、[All LLM Provider List](https://github.com/foisalislambd/all-llm-provider-list)。前者通过 Context7 核查 `/api.json` 格式；后者读取公开 `data/providers.json`，用于缺失地址补全。预设使用各厂商官方账户与 Key，未以所有厂商真实付费推理作为验收证据。
+
+2026-09-23 动态配置验收：133 项单元测试中 132 项通过、1 项真实服务测试因未提供凭据跳过。目录测试覆盖远端新增厂商、原生模型 ID、别名地址补全、地址变更、三种协议映射、主流排序、容量边界、无效地址与未知适配器过滤。端侧 `ModelSettingsFlowTest` 4 项、`ModelProfileStoreTest` 2 项、`XNoteDesignSystemTest` 15 项通过，覆盖新增/编辑/删除、离线编辑、厂商切换清空密钥、模型联动、50 项下拉滚动与搜索、公共浮层定位和退出。已查看下拉菜单及独立配置页截图。`assembleDebug` 成功，`lintDebug` 0 错误、16 条既有警告。
 
 协议依据：[OpenAI Chat Completions 流式事件](https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events)、[Anthropic 流式 Messages](https://platform.claude.com/docs/en/build-with-claude/streaming)、[Gemini GenerateContent](https://ai.google.dev/api/generate-content)、[Android Keystore](https://developer.android.com/privacy-and-security/keystore)、[OkHttp 取消与超时](https://square.github.io/okhttp/recipes/)。Anthropic、Gemini 及 OkHttp 文档同时通过 Context7 核查。
 

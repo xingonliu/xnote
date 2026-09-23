@@ -10,9 +10,10 @@ fun modelRequestJson(profile: ModelProfile, request: ModelRequest): JsonObject =
         ModelProtocol.OpenAI -> {
             put("model", profile.modelId)
             put("stream", true)
-            put("store", false)
-            put("max_completion_tokens", profile.outputTokens)
-            putJsonObject("stream_options") { put("include_usage", true) }
+            val nativeOpenAI = profile.providerId == null || profile.providerId == "openai"
+            if (nativeOpenAI) put("store", false)
+            put(if (nativeOpenAI) "max_completion_tokens" else "max_tokens", profile.outputTokens)
+            if (profile.providerId != "mistral") putJsonObject("stream_options") { put("include_usage", true) }
             putJsonArray("messages") {
                 add(buildJsonObject { put("role", "system"); put("content", request.system) })
                 request.messages.forEach { message ->

@@ -42,7 +42,7 @@ class ModelProfileStore(private val database: XNoteDatabase, private val credent
             ensureUnlocked(value.id, changingDefault)
             val reference = if (newSecret != null) UUID.randomUUID().toString() else
                 oldRow?.credentialReference ?: throw ModelException(ModelError.MissingCredential)
-            val sameService = old != null && old.protocol == value.protocol && old.baseUrl == value.baseUrl.trimEnd('/') &&
+            val sameService = old != null && old.providerId == value.providerId && old.protocol == value.protocol && old.baseUrl == value.baseUrl.trimEnd('/') &&
                 old.modelId == value.modelId && old.contextTokens == value.contextTokens && old.outputTokens == value.outputTokens && newSecret == null
             val saved = value.copy(version = (old?.version ?: 0) + 1, baseUrl = value.baseUrl.trimEnd('/'),
                 capabilities = if (sameService) old.capabilities else ModelCapabilities())

@@ -371,6 +371,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteDrawer`            | 长内容、选择器、辅助工作流                           | 替代简单确认弹窗               |
 | `XNoteToastHost`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
 | `XNotePopup`             | 锚定提示、预览和轻量操作                             | 承载破坏性确认                 |
+| `XNoteSelectField` / `XNoteSelectMenu` | 可搜索、可滚动的单选下拉框，复用公共锚定菜单 | 业务自行实现下拉浮层 |
 | `XNoteDropdownMenu`      | 与锚点相关的离散操作列表                             | 展示复杂表单或无限层级         |
 | `XNoteBackgroundPicker`  | 默认背景与单篇笔记专属背景的选择、预览和继承状态     | 绕过页面状态直接持久化业务数据 |
 | `XNoteNoteSurface`       | 在编辑、预览、阅读和导出中渲染同一笔记背景与内容画布 | 绘制应用 Header 或工具栏       |

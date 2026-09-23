@@ -41,6 +41,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -82,6 +84,8 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.Backdrop
 import com.kyant.shapes.RoundedRectangle
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -342,7 +346,7 @@ fun BoxScope.XNotePopup(
     val settings = LocalXNoteInteractionSettings.current
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    val safeDrawing = WindowInsets.safeDrawing
+    val safeDrawing = WindowInsets.safeDrawing.union(WindowInsets.ime)
     val safeInsets = XNotePopupSafeInsets(
         left = safeDrawing.getLeft(density, layoutDirection),
         top = safeDrawing.getTop(density),
@@ -459,7 +463,10 @@ fun BoxScope.XNoteDropdownMenu(
     anchor: XNotePopupAnchor? = null,
     placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
     shape: Shape = XNoteSmoothCornerShape(XNotePopupRadius),
+    header: (@Composable () -> Unit)? = null,
 ) {
+    val scrollState = rememberScrollState()
+    val scrollBackdrop = rememberLayerBackdrop()
     XNotePopup(
         visible = expanded,
         onDismissRequest = onDismissRequest,
@@ -469,43 +476,52 @@ fun BoxScope.XNoteDropdownMenu(
         placement = placement,
         shape = shape,
     ) {
-        items.forEach { item ->
-            val foreground = when {
-                item.destructive -> MaterialTheme.colorScheme.error
-                item.selected -> MaterialTheme.colorScheme.primary
-                else -> MaterialTheme.colorScheme.onSurface
+        header?.invoke()
+        Box {
+            Column(Modifier.layerBackdrop(scrollBackdrop).verticalScroll(scrollState)) {
+                items.forEach { item ->
+                    val foreground = when {
+                        item.destructive -> MaterialTheme.colorScheme.error
+                        item.selected -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = if (item.selected) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                } else {
+                                    Color.Transparent
+                                },
+                                shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
+                            )
+                            .clickable(
+                                enabled = item.enabled,
+                                role = Role.Button,
+                                onClick = {
+                                    item.onClick()
+                                    onDismissRequest()
+                                },
+                            )
+                            .semantics { selected = item.selected }
+                            .heightIn(min = XNoteButtonSize)
+                            .padding(horizontal = XNoteSpacingMedium, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = item.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = foreground.copy(alpha = if (item.enabled) 1f else 0.48f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = if (item.selected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                        } else {
-                            Color.Transparent
-                        },
-                        shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
-                    )
-                    .clickable(
-                        enabled = item.enabled,
-                        role = Role.Button,
-                        onClick = {
-                            item.onClick()
-                            onDismissRequest()
-                        },
-                    )
-                    .semantics { selected = item.selected }
-                    .heightIn(min = XNoteButtonSize)
-                    .padding(horizontal = XNoteSpacingMedium, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = item.label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = foreground.copy(alpha = if (item.enabled) 1f else 0.48f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Box(Modifier.matchParentSize()) {
+                XNoteProgressiveBlur(scrollBackdrop, rememberXNoteScrollEdgeState(scrollState),
+                    setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom))
             }
         }
     }

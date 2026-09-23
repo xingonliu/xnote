@@ -731,7 +731,7 @@ XNote
 ### 5.18 P18 模型与服务商
 
 - 模型页面只显示已配置列表和新增配置按钮；点击配置或新增进入独立编辑/新增页面。
-- 预设从 OpenRouter 最新目录选择供应商与模型，自动补全模型 ID、基地址及容量，填写 OpenRouter API Key；自定义手填服务地址和模型 ID，支持 OpenAI、Anthropic、Gemini 三种协议。
+- 预设从动态目录选择厂商与官方模型，两个常驻下拉框复用公共选择组件，支持搜索与滚动，主流厂商优先。厂商地址、协议和模型不内置写死；选中后自动补全模型 ID、官方基地址及容量，填写各厂商自己的 API Key；自定义手填服务地址和模型 ID，支持 OpenAI、Anthropic、Gemini 三种协议。
 - 当前模型、多模态、文件及工具能力标识；发送前检查能力。
 - 连通性测试、用量及错误状态；凭据不进入消息和日志。
 - 参考 NCXMUSIC 的多组 Profile，提供新增、编辑、删除、默认项和能力验证；协议为 OpenAI Chat Completions、Anthropic Messages、Gemini 流式生成。

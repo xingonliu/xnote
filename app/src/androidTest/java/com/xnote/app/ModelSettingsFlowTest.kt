@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.core.app.ApplicationProvider
+import androidx.compose.ui.semantics.SemanticsActions
 import com.xnote.app.data.agent.*
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.design.XNoteTheme
@@ -38,7 +39,8 @@ class ModelSettingsFlowTest {
         compose.onNodeWithTag("model-name").performScrollTo().performTextInput("测试配置")
         compose.onNodeWithTag("model-id").performScrollTo().performTextInput("test-model")
         compose.onNodeWithTag("model-key").performScrollTo().performTextInput("local-test-key")
-        compose.onNodeWithTag("model-save").performScrollTo().performClick()
+        compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { store.list().size == 1 } }
         compose.onNodeWithText("测试配置 · 默认").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("model-name").assertDoesNotExist()
@@ -49,7 +51,8 @@ class ModelSettingsFlowTest {
         compose.onNodeWithText("文字流式：已验证 · 工具：未验证").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("model-name").performScrollTo().performTextReplacement("重命名配置")
         compose.onNodeWithTag("model-key").assertTextEquals("")
-        compose.onNodeWithTag("model-save").performScrollTo().performClick()
+        compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { store.list().single().name == "重命名配置" } }
         compose.onNodeWithText("重命名配置 · 默认").performScrollTo().performClick()
         compose.onNodeWithText("删除").performScrollTo().performClick()
@@ -58,7 +61,7 @@ class ModelSettingsFlowTest {
     }
 
     @Test fun presetAutofillsAndReopensWithoutDependingOnCatalog() {
-        val entry = CatalogModel("openai/test-latest", "最新测试模型", 100, 128000, 4096)
+        val entry = CatalogModel("test-latest", "最新测试模型", "2026-09-23", 128000, 4096, CatalogProvider("openai", "OpenAI", ModelProtocol.OpenAI, "https://api.openai.com/v1"))
         var loads = 0
         val catalog = ModelCatalog {
             loads++
@@ -69,22 +72,61 @@ class ModelSettingsFlowTest {
         compose.onNodeWithTag("model-add").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("model-selected").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("model-selected").assertTextEquals(entry.id)
-        compose.onNodeWithTag("model-preset-url").performScrollTo().assertTextEquals(OpenRouterBaseUrl)
+        compose.onNodeWithTag("model-preset-url").performScrollTo().assertTextEquals(entry.provider.baseUrl)
         compose.onNodeWithTag("model-url").assertDoesNotExist()
         compose.onNodeWithTag("model-key").performScrollTo().performTextInput("local-test-key")
         screenshot("model-preset-phone")
-        compose.onNodeWithTag("model-save").performScrollTo().performClick()
+        compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { store.list().size == 1 } }
         val saved = runBlocking { store.list().single() }
-        org.junit.Assert.assertEquals(OpenRouterBaseUrl, saved.baseUrl)
+        org.junit.Assert.assertEquals(entry.provider.baseUrl, saved.baseUrl)
         org.junit.Assert.assertEquals(entry.id, saved.modelId)
         org.junit.Assert.assertTrue(saved.usesPreset)
         org.junit.Assert.assertEquals(128000, saved.contextTokens)
         compose.onNodeWithText("最新测试模型 · 默认").performScrollTo().performClick()
         compose.onNodeWithText("模型目录加载失败，请重试或使用自定义配置。").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("model-key").performScrollTo().assertTextEquals("")
-        compose.onNodeWithTag("model-save").performScrollTo().performClick()
+        compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { store.list().single().version == 2L } }
+    }
+
+    @Test fun providerAndModelDropdownsSelectNativeProtocolAndClearCredentials() {
+        val claude = CatalogProvider("anthropic", "Anthropic", ModelProtocol.Anthropic, "https://api.anthropic.com/v1")
+        val fresh = CatalogProvider("new-provider", "新厂商", ModelProtocol.OpenAI, "https://new.example/v1")
+        val entries = listOf(
+            CatalogModel("test-claude", "Claude Test", "2026-09-23", 128000, 4096, claude),
+            CatalogModel("test-new", "New Test", "2026-09-23", 128000, 4096, fresh),
+            CatalogModel("test-small", "Small Test", "2026-09-22", 64000, 2048, fresh),
+        ) + (1..50).map { index -> CatalogModel("test-$index", "Model $index", "2026-09-23", 64000, 2048,
+            CatalogProvider("provider-$index", "厂商 $index", ModelProtocol.OpenAI, "https://provider-$index.example/v1")) }
+        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, ModelCatalog { entries }) {} } }
+        compose.onNodeWithTag("model-add").performClick()
+        compose.onNodeWithText("接口协议：Anthropic Messages").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("model-key").performScrollTo().performTextInput("wrong-provider-key")
+        compose.onNodeWithTag("model-provider").performScrollTo().performClick()
+        compose.onNodeWithText("厂商 50").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("select-search").performTextInput("new-provider")
+        screenshot("model-provider-dropdown")
+        compose.onNodeWithText("新厂商").performClick()
+        compose.onNodeWithTag("model-key").performScrollTo().assertTextEquals("")
+        compose.onNodeWithTag("model-picker").performScrollTo().performClick()
+        compose.onNodeWithTag("select-search").performTextInput("small")
+        compose.onNodeWithText("Small Test · test-small").performClick()
+        compose.onNodeWithTag("model-selected").assertTextEquals("test-small")
+        compose.onNodeWithTag("model-preset-url").performScrollTo().assertTextEquals(fresh.baseUrl)
+        compose.onNodeWithTag("model-key").performScrollTo().performTextInput("new-provider-test-key")
+        screenshot("model-official-provider-phone")
+        compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
+        compose.waitUntil(5000) { runBlocking { store.list().isNotEmpty() } }
+        val saved = runBlocking { store.list().single() }
+        org.junit.Assert.assertEquals(fresh.baseUrl, saved.baseUrl)
+        org.junit.Assert.assertEquals("new-provider", saved.providerId)
+        org.junit.Assert.assertEquals(ModelProtocol.OpenAI, saved.protocol)
+        org.junit.Assert.assertEquals("test-small", saved.modelId)
+        org.junit.Assert.assertEquals(64000, saved.contextTokens)
     }
 
     @Test fun catalogFailureCanRetryAndCancelCustomWithoutSaving() {

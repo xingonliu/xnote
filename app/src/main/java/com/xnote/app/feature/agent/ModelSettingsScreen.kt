@@ -26,12 +26,13 @@ import java.util.UUID
 fun ModelSettingsScreen(
     store: ModelProfileStore,
     client: ModelClient,
-    catalog: ModelCatalog = remember { OpenRouterModelCatalog() },
+    catalog: ModelCatalog = remember { OfficialModelCatalog() },
     onBack: () -> Unit,
 ) {
     val profiles by store.profiles.collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     val backdrop = rememberLayerBackdrop()
+    val selectState = rememberXNoteSelectState()
     var editing by remember { mutableStateOf<ModelProfile?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
@@ -42,6 +43,7 @@ fun ModelSettingsScreen(
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
     fun back() {
         if (saving) return
+        selectState.dismiss()
         job?.cancel()
         error = null
         if (editing != null) editing = null else onBack()
@@ -71,7 +73,7 @@ fun ModelSettingsScreen(
                         }
                     }
                 } else {
-                    ModelProfileForm(selected, saved == null, backdrop, catalog, saving || testing, onCancel = { back() }) { profile, secret ->
+                    ModelProfileForm(selected, saved == null, backdrop, catalog, selectState, saving || testing, onCancel = { back() }) { profile, secret ->
                         saving = true
                         scope.launch {
                             try { store.save(profile.copy(isDefault = saved?.isDefault ?: profile.isDefault), secret); editing = null; error = null }
@@ -119,6 +121,7 @@ fun ModelSettingsScreen(
         }, overlay = {
             XNoteHeader(if (selected == null) "模型与服务商" else if (saved == null) "新增配置" else "编辑配置",
                 backdrop, onBack = { back() }, modifier = Modifier.align(Alignment.TopCenter))
+            XNoteSelectMenu(selectState, backdrop)
         })
     }
 }

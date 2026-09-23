@@ -9,7 +9,7 @@ import java.net.URI
 
 @Serializable
 enum class ModelProtocol(val label: String, val root: String) {
-    OpenAI("OpenAI Chat Completions", "https://api.openai.com/v1"),
+    OpenAI("OpenAI 兼容（Chat Completions）", "https://api.openai.com/v1"),
     Anthropic("Anthropic Messages", "https://api.anthropic.com/v1"),
     Gemini("Gemini GenerateContent", "https://generativelanguage.googleapis.com/v1beta"),
 }
@@ -31,6 +31,8 @@ data class ModelProfile(
     val outputTokens: Int = ModelLimits.DefaultOutputTokens,
     val capabilities: ModelCapabilities = ModelCapabilities(),
     val usesPreset: Boolean = false,
+    val providerId: String? = null,
+    val providerName: String? = null,
 )
 
 data class ModelTool(val name: String, val description: String, val parameters: JsonObject)

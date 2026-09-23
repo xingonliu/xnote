@@ -19,7 +19,7 @@ import kotlinx.coroutines.CancellationException
 // -- Functions
 
 @Composable
-internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: Backdrop, catalog: ModelCatalog, busy: Boolean, onCancel: () -> Unit, onSave: (ModelProfile, String?) -> Unit) {
+internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: Backdrop, catalog: ModelCatalog, selectState: XNoteSelectState, busy: Boolean, onCancel: () -> Unit, onSave: (ModelProfile, String?) -> Unit) {
     var name by remember { mutableStateOf(initial.name) }
     var protocol by remember { mutableStateOf(initial.protocol) }
     var root by remember { mutableStateOf(initial.baseUrl) }
@@ -28,23 +28,23 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
     var enabled by remember { mutableStateOf(initial.enabled) }
     var context by remember { mutableStateOf(initial.contextTokens.toString()) }
     var output by remember { mutableStateOf(initial.outputTokens.toString()) }
-    var preset by remember { mutableStateOf(isNew || initial.usesPreset) }
+    var preset by remember { mutableStateOf(isNew || (initial.usesPreset && initial.providerId != null)) }
     var models by remember { mutableStateOf<List<CatalogModel>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var catalogError by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
-    var vendor by remember { mutableStateOf(initial.modelId.substringBefore('/').removePrefix("~")) }
-    var search by remember { mutableStateOf("") }
-    var picking by remember { mutableStateOf(isNew) }
+    var provider by remember { mutableStateOf(initial.providerId?.let {
+        CatalogProvider(it, initial.providerName ?: it, initial.protocol, initial.baseUrl)
+    }) }
     fun select(value: CatalogModel) {
         if (name.isBlank() || name == models.find { it.id == model }?.name) name = value.name
         model = value.id
-        root = OpenRouterBaseUrl
-        protocol = ModelProtocol.OpenAI
-        vendor = value.vendor
+        if (root != value.provider.baseUrl) secret = ""
+        provider = value.provider
+        root = value.provider.baseUrl
+        protocol = value.provider.protocol
         context = value.contextTokens.toString()
         output = value.outputTokens.toString()
-        picking = false
     }
     LaunchedEffect(preset, refresh) {
         if (preset) {
@@ -52,7 +52,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
             catalogError = false
             try {
                 models = catalog.load()
-                if (model.isBlank()) models.firstOrNull()?.let(::select)
+                if (model.isBlank()) models.firstOrNull { provider == null || it.provider.id == provider?.id }?.let(::select)
             }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { catalogError = true }
@@ -61,66 +61,52 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(preset, {
-            if (!preset) { preset = true; model = ""; root = OpenRouterBaseUrl; protocol = ModelProtocol.OpenAI; secret = ""; picking = true }
+            if (!preset) { preset = true; model = ""; secret = "" }
         }, label = { Text("预设") }, enabled = !busy, modifier = Modifier.testTag("model-preset"))
         FilterChip(!preset, {
             if (preset) { preset = false; model = ""; root = protocol.root; secret = "" }
         }, label = { Text("自定义") }, enabled = !busy, modifier = Modifier.testTag("model-custom"))
     }
     if (preset) {
-        Text("预设来自 OpenRouter 最新目录，需填写 OpenRouter API Key。")
+        Text("选择厂商与模型，填写该厂商的 API Key。")
+        val providers = models.map { it.provider }.distinctBy { it.id }
+        XNoteSelectField("厂商", provider?.id.orEmpty(), provider?.name.orEmpty(),
+            providers.map { XNoteSelectOption(it.id, it.name) }, selectState, backdrop,
+            onSelect = { id ->
+                if (provider?.id != id) {
+                    secret = ""
+                    name = ""
+                    models.firstOrNull { it.provider.id == id }?.let(::select)
+                }
+            }, modifier = Modifier.testTag("model-provider"), enabled = !busy && !loading)
+        val choices = models.filter { it.provider.id == provider?.id }
+        XNoteSelectField("模型", model, choices.find { it.id == model }?.name ?: model,
+            choices.map { XNoteSelectOption(it.id, it.name + " · " + it.id) }, selectState, backdrop,
+            onSelect = { id -> choices.find { it.id == id }?.let(::select) },
+            modifier = Modifier.testTag("model-picker"), enabled = !busy && !loading)
+        if (model.isNotBlank()) Text(model, Modifier.testTag("model-selected"), style = MaterialTheme.typography.bodySmall)
         if (loading) Text("正在加载模型目录…")
         if (catalogError) Text("模型目录加载失败，请重试或使用自定义配置。")
+        if (!loading && !catalogError && choices.isEmpty()) Text("暂无可用模型，请刷新或使用自定义配置。")
         LiquidButton({ refresh++ }, backdrop, enabled = !loading && !busy) { Text("刷新模型目录") }
-        if (model.isNotBlank()) {
-            Text(model, Modifier.testTag("model-selected"))
-            LiquidButton({ picking = !picking }, backdrop, enabled = !busy) { Text("选择模型") }
-        }
-        if (picking) {
-            val vendors = models.map { it.vendor }.distinct()
-            var vendorMenu by remember { mutableStateOf(false) }
-            Box {
-                LiquidButton({ vendorMenu = true }, backdrop, enabled = !busy) { Text("供应商：${vendor.ifBlank { "全部" }}") }
-                DropdownMenu(vendorMenu, { vendorMenu = false }, modifier = Modifier.heightIn(max = 320.dp)) {
-                    vendors.forEach { option ->
-                        DropdownMenuItem(text = { Text(option) }, onClick = {
-                            vendorMenu = false
-                            vendor = option
-                            search = ""
-                            models.firstOrNull { it.vendor == option }?.let(::select)
-                            picking = true
-                        })
-                    }
-                }
-            }
-            Text("搜索模型（按发布时间由新到旧）")
-            XNoteTextField(search, { search = it }, Modifier.testTag("model-search"))
-            models.filter { (vendor.isBlank() || it.vendor == vendor) &&
-                (it.name.contains(search, true) || it.id.contains(search, true)) }.take(30).forEach { option ->
-                LiquidButton({ select(option) }, backdrop, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(option.name) }
-            }
-            if (!loading && models.isNotEmpty()) Text("最多显示 30 项，可通过供应商和搜索缩小范围。", style = MaterialTheme.typography.bodySmall)
-        }
     }
     Text("配置名称")
     XNoteTextField(name, { name = it }, Modifier.testTag("model-name"))
     if (preset) {
-        Text("接口协议：${ModelProtocol.OpenAI.label}")
-        Text(OpenRouterBaseUrl, Modifier.testTag("model-preset-url"))
+        Text("接口协议：${protocol.label}")
+        Text(root, Modifier.testTag("model-preset-url"))
     } else {
         Text("接口协议")
-        ModelProtocol.entries.forEach { option ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(protocol == option, { protocol = option; root = option.root })
-                Text(option.label)
-            }
-        }
+        XNoteSelectField("接口类型", protocol.name, protocol.label,
+            ModelProtocol.entries.map { XNoteSelectOption(it.name, it.label) }, selectState, backdrop,
+            onSelect = { id -> protocol = ModelProtocol.valueOf(id); root = protocol.root; secret = "" },
+            modifier = Modifier.testTag("model-protocol"), enabled = !busy)
         Text("服务根地址（含 API 版本路径）")
         XNoteTextField(root, { root = it }, Modifier.testTag("model-url"), keyboardType = KeyboardType.Uri)
         Text("模型 ID")
         XNoteTextField(model, { model = it }, Modifier.testTag("model-id"))
     }
-    val needsSecret = isNew || (if (preset) OpenRouterBaseUrl else root.trim().trimEnd('/')) != initial.baseUrl
+    val needsSecret = isNew || root.trim().trimEnd('/') != initial.baseUrl
     Text(if (needsSecret) "API Key（此服务需要填写凭据）" else "API Key（留空保留现有凭据）")
     XNoteTextField(secret, { secret = it }, Modifier.testTag("model-key"), visualTransformation = PasswordVisualTransformation(), keyboardType = KeyboardType.Password)
     Text("模型上下文容量（Token）")
@@ -129,7 +115,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
     XNoteTextField(output, { output = it }, Modifier.testTag("model-output"), keyboardType = KeyboardType.Number)
     Text("容量应依据服务文档填写；默认预算只用于本地估算，不代表模型已验证的容量。", style = MaterialTheme.typography.bodySmall)
     Row(verticalAlignment = Alignment.CenterVertically) { Switch(enabled, { enabled = it }); Text("启用") }
-    LiquidButton({ onSave(initial.copy(usesPreset = preset, name = name.trim(), protocol = if (preset) ModelProtocol.OpenAI else protocol, baseUrl = if (preset) OpenRouterBaseUrl else root.trim(), modelId = model.trim(), enabled = enabled,
+    LiquidButton({ onSave(initial.copy(usesPreset = preset, name = name.trim(), protocol = protocol, baseUrl = root.trim(), providerId = if (preset) provider?.id else null, providerName = if (preset) provider?.name else null, modelId = model.trim(), enabled = enabled,
         contextTokens = context.toIntOrNull() ?: 0, outputTokens = output.toIntOrNull() ?: 0), secret.takeIf { it.isNotEmpty() }) }, backdrop, enabled = !busy && model.isNotBlank() && (!needsSecret || secret.isNotBlank()),
         modifier = Modifier.fillMaxWidth().testTag("model-save")) { Text("保存配置") }
     LiquidButton(onCancel, backdrop, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("取消") }
