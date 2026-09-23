@@ -517,20 +517,21 @@ fun XNoteApp(
             else -> listState
         }
         val scrollEdgeState = rememberXNoteScrollEdgeState(scrollable)
-        val scrollEdges = if (
-            isSecondaryPage ||
-            showsBottomNavigation ||
-            showsEditorToolbar ||
-            showsRecycleSelection
-        ) {
+        val showsNotesBottomControls = !navigationState.isSearchOpen &&
+            !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen &&
+            navigationState.destination == AppDestination.Notes &&
+            (isEditor || navigationState.notesRoute is NotesRoute.Notebook ||
+                navigationState.notesRoute is NotesRoute.Collection)
+        val showsBottomBlur = showsBottomNavigation || showsRecycleSelection || showsNotesBottomControls
+        val scrollEdges = if (showsBottomBlur) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
         }
-        val alwaysVisibleScrollEdges = if (isSecondaryPage) {
-            setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
-        } else {
-            emptySet()
+        val alwaysVisibleScrollEdges = when {
+            !isSecondaryPage -> emptySet()
+            showsBottomBlur -> scrollEdges
+            else -> setOf(XNoteScrollEdge.Top)
         }
 
         EditorBackgroundTheme(

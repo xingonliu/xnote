@@ -28,7 +28,7 @@
 - Android 13+ / Jetpack Compose 工程、主题、令牌、60% 平滑圆角。
 - 手机 `LiquidBottomTabs`、官方 `LiquidButton`、项目级 `XNoteLiquidGlassPanel` 与平板 Navigation Rail。
 - 一级目的地外壳：笔记 / Agent / 我的；手机搜索进入全屏页，平板搜索保留 Navigation Rail 并在笔记列表栏展开。
-- `XNotePageScaffold` 统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass Progressive blur，二级页面顶部和底部遮罩常驻。
+- `XNotePageScaffold` 统一系统安全区、页面加载/错误、Toast Host 与 AndroidLiquidGlass Progressive blur；二级页面顶部遮罩常驻，有固定底部按钮或操作栏时底部遮罩也常驻。
 - 标准 `XNoteHeader` 支持返回、居中标题和零至两个右侧操作；笔记首页与占位页复用公共状态组件。
 - 公共 Dialog、Drawer、Toast、Popup、Dropdown，以及加载、空、错误状态和 `XNoteRichTextToolbar` API/视觉。
 - 系统减少动画监听；关闭动画时禁用 Liquid Button、Bottom Tabs、Progressive blur 与浮层的弹性、形变和过渡。

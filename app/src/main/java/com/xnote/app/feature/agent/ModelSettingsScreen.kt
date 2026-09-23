@@ -40,7 +40,7 @@ fun ModelSettingsScreen(
     var job by remember { mutableStateOf<Job?>(null) }
     val selected = editing
     val saved = profiles.find { it.id == selected?.id }
-    val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
+    val edges = setOf(XNoteScrollEdge.Top)
     fun back() {
         if (saving) return
         selectState.dismiss()

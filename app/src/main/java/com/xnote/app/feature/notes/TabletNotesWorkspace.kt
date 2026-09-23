@@ -86,6 +86,8 @@ fun TabletNotesWorkspace(
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     val top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
+    val listEdges = if (navigation.isSearchOpen) setOf(XNoteScrollEdge.Top) else edges
+    val editorEdges = if (editor == null) setOf(XNoteScrollEdge.Top) else edges
     var notebookWasPresent by remember(notebookId) { mutableStateOf(false) }
     LaunchedEffect(notebooks, notebookId) {
         val exists = notebooks.any { it.id == notebookId }
@@ -112,7 +114,7 @@ fun TabletNotesWorkspace(
                 }
                 val listModifier = if (full || editor != null) Modifier.width(320.dp) else Modifier.weight(1f)
                 XNotePageScaffold(listBackdrop, modifier = listModifier.testTag("xnote-tablet-note-list"),
-                    scrollEdges = edges, alwaysVisibleScrollEdges = edges,
+                    scrollEdges = listEdges, alwaysVisibleScrollEdges = listEdges,
                     scrollEdgeState = rememberXNoteScrollEdgeState(if (navigation.isSearchOpen) searchListState else listState),
                     toastHostState = toast,
                     content = {
@@ -145,7 +147,7 @@ fun TabletNotesWorkspace(
                     VerticalDivider()
                     EditorBackgroundTheme(background, library, appSettings, active = editor != null) { backgroundImage, onBackgroundSizeChanged ->
                         XNotePageScaffold(editorBackdrop, modifier = Modifier.weight(1f).testTag("xnote-tablet-content"),
-                            scrollEdges = edges, alwaysVisibleScrollEdges = edges,
+                            scrollEdges = editorEdges, alwaysVisibleScrollEdges = editorEdges,
                             scrollEdgeState = rememberXNoteScrollEdgeState(editorScroll),
                             pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize().onSizeChanged(onBackgroundSizeChanged), backgroundImage) }, content = {
                                 if (editor != null && editorSession != null) {

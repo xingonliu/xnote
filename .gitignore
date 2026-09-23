@@ -4,6 +4,7 @@
 .kotlin/
 build/
 **/build/
+.env
 
 # Android Studio
 .idea/

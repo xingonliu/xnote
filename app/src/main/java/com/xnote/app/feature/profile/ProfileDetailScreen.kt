@@ -28,7 +28,7 @@ import java.util.Date
 @Composable
 fun ProfileDetailScreen(page: String, notes: List<Note>, notebooks: List<Notebook>, onBack: () -> Unit, onOpenNote: (String) -> Unit) {
     val backdrop = rememberLayerBackdrop()
-    val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
+    val edges = setOf(XNoteScrollEdge.Top)
     BackHandler(onBack = onBack)
     XNotePageScaffold(backdrop = backdrop, scrollEdges = edges, alwaysVisibleScrollEdges = edges, content = {
         val insets = WindowInsets.safeDrawing.asPaddingValues()
