@@ -30,6 +30,7 @@ data class ModelProfile(
     val contextTokens: Int = ModelLimits.DefaultContextTokens,
     val outputTokens: Int = ModelLimits.DefaultOutputTokens,
     val capabilities: ModelCapabilities = ModelCapabilities(),
+    val usesPreset: Boolean = false,
 )
 
 data class ModelTool(val name: String, val description: String, val parameters: JsonObject)

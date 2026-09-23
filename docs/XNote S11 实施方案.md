@@ -113,7 +113,7 @@ D01–D02 遵循用户指定的 NCXMUSIC 配置方式、共用模型及对话中
 
 | 编号 | 主题 | 实施规则 | 验证切片 |
 | --- | --- | --- | --- |
-| D01 | 接口与配置 | 参考 NCXMUSIC 的多组 Profile：名称、协议、服务根地址、API Key、模型 ID、启用状态、默认项和能力验证。采用 OpenAI Chat Completions、Anthropic Messages、Gemini 流式生成三种协议，模型可手填；三家预设地址与自定义地址均明确显示协议。提供新增、编辑、删除和文字/流式/工具能力验证，不把品牌名称当作能力证据。目录获取可作为辅助，不阻塞手填配置；首版不依赖 OpenRouter 目录或账号。 | S11.2 |
+| D01 | 接口与配置 | 参考 NCXMUSIC 的多组 Profile：名称、协议、服务根地址、API Key、模型 ID、启用状态、默认项和能力验证。模型主页只显示已配置列表和新增按钮；新增与编辑进入独立页面。预设参考 NCXMUSIC，通过 OpenRouter 公开目录拉取最新文字模型，按供应商归类、发布时间倒序，选择后自动填入模型 ID、OpenRouter 基地址、OpenAI 兼容协议和容量预算，使用 OpenRouter API Key。自定义手填服务地址和模型 ID，可选 OpenAI Chat Completions、Anthropic Messages、Gemini 流式生成三种协议。编辑页提供删除、默认项和文字/流式/工具能力验证，不把目录元数据当作能力验证。目录失败可重试，不阻塞自定义或已有配置。 | S11.2 |
 | D02 | 共用模型与固定配置 | 不单独配置摘要模型，全部模型任务共用对话配置。对话页没有切换入口，当前运行、补充及队列绑定配置版本；后台任务记录模型版本。设置只在无运行、无待处理队列时允许变更当前配置，变更不会重写历史；后续任务采用明确保存的配置，未完成旧任务不得静默改用新模型。失效配置显示需处理，不自动切换或回退到其他服务商。 | S11.2 / S11.4 |
 | D03 | 范围与新建归属 | 指定笔记本支持多选。用户明确指定且在可写范围内的目标优先；只有一个可写目标时使用该目标；多个目标且未指定时请用户选择。仅附加范围没有新建目标时请求用户明确归属及该次创建授权，新建笔记在本次运行内可继续操作，不扩大整个笔记本的授权。S11 不提供笔记本管理或移动既有笔记归属的工具。 | S11.1 / S11.5 / S11.7 |
 | D04 | 授权与降级 | 三级授权范围内实时写入不重复询问，越界时请求授权。一次运行允许与始终允许分别保存为临时授权和用户配置，模型不能自行升级。用户降低等级或撤销范围优先于旧临时授权。用户仍可在本地接受或拒绝已经发生的改动；这不赋予模型继续读取或改写的权限。 | S11.1 / S11.5 |
@@ -131,7 +131,7 @@ D01–D02 遵循用户指定的 NCXMUSIC 配置方式、共用模型及对话中
 
 ### 3.1 参考依据与适用范围
 
-- NCXMUSIC 核查版本：`7f62030`。配置数据参考 `src/shared/schemas/provider-profile.ts`，交互参考 `src/renderer/features/settings/ModelSettingsPanel.vue`，协议参考 `src/infrastructure/provider/provider-protocol.ts`。其预设目录走 OpenRouter、新增表单固定 OpenAI 兼容协议；XNote 采用其 Profile 与验证方式，明确暴露三种协议，按本项目范围实现。
+- NCXMUSIC 核查版本：`7f62030`。配置数据参考 `src/shared/schemas/provider-profile.ts`，交互参考 `src/renderer/features/settings/ModelSettingsPanel.vue`，协议参考 `src/infrastructure/provider/provider-protocol.ts`。其预设目录走 OpenRouter、新增表单固定 OpenAI 兼容协议；XNote 采用其 Profile、公开模型目录与验证方式，预设自动补全；自定义明确暴露三种协议，新增和编辑使用独立页面。
 - [Codex 权限](https://learn.chatgpt.com/docs/permissions)：参考操作权限与访问范围分离；XNote 采用本项目已确认的三级能力，不复制桌面文件系统权限值。
 - [Cursor Agent](https://prod.cursor.com/help/ai-features/agent)：参考实时改动、Diff、停止、队列与保留聊天的回退。
 - [Claude Code 检查点](https://code.claude.com/docs/en/checkpointing)：参考修改前记录与恢复；XNote 额外遵守单篇整体审阅和用户编辑冲突保护。
