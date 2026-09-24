@@ -29,6 +29,17 @@ class AgentContextBudgetTest {
         assertThrows(AgentBudgetException::class.java) { planAgentContext(profile, emptyList(), "大".repeat(5000)) }
     }
 
+    @Test fun executionKeepsPartialReplyAndSupplementWithoutCompression() {
+        val execution = listOf(ModelMessage(AgentMessageRole.User, "原始目标"), ModelMessage(AgentMessageRole.Assistant, "中断前的输出"), ModelMessage(AgentMessageRole.User, "新的补充"))
+        val plan = planAgentExecutionContext(profile, List(20) { AgentContextTurn("旧问".repeat(100), "旧答".repeat(100)) }, execution)
+        assertEquals(execution, plan.messages.takeLast(3))
+        assertTrue(plan.compressed)
+        assertTrue(plan.estimatedInputTokens + profile.outputTokens + ModelLimits.ToolReserveTokens <= profile.contextTokens)
+        assertThrows(AgentBudgetException::class.java) {
+            planAgentExecutionContext(profile, emptyList(), execution + ModelMessage(AgentMessageRole.Assistant, "长".repeat(5000)))
+        }
+    }
+
     @Test fun chineseAndEmojiBudgetUsesUtf8InsteadOfEnglishCharacterRatio() {
         assertTrue(estimatedAgentTokens("你好") > estimatedAgentTokens("hi"))
         assertEquals(4, estimatedAgentTokens("😀") - estimatedAgentTokens(""))

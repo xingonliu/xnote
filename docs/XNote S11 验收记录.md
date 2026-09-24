@@ -58,3 +58,30 @@
 端侧最终记录（Android 16、720×1280）：S11 事实源/迁移、模型配置、时间线及两页 UI 专项共 14 项通过，真实 Android 对话另行通过。检查手机配置页、键盘输入及完整对话截图，发送按钮可见、页面往返保留记录。
 
 扩大到全部端侧用例时，运行 112 项出现 7 项失败，不能视为全套回归通过。对照本次接入前的 `f7424b3` 基线，复现 5 项相同失败：`existingTableAtDocumentEndAllowsTypingAfterItAndSaving`、`tabletPanesKeepDraftAndSelectionAcrossSearchResizeAndRecreation`、`wideWindowKeepsTheNavigationRailWhileSearchExpandsInTheListPane`、`notebookGridAdaptsToThemeWindowAndLargeText`、`edgesFadeIntoBothThemeBackgroundsAndRestoreWhenHidden`。其余 `insertBubbleAndImagePillWorkInEditor`、`existingImageAtDocumentEndAllowsTypingAfterItAndSaving` 在当前版本与基线单独重跑均通过，记录为不稳定用例；本次未改动这些用例或编辑器业务逻辑。完整手机/平板回归仍归入 S11.12。
+
+## S11.4 运行控制、队列与后台恢复（进行中）
+
+实现入口：`data/agent/AgentTimeline.kt`、`AgentRunService.kt`、`domain/agent/AgentRunLimits.kt`、`feature/agent/AgentScreen.kt`。
+
+- 运行中发送保存为当前运行的待补充消息，在完整响应边界消费。结束判定与补充提交共用互斥锁；原始目标、此前部分回复及补充完整参与后续请求预算。已完成历史可以压缩，当前执行不能静默截断。
+- 队列消息落库，支持编辑、删除及上下排序，绑定模型 ID/版本。取出消息、创建运行及标记已派发处于同一事务；成功后顺序派发下一项，停止、失败、中断或容量暂停时暂停队列。冷启动不自动派发，用户选择继续。队列存在时设置页继续锁定所绑定配置。
+- 继续原运行保留部分回复并追加执行事件，不创建新的目标或切换模型。继续前检查工具提交记录，结果未知或仍在执行的工具阻止继续。当前工具审计骨架记录未经开放的调用并拒绝执行；真实工具及本地提交核查随 S11.5–S11.7 接入。
+- 运行默认最多 16 次模型请求（计入重试，跨继续累计）、每次执行窗口最多 10 分钟、队列最多 50 条。仅对尚未产生正文的网络、服务和超时错误重试两次，间隔 1 秒、2 秒；认证、配额、非法请求及已产生正文的错误不自动重试。参数集中在 `AgentRunLimits`。
+- `dataSync` 前台服务承载模型网络请求，使用有限时长的部分唤醒锁；离页、后台与熄屏可继续。通知提供停止入口。通知未开启时页面说明可见性限制并提供授权入口；应用内停止始终可用。服务启动失败、系统超时或服务销毁进入可恢复中断，使用 `START_NOT_STICKY` 避免系统自动重放请求。取消清除运行临时授权。
+- 原生服务回调在请求协程启动前触发取消时，也必须进入持久化取消处理，避免数据库残留“运行中”。协程以 `ATOMIC` 启动，先完成前台服务启动请求，再允许模型请求；取消后的本地状态提交使用 `NonCancellable`。
+- 消息支持复制、单条删除及清空聊天。删除单条消息保留其他时间线条目，但使整轮失去后续上下文资格，防止相关回复重传被删除输入。清空前停止任务、清除队列与快照引用；独立笔记改动及审阅表不受影响。清空操作使用确认弹层。
+
+当前验证：134 项单元测试中 133 项通过，真实服务测试因未显式提供凭据跳过；`testDebugUnitTest`、`lintDebug`、Debug APK 构建和安装通过。Lint 0 错误、18 条现有依赖/公共控件/资源警告。运行层端侧测试覆盖补充及队列恰好一次派发、编辑排序、停止暂停与配置锁、有限重试、清空取消、继续、磁盘库重开、删除历史安全投影、累计循环限制、服务启动拒绝和启动前取消。界面测试覆盖发送、页面往返、新话题；已检查 720×1280 手机截图。
+
+2026-09-24：运行层 16 项、界面 1 项、通知停止 1 项共 18 项端侧专项全部通过；通知权限拒绝用例在预先撤权后独立执行并通过（合计 19 项）。
+
+原生后台测试使用无真实凭据的保留测试地址挂起有界请求，验证系统前台服务、桌面/熄屏及通知停止；它不是模型服务联调证据。通知拒绝用例必须在启动 instrumentation 前撤销权限，避免测试进程自身被权限撤销终止：
+
+```text
+adb shell pm revoke com.xnote.app android.permission.POST_NOTIFICATIONS
+adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#deniedNotificationsKeepForegroundExecutionAndInAppStopAvailable com.xnote.app.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+尚待完成的 S11.4 验收：实际杀进程后重启并继续、Android 系统 `dataSync` 超时回调及后台启动限制的端到端验证。等待授权/冲突与工具提交恢复需随 S11.5–S11.7 的真实工具联动验证；S11.4 尚未标记完整验收，S11.5–S11.7 尚未交付。
+
+平台依据：[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。

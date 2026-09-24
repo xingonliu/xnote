@@ -10,6 +10,33 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AgentDao {
+    @Query("SELECT * FROM agent_queue WHERE status != 'Dispatched' ORDER BY position, createdAtEpochMs, id")
+    fun observeQueue(): Flow<List<AgentQueueEntity>>
+
+    @Query("DELETE FROM agent_queue WHERE id = :id")
+    suspend fun deleteQueueItem(id: String)
+
+    @Query("UPDATE agent_messages SET runId = :runId, segmentId = :segmentId, status = 'Complete' WHERE id = :id")
+    suspend fun dispatchMessage(id: String, runId: String, segmentId: String)
+
+    @Query("SELECT * FROM agent_tool_events WHERE runId = :runId ORDER BY createdAtEpochMs, id")
+    suspend fun toolEvents(runId: String): List<AgentToolEventEntity>
+
+    @Query("DELETE FROM agent_messages WHERE id = :id")
+    suspend fun deleteMessage(id: String)
+
+    @Query("DELETE FROM agent_snapshot_refs WHERE messageId = :messageId")
+    suspend fun deleteSnapshotRefs(messageId: String)
+
+    @Query("DELETE FROM agent_snapshots WHERE id NOT IN (SELECT snapshotId FROM agent_snapshot_refs)")
+    suspend fun deleteUnusedSnapshots()
+
+    @Query("DELETE FROM agent_attachment_refs WHERE ownerType = 'snapshot' AND ownerId NOT IN (SELECT id FROM agent_snapshots)")
+    suspend fun deleteUnusedSnapshotAttachments()
+
+    @Query("DELETE FROM agent_attachment_refs WHERE ownerType = 'message' AND ownerId = :messageId")
+    suspend fun deleteMessageAttachments(messageId: String)
+
     @Query("SELECT * FROM agent_draft WHERE id = 1")
     suspend fun draft(): AgentDraftEntity?
 

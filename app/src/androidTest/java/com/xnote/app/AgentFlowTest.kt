@@ -75,10 +75,12 @@ class AgentFlowTest {
         compose.waitUntil(5000) { compose.onAllNodesWithText("我的").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("我的").performClick()
         compose.onNodeWithText("Agent").performClick()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
         screenshot("agent-timeline")
         compose.onNodeWithTag("agent-new-topic").performClick()
-        compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Event } } }
+        compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Event && it.text == "开始新话题" } } }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
     }
 

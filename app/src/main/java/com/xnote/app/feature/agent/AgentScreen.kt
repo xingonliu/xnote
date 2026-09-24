@@ -1,5 +1,10 @@
 package com.xnote.app.feature.agent
 
+import android.Manifest
+import android.app.NotificationManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.AgentTimeline
+import com.xnote.app.design.XNoteDialog
+import com.xnote.app.design.XNoteDialogAction
 import com.xnote.app.design.XNoteGroupCard
 import com.xnote.app.design.XNoteTextField
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -27,40 +34,72 @@ import kotlinx.coroutines.launch
 fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: PaddingValues, modifier: Modifier = Modifier) {
     val messages by timeline.messages.collectAsState(emptyList())
     val runs by timeline.runs.collectAsState(emptyList())
+    val queue by timeline.queue.collectAsState(emptyList())
+    val context = LocalContext.current
+    var notificationsEnabled by remember { mutableStateOf(context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationsEnabled = context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
+    }
     val state by timeline.state.collectAsState()
     val savedDraft by timeline.draft.collectAsState()
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var input by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
     var restored by remember { mutableStateOf(false) }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) list.animateScrollToItem(messages.lastIndex)
+        if (list.layoutInfo.totalItemsCount > 0) list.animateScrollToItem(list.layoutInfo.totalItemsCount - 1)
     }
     fun action(block: suspend () -> Unit) { scope.launch {
         try { block(); error = null }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { error = if (failure is AgentBudgetException) failure.message else safeModelError(failure) }
+        catch (failure: Exception) { error = when (failure) { is AgentBudgetException, is IllegalArgumentException -> failure.message; else -> safeModelError(failure) } }
     } }
-    Column(modifier.fillMaxSize().imePadding().padding(contentPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().imePadding().padding(contentPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!keyboardVisible || state.running || unresolved) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            LiquidButton({ action { timeline.newTopic() } }, backdrop, enabled = state.ready && !unresolved, modifier = Modifier.testTag("agent-new-topic")) { Text("开始新话题") }
+            if (!state.running) LiquidButton({ action { timeline.newTopic() } }, backdrop, enabled = state.ready && !state.running && !unresolved && queue.isEmpty(), modifier = Modifier.testTag("agent-new-topic")) { Text("开始新话题") }
+            LiquidButton({ confirmClear = true }, backdrop, enabled = state.ready, modifier = Modifier.testTag("agent-clear")) { Text("清空聊天") }
             if (state.running) LiquidButton(timeline::stop, backdrop, modifier = Modifier.testTag("agent-stop")) { Text("停止") }
+            if (!state.running && unresolved) {
+                val recoverable = runs.lastOrNull { it.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.PausedBudget) }
+                if (recoverable != null) LiquidButton({ action { timeline.continueRun(recoverable.id) } }, backdrop, modifier = Modifier.testTag("agent-continue")) { Text("继续任务") }
+            }
             if (!state.running && unresolved) LiquidButton({ action { timeline.finishUnresolved() } }, backdrop) { Text("保留内容并结束任务") }
         }
         if (!state.ready) Text("正在恢复对话…")
         (error ?: state.notice)?.let { Text(it, Modifier.testTag("agent-notice"), style = MaterialTheme.typography.bodySmall) }
         if (messages.isEmpty() && state.ready && !keyboardVisible) Text("在这里与 Agent 对话。模型在“我的 → 模型与服务商”配置。", style = MaterialTheme.typography.bodyMedium)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("agent-timeline"), state = list, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(messages, key = { it.sequence }) { message ->
+        if (!notificationsEnabled) item(key = "notification-permission") { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("通知未开启，后台运行状态和停止入口可能不可见。", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            LiquidButton({ notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }, backdrop) { Text("开启通知") }
+        } }
+            if (queue.isNotEmpty()) item(key = "queue-header") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("队列 · ${queue.size} 条", Modifier.weight(1f))
+                    if (!state.running && !unresolved) LiquidButton({ action { timeline.resumeQueue() } }, backdrop, modifier = Modifier.testTag("agent-resume-queue")) { Text("继续队列") }
+                }
+            }
+            items(queue, key = { "queue-${it.id}" }) { queued ->
+                val queuedMessage = messages.find { it.id == queued.messageId }
+                if (queuedMessage != null) AgentQueueCard(queued.id, queuedMessage.text, queued.status == AgentQueueStatus.Paused, backdrop,
+                    onSave = { value -> action { timeline.editQueued(queued.id, value) } },
+                    onMove = { direction -> action { timeline.moveQueued(queued.id, direction) } },
+                    onRemove = { action { timeline.removeQueued(queued.id) } })
+            }
+            items(messages.filter { message -> queue.none { it.messageId == message.id } && !(message.role == AgentMessageRole.Event && message.text == "模型请求") }, key = { it.sequence }) { message ->
                 val run = runs.find { it.id == message.runId }
                 XNoteGroupCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(when (message.role) { AgentMessageRole.User -> "你"; AgentMessageRole.Assistant -> "Agent"; else -> "话题" }, style = MaterialTheme.typography.labelMedium)
+                        Text(when (message.role) { AgentMessageRole.User -> "你"; AgentMessageRole.Assistant -> "Agent"; else -> "执行记录" }, style = MaterialTheme.typography.labelMedium)
                         SelectionContainer { Text(message.text.ifEmpty { if (message.status == AgentMessageStatus.Streaming) "正在生成…" else "未生成回复" }) }
+                        if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("将在下一执行边界补充", style = MaterialTheme.typography.bodySmall)
+                        if (!state.running && !unresolved && message.role != AgentMessageRole.Event) LiquidButton({ action { timeline.deleteMessage(message.id) } }, backdrop) { Text("删除消息") }
                         if (message.role == AgentMessageRole.Assistant) {
                             Text(when (message.status) {
                                 AgentMessageStatus.Complete -> "已完成"
@@ -69,6 +108,9 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
                                 AgentMessageStatus.Cancelled -> "已停止"
                                 AgentMessageStatus.Interrupted -> if (run?.status == AgentRunStatus.PausedBudget) "达到容量上限" else "已中断"
                             }, style = MaterialTheme.typography.bodySmall)
+                            if (!state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)) {
+                                LiquidButton({ action { timeline.continueRun(checkNotNull(run).id) } }, backdrop) { Text("继续此任务") }
+                            }
                             if (run?.inputTokens != null || run?.outputTokens != null) Text(
                                 "服务用量：输入 ${run.inputTokens ?: "未知"} / 输出 ${run.outputTokens ?: "未知"} Token", style = MaterialTheme.typography.bodySmall)
                         }
@@ -78,7 +120,37 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
         }
         XNoteTextField(input, { value -> input = value; action { timeline.saveDraft(value) } },
             Modifier.heightIn(min = 48.dp, max = 160.dp).testTag("agent-input"), placeholder = "输入消息", singleLine = false, enabled = state.ready && restored)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         LiquidButton({ val sent = input; action { timeline.send(sent); input = "" } }, backdrop,
-            enabled = state.ready && restored && !state.running && !unresolved && input.isNotBlank(), modifier = Modifier.fillMaxWidth().testTag("agent-send")) { Text("发送") }
+            enabled = state.ready && restored && (state.running || (!unresolved && queue.isEmpty())) && input.isNotBlank(), modifier = Modifier.weight(1f).testTag("agent-send")) { Text(if (state.running) "补充当前任务" else "发送") }
+            LiquidButton({ val sent = input; action { timeline.enqueue(sent); input = "" } }, backdrop,
+                enabled = state.ready && restored && input.isNotBlank(), modifier = Modifier.testTag("agent-enqueue")) { Text("加入队列") }
+
+        }
+    }
+    XNoteDialog(confirmClear, { confirmClear = false }, "清空聊天", backdrop,
+        confirmAction = XNoteDialogAction("清空", { action { timeline.clearChat(); input = ""; confirmClear = false } }, destructive = true),
+        dismissAction = XNoteDialogAction("取消", { confirmClear = false })) {
+        Text("将停止当前任务、清空队列和聊天记录。已经应用的笔记改动及待审阅记录会保留。")
+    }
+    }
+}
+
+@Composable
+private fun AgentQueueCard(id: String, text: String, paused: Boolean, backdrop: Backdrop,
+    onSave: (String) -> Unit, onMove: (Int) -> Unit, onRemove: () -> Unit) {
+    var editing by rememberSaveable(id) { mutableStateOf(false) }
+    var input by rememberSaveable(id, text) { mutableStateOf(text) }
+    XNoteGroupCard(Modifier.fillMaxWidth().testTag("agent-queue-$id")) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (paused) "队列已暂停" else "等待执行", style = MaterialTheme.typography.labelMedium)
+            if (editing) XNoteTextField(input, { input = it }, singleLine = false) else Text(text)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LiquidButton({ if (editing) { onSave(input); editing = false } else editing = true }, backdrop, enabled = !editing || input.isNotBlank()) { Text(if (editing) "保存" else "编辑") }
+                LiquidButton({ onMove(-1) }, backdrop) { Text("上移") }
+                LiquidButton({ onMove(1) }, backdrop) { Text("下移") }
+                LiquidButton(onRemove, backdrop) { Text("删除") }
+            }
+        }
     }
 }

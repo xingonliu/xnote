@@ -38,5 +38,16 @@ fun planAgentContext(profile: ModelProfile, completed: List<AgentContextTurn>, i
     return AgentContextPlan(selected.asReversed().flatten() + ModelMessage(AgentMessageRole.User, input), used, true)
 }
 
+fun planAgentExecutionContext(profile: ModelProfile, completed: List<AgentContextTurn>, current: List<ModelMessage>): AgentContextPlan {
+    require(current.isNotEmpty())
+    // Reserve every current message in full, including partial replies and unconsumed supplements.
+    val reservedInput = current.joinToString("\n") { "[${it.role}] ${it.text}" }
+    val plan = planAgentContext(profile, completed, reservedInput)
+    val messages = plan.messages.dropLast(1) + current
+    val estimate = estimatedAgentTokens(AgentSystemPrompt) + messages.sumOf { estimatedAgentTokens(it.text) }
+    if (estimate > profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens) throw AgentBudgetException()
+    return plan.copy(messages = messages, estimatedInputTokens = estimate)
+}
+
 private fun historyExcerpt(text: String): String = if (text.length <= CompressedHistoryCharacters) text else
     "[已完成对话摘录，省略中间内容]\n${text.take(CompressedHistoryCharacters / 2)}\n…\n${text.takeLast(CompressedHistoryCharacters / 2)}"
