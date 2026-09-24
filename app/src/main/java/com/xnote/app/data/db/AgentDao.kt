@@ -10,6 +10,33 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AgentDao {
+    @Query("SELECT * FROM agent_reviews ORDER BY rowid")
+    fun observeReviews(): Flow<List<AgentReviewEntity>>
+
+    @Query("SELECT * FROM agent_reviews WHERE noteId = :noteId ORDER BY rowid")
+    suspend fun reviews(noteId: String): List<AgentReviewEntity>
+
+    @Query("SELECT * FROM agent_changes WHERE reviewId = :reviewId ORDER BY rowid")
+    suspend fun reviewChanges(reviewId: String): List<AgentChangeEntity>
+
+    @Query("SELECT * FROM agent_changes WHERE noteId = :noteId ORDER BY rowid")
+    suspend fun noteChanges(noteId: String): List<AgentChangeEntity>
+
+    @Query("DELETE FROM agent_attachment_refs WHERE ownerType = 'change' AND ownerId IN (SELECT id FROM agent_changes WHERE reviewId IN (SELECT id FROM agent_reviews WHERE status IN ('Rejected', 'Undone', 'Unrecoverable') OR (status = 'Accepted' AND reviewedAtEpochMs <= :expireBefore)))")
+    suspend fun pruneReviewedAttachments(expireBefore: Long)
+
+    @Query("SELECT * FROM agent_changes WHERE runId = :runId AND toolCallId = :callId LIMIT 1")
+    suspend fun committedChange(runId: String, callId: String): AgentChangeEntity?
+
+    @Query("DELETE FROM agent_attachment_refs WHERE ownerType = 'change' AND ownerId IN (SELECT id FROM agent_changes WHERE noteId IN (:noteIds))")
+    suspend fun deleteChangeAttachments(noteIds: List<String>)
+
+    @Query("UPDATE agent_reviews SET status = 'Unrecoverable' WHERE noteId IN (:noteIds)")
+    suspend fun markReviewsUnrecoverable(noteIds: List<String>)
+
+    @Query("DELETE FROM agent_changes WHERE noteId IN (:noteIds)")
+    suspend fun deleteNoteChanges(noteIds: List<String>)
+
     @Query("SELECT * FROM agent_permissions WHERE id = 1")
     fun observePermission(): Flow<AgentPermissionEntity?>
 

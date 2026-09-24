@@ -38,6 +38,7 @@ data class NotebookEntity(
         Index(value = ["updatedAtEpochMs"]),
     ],
 )
+@kotlinx.serialization.Serializable
 data class NoteEntity(
     @PrimaryKey val id: String,
     val notebookId: String?,

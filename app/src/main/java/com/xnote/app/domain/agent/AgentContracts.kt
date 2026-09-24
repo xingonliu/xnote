@@ -79,7 +79,7 @@ enum class AgentChangeOrigin { User, Agent }
 enum class AgentChangeKind { Create, Edit, Trash }
 
 @Serializable
-enum class AgentReviewStatus { Pending, Accepted, Rejected, Conflict, Unrecoverable }
+enum class AgentReviewStatus { Pending, Accepted, Rejected, Undone, Conflict, Unrecoverable }
 
 @Serializable
 data class AgentMessageSource(val noteId: String, val snapshotId: String? = null)

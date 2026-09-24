@@ -30,6 +30,7 @@ class AgentTimeline(
     private val mutableDraft = MutableStateFlow("")
     private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
     val noteStore = AgentNoteStore(database)
+    val reviewStore = AgentReviewStore(database)
     private val conversation = AgentConversationContext(database, noteStore)
     private var runningJob: Job? = null
     @Volatile private var interruptionReason: String? = null

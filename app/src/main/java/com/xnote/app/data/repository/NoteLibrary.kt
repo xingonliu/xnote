@@ -215,6 +215,7 @@ class NoteLibrary(
                 updatedAtEpochMs = clock.nowMs(),
             ).withDerivedText()
             notes.upsert(saved.toEntity())
+            com.xnote.app.data.agent.AgentReviewStore(database, clock::nowMs).recordUserChange(existing.toEntity(), saved.toEntity())
             if (saved.isTrashed) {
                 noteFts.deleteByNoteId(saved.id)
             } else {
@@ -230,6 +231,7 @@ class NoteLibrary(
             val existing = notes.get(noteId)?.toDomain() ?: error("Note not found: $noteId")
             val saved = existing.copy(title = title, document = document, updatedAtEpochMs = clock.nowMs()).withDerivedText()
             notes.upsert(saved.toEntity())
+            com.xnote.app.data.agent.AgentReviewStore(database, clock::nowMs).recordUserChange(existing.toEntity(), saved.toEntity())
             if (saved.isTrashed) noteFts.deleteByNoteId(saved.id) else indexForSearch(saved)
             saved
         }
@@ -313,6 +315,9 @@ class NoteLibrary(
             revisions.deleteByNoteIds(idList)
             noteFts.deleteByNoteIds(idList)
             notes.deleteByIds(idList)
+            database.agent().markReviewsUnrecoverable(idList)
+            database.agent().deleteChangeAttachments(idList)
+            database.agent().deleteNoteChanges(idList)
             database.agent().deleteUnusedSnapshotAttachments()
             deleteOrphanAttachments()
         }
@@ -448,6 +453,7 @@ class NoteLibrary(
     }
 
     private suspend fun deleteOrphanAttachments() {
+        database.agent().pruneReviewedAttachments(clock.nowMs() - com.xnote.app.domain.agent.AgentAcceptedUndoRetentionMs)
         val remainingNotes = notes.getAll().map { it.toDomain() }
         val remainingRevisions = revisions.getAll().map { it.toDomain() }
         val referenced = linkedSetOf<String>()

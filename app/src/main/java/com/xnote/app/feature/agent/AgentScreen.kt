@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: PaddingValues, modifier: Modifier = Modifier,
-    onOverlayVisible: (Boolean) -> Unit = {}) {
+    onOverlayVisible: (Boolean) -> Unit = {}, onOpenReviews: () -> Unit) {
     val messages by timeline.messages.collectAsState(emptyList())
     val runs by timeline.runs.collectAsState(emptyList())
     val queue by timeline.queue.collectAsState(emptyList())
@@ -83,6 +83,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
             if (!state.running) LiquidButton({ action { timeline.newTopic() } }, backdrop, enabled = state.ready && !state.running && !unresolved && queue.isEmpty(), modifier = Modifier.testTag("agent-new-topic")) { Text("开始新话题") }
             LiquidButton({ confirmClear = true }, backdrop, enabled = state.ready, modifier = Modifier.testTag("agent-clear")) { Text("清空聊天") }
             LiquidButton({ permissionDialog = true }, backdrop, modifier = Modifier.testTag("agent-permission-settings")) { Text("权限与范围") }
+            LiquidButton(onOpenReviews, backdrop, modifier = Modifier.testTag("agent-reviews")) { Text("笔记改动") }
             if (state.running) LiquidButton(timeline::stop, backdrop, modifier = Modifier.testTag("agent-stop")) { Text("停止") }
             if (!state.running && unresolved) {
                 val recoverable = runs.lastOrNull { it.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.PausedBudget) }
