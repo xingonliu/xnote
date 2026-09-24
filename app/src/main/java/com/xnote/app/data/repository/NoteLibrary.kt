@@ -313,6 +313,7 @@ class NoteLibrary(
             revisions.deleteByNoteIds(idList)
             noteFts.deleteByNoteIds(idList)
             notes.deleteByIds(idList)
+            database.agent().deleteUnusedSnapshotAttachments()
             deleteOrphanAttachments()
         }
     }

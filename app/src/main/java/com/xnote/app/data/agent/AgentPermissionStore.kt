@@ -6,10 +6,15 @@ import com.xnote.app.data.db.AgentPermissionEntity
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.domain.agent.AgentPermission
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.map
 
 // -- Type Definitions
 
 class AgentPermissionStore(private val database: XNoteDatabase) {
+    // -- Derived Values
+
+    val permission = database.agent().observePermission().map { it?.let { row -> Json.decodeFromString<AgentPermission>(row.permissionJson) } ?: AgentPermission() }
+
     // -- Functions
 
     suspend fun current(): AgentPermission = database.agent().permission()?.let {

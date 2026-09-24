@@ -25,6 +25,9 @@ import com.xnote.app.design.XNoteGroupCard
 import com.xnote.app.design.XNoteTextField
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.agent.*
+import com.xnote.app.data.db.AgentSnapshotEntity
+import com.xnote.app.data.db.AgentToolEventEntity
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -35,6 +38,17 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
     val messages by timeline.messages.collectAsState(emptyList())
     val runs by timeline.runs.collectAsState(emptyList())
     val queue by timeline.queue.collectAsState(emptyList())
+    val selectedNotes by timeline.draftNotes.collectAsState()
+    val availableNotes by timeline.noteStore.availableNotes.collectAsState(emptyList())
+    val notebooks by timeline.noteStore.notebooks.collectAsState(emptyList())
+    val permission by timeline.noteStore.permission.collectAsState(AgentPermission())
+    val snapshots by timeline.noteStore.snapshots.collectAsState(emptyList())
+    val tools by timeline.noteStore.toolEvents.collectAsState(emptyList())
+    var attachDialog by remember { mutableStateOf(false) }
+    var permissionDialog by remember { mutableStateOf(false) }
+    var permissionRequest by remember { mutableStateOf<AgentToolEventEntity?>(null) }
+    var snapshotPreview by remember { mutableStateOf<AgentSnapshotEntity?>(null) }
+    var toolPreview by remember { mutableStateOf<AgentToolEventEntity?>(null) }
     val context = LocalContext.current
     var notificationsEnabled by remember { mutableStateOf(context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -64,6 +78,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
         if (!keyboardVisible || state.running || unresolved) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!state.running) LiquidButton({ action { timeline.newTopic() } }, backdrop, enabled = state.ready && !state.running && !unresolved && queue.isEmpty(), modifier = Modifier.testTag("agent-new-topic")) { Text("开始新话题") }
             LiquidButton({ confirmClear = true }, backdrop, enabled = state.ready, modifier = Modifier.testTag("agent-clear")) { Text("清空聊天") }
+            LiquidButton({ permissionDialog = true }, backdrop, modifier = Modifier.testTag("agent-permission-settings")) { Text("权限与范围") }
             if (state.running) LiquidButton(timeline::stop, backdrop, modifier = Modifier.testTag("agent-stop")) { Text("停止") }
             if (!state.running && unresolved) {
                 val recoverable = runs.lastOrNull { it.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.PausedBudget) }
@@ -74,6 +89,14 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
         if (!state.ready) Text("正在恢复对话…")
         (error ?: state.notice)?.let { Text(it, Modifier.testTag("agent-notice"), style = MaterialTheme.typography.bodySmall) }
         if (messages.isEmpty() && state.ready && !keyboardVisible) Text("在这里与 Agent 对话。模型在“我的 → 模型与服务商”配置。", style = MaterialTheme.typography.bodyMedium)
+        if (runs.any { it.status == AgentRunStatus.WaitingPermission }) {
+            val request = tools.firstOrNull { it.status == AgentToolStatus.Requested && runs.any { run -> run.id == it.runId && run.status == AgentRunStatus.WaitingPermission } }
+            if (request != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LiquidButton({ toolPreview = request }, backdrop) { Text("查看工具请求") }
+                LiquidButton({ permissionRequest = request }, backdrop, enabled = !state.running, modifier = Modifier.testTag("agent-authorize")) { Text("${request.name} 需要授权") }
+                LiquidButton({ action { timeline.answerPermission(request.runId, request.callId, null) } }, backdrop, enabled = !state.running) { Text("拒绝") }
+            }
+        }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("agent-timeline"), state = list, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!notificationsEnabled) item(key = "notification-permission") { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("通知未开启，后台运行状态和停止入口可能不可见。", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -97,12 +120,23 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
                 XNoteGroupCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(when (message.role) { AgentMessageRole.User -> "你"; AgentMessageRole.Assistant -> "Agent"; else -> "执行记录" }, style = MaterialTheme.typography.labelMedium)
-                        SelectionContainer { Text(message.text.ifEmpty { if (message.status == AgentMessageStatus.Streaming) "正在生成…" else "未生成回复" }) }
+                        SelectionContainer { Text((if (message.role == AgentMessageRole.Tool) "工具结果已保存" else message.text).ifEmpty { if (message.status == AgentMessageStatus.Streaming) "正在生成…" else if (message.modelJson != null) "工具调用" else "未生成回复" }) }
+                        if (message.role == AgentMessageRole.User) {
+                            Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
+                                val snapshot = snapshots.find { it.id == source.snapshotId }
+                                LiquidButton({ snapshotPreview = snapshot }, backdrop, enabled = snapshot != null) {
+                                    Text(snapshot?.let { "发送快照 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除 · 快照不可用")
+                                }
+                            }
+                        }
                         if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("将在下一执行边界补充", style = MaterialTheme.typography.bodySmall)
                         if (!state.running && !unresolved && message.role != AgentMessageRole.Event) LiquidButton({ action { timeline.deleteMessage(message.id) } }, backdrop) { Text("删除消息") }
+                        if (message.role == AgentMessageRole.Tool) tools.filter { tool -> tool.runId == message.runId && message.modelJson?.let { Json.decodeFromString<ModelMessage>(it).results.any { result -> result.id == tool.callId } } == true }.forEach { tool ->
+                            LiquidButton({ toolPreview = tool }, backdrop) { Text("${tool.name} · ${tool.status.toolStatusLabel()}") }
+                        }
                         if (message.role == AgentMessageRole.Assistant) {
                             Text(when (message.status) {
-                                AgentMessageStatus.Complete -> "已完成"
+                                AgentMessageStatus.Complete -> if (message.modelJson != null) "工具调用已记录" else "已完成"
                                 AgentMessageStatus.Streaming, AgentMessageStatus.Pending -> "生成中"
                                 AgentMessageStatus.Failed -> "失败 · 已保留内容"
                                 AgentMessageStatus.Cancelled -> "已停止"
@@ -118,6 +152,10 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
                 }
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LiquidButton({ attachDialog = true }, backdrop, enabled = state.ready, modifier = Modifier.testTag("agent-attach-notes")) { Text("附加笔记 · ${selectedNotes.size}") }
+            Text(permission.level.permissionLabel() + " · " + permission.scope.scopeLabel(), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+        }
         XNoteTextField(input, { value -> input = value; action { timeline.saveDraft(value) } },
             Modifier.heightIn(min = 48.dp, max = 160.dp).testTag("agent-input"), placeholder = "输入消息", singleLine = false, enabled = state.ready && restored)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,6 +166,19 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
 
         }
     }
+    if (attachDialog) AgentAttachNotesDialog(availableNotes, selectedNotes, backdrop, { attachDialog = false }) { ids ->
+        action { timeline.selectDraftNotes(ids); attachDialog = false }
+    }
+    if (permissionDialog || permissionRequest != null) AgentPermissionDialog(permission, notebooks, backdrop, permissionRequest != null,
+        onDismiss = { permissionDialog = false; permissionRequest = null }) { choice, always ->
+        val request = permissionRequest
+        action {
+            if (request == null) timeline.savePermission(choice) else timeline.answerPermission(request.runId, request.callId, choice, always)
+            permissionDialog = false; permissionRequest = null
+        }
+    }
+    snapshotPreview?.let { AgentSnapshotDialog(it, backdrop) { snapshotPreview = null } }
+    toolPreview?.let { AgentToolDialog(it, backdrop) { toolPreview = null } }
     XNoteDialog(confirmClear, { confirmClear = false }, "清空聊天", backdrop,
         confirmAction = XNoteDialogAction("清空", { action { timeline.clearChat(); input = ""; confirmClear = false } }, destructive = true),
         dismissAction = XNoteDialogAction("取消", { confirmClear = false })) {

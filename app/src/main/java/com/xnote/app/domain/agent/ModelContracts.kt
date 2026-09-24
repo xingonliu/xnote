@@ -36,8 +36,11 @@ data class ModelProfile(
 )
 
 data class ModelTool(val name: String, val description: String, val parameters: JsonObject)
+@Serializable
 data class ModelToolCall(val id: String, val name: String, val arguments: JsonObject)
+@Serializable
 data class ModelToolResult(val id: String, val name: String, val content: String)
+@Serializable
 data class ModelMessage(
     val role: AgentMessageRole,
     val text: String = "",

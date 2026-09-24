@@ -7,6 +7,8 @@ import com.xnote.app.data.db.*
 import com.xnote.app.domain.agent.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.serialization.json.*
+import com.xnote.app.domain.document.*
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -290,6 +292,131 @@ class AgentTimelineTest {
             assertFalse(called)
             assertEquals(AgentRunStatus.Interrupted, db.agent().unfinishedRuns().single().status)
         }
+    }
+
+    @Test fun readToolLoopPersistsProtocolAndExcludesRevokedDerivedHistory() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            val profile = profiles.active()
+            profiles.recordCapabilities(profile, ModelCapabilities(true, true, 1))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                requests += request
+                if (requests.size == 1) {
+                    emit(ModelEvent.ToolCall(ModelToolCall("read-once", "read", buildJsonObject { put("note_id", "readable") })))
+                    emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                } else {
+                    emit(ModelEvent.Text(if (requests.size == 2) "笔记包含受保护正文" else "新的回答"))
+                    emit(ModelEvent.Finished(ModelFinish.Complete))
+                }
+            }, scope)
+            timeline.send("读取笔记")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(2, requests.size)
+            assertEquals(listOf("read", "note_search"), requests.first().tools.map { it.name })
+            assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
+            assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
+            val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
+            assertEquals(AgentToolStatus.Committed, tool.status)
+            assertTrue(db.agent().messages().last().sourcesJson.contains("readable"))
+            timeline.savePermission(AgentPermission())
+            timeline.send("无关的新问题")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(listOf("无关的新问题"), requests.last().messages.map { it.text })
+        }
+    }
+
+    @Test fun permissionWaitSurvivesRuntimeRecreationAndNeverDispatchesQueueBeforeAnswer() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            val release = CompletableDeferred<Unit>()
+            val requested = CompletableDeferred<Unit>()
+            val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+            val model = client { request ->
+                requests += request
+                if (requests.size == 1) {
+                    requested.complete(Unit); release.await()
+                    emit(ModelEvent.ToolCall(ModelToolCall("authorize", "read", buildJsonObject { put("note_id", "readable") })))
+                    emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                } else { emit(ModelEvent.Text("已读取")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+            }
+            val timeline = AgentTimeline(db, profiles, model, scope)
+            timeline.send("需要读取")
+            requested.await()
+            timeline.enqueue("下一项")
+            release.complete(Unit)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val waiting = db.agent().unfinishedRuns().single()
+            assertEquals(AgentRunStatus.WaitingPermission, waiting.status)
+            assertEquals(1, requests.size)
+            val reopened = AgentTimeline(db, profiles, model, scope)
+            reopened.awaitReady()
+            assertEquals(1, requests.size)
+            reopened.answerPermission(waiting.id, "authorize", AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
+            withTimeout(5000) { reopened.state.first { it.ready && !it.running } }
+            assertEquals(2, requests.size)
+            assertTrue(requests.last().messages.last().results.single().content.contains("受保护正文"))
+            assertEquals(1, db.agent().toolEvents(waiting.id).size)
+            assertEquals(AgentPermission(), AgentPermissionStore(db).current())
+            assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
+            reopened.removeQueued(db.agent().pendingQueue().single().id)
+        }
+    }
+
+    @Test fun deniedToolReturnsACompleteProtocolPairWithoutReadingNote() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                requests += request
+                if (requests.size == 1) {
+                    emit(ModelEvent.ToolCall(ModelToolCall("denied", "read", buildJsonObject { put("note_id", "readable") })))
+                    emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                } else { emit(ModelEvent.Text("未获授权")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+            }, scope)
+            timeline.send("需要授权")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            timeline.answerPermission(db.agent().unfinishedRuns().single().id, "denied", null)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val result = requests.last().messages.last().results.single()
+            assertTrue(result.content.contains("user_denied"))
+            assertFalse(result.content.contains("受保护正文"))
+        }
+    }
+
+    @Test fun attachedNoteUsesSendSnapshotEvenAfterOriginalChanges() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            val release = CompletableDeferred<Unit>()
+            val started = CompletableDeferred<Unit>()
+            val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                requests += request
+                emit(ModelEvent.Text("已收到快照"))
+                if (requests.size == 1) { started.complete(Unit); release.await() }
+                emit(ModelEvent.Finished(ModelFinish.Complete))
+            }, scope)
+            timeline.selectDraftNotes(listOf("readable"))
+            timeline.send("总结发送时内容")
+            started.await()
+            val original = db.notes().get("readable")!!
+            db.notes().upsert(original.copy(title = "最新标题", documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("最新正文"))))).encodeToJson()))
+            timeline.send("继续使用之前的版本")
+            release.complete(Unit)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertTrue(requests.last().messages.first().text.contains("受保护正文"))
+            assertFalse(requests.last().messages.joinToString { it.text }.contains("最新正文"))
+            assertTrue(timeline.draftNotes.value.isEmpty())
+            assertEquals(1, db.agent().snapshotRefs(db.agent().messages().first().id).size)
+        }
+    }
+
+    private suspend fun seedReadableNote(db: XNoteDatabase) {
+        val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("受保护正文"))))).encodeToJson()
+        db.notes().upsert(NoteEntity("readable", null, "受保护标题", document, null, 0, 0, 0, "受保护正文", 1, 1, null, null))
     }
 
     // -- Functions

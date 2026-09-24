@@ -10,6 +10,42 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AgentDao {
+    @Query("SELECT * FROM agent_permissions WHERE id = 1")
+    fun observePermission(): Flow<AgentPermissionEntity?>
+
+    @Query("SELECT * FROM agent_tool_events ORDER BY createdAtEpochMs, id")
+    fun observeToolEvents(): Flow<List<AgentToolEventEntity>>
+
+    @Query("SELECT * FROM agent_snapshots ORDER BY createdAtEpochMs, id")
+    fun observeSnapshots(): Flow<List<AgentSnapshotEntity>>
+
+    @Query("SELECT * FROM agent_snapshot_refs WHERE messageId = :messageId")
+    suspend fun snapshotRefs(messageId: String): List<AgentSnapshotRefEntity>
+
+    @Query("SELECT * FROM agent_snapshot_refs WHERE segmentId = :segmentId")
+    suspend fun segmentSnapshotRefs(segmentId: String): List<AgentSnapshotRefEntity>
+
+    @Query("SELECT * FROM agent_snapshots WHERE id = :id")
+    suspend fun snapshot(id: String): AgentSnapshotEntity?
+
+    @Query("SELECT * FROM agent_snapshots WHERE noteId = :noteId AND version = :version")
+    suspend fun snapshotForVersion(noteId: String, version: String): AgentSnapshotEntity?
+
+    @Query("SELECT * FROM agent_segments WHERE id = :id")
+    suspend fun segment(id: String): AgentSegmentEntity?
+
+    @Query("SELECT * FROM agent_messages WHERE id = :id")
+    suspend fun message(id: String): AgentMessageEntity?
+
+    @Query("UPDATE agent_messages SET sourcesJson = :sourcesJson, modelJson = :modelJson WHERE id = :id")
+    suspend fun updateMessageContext(id: String, sourcesJson: String, modelJson: String?)
+
+    @Query("UPDATE agent_snapshot_refs SET segmentId = :segmentId WHERE messageId = :messageId")
+    suspend fun moveSnapshotRefs(messageId: String, segmentId: String)
+
+    @Query("DELETE FROM agent_tool_events WHERE runId = :runId")
+    suspend fun deleteToolEvents(runId: String)
+
     @Query("SELECT * FROM agent_queue WHERE status != 'Dispatched' ORDER BY position, createdAtEpochMs, id")
     fun observeQueue(): Flow<List<AgentQueueEntity>>
 

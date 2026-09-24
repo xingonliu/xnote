@@ -84,6 +84,37 @@ class AgentFlowTest {
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
     }
 
+    @Test fun attachSnapshotAndChangePermissionScopeThroughUi() {
+        val note = runBlocking {
+            profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
+            val created = library.createNote(null)
+            library.saveNoteContent(created.id, "测试笔记", com.xnote.app.domain.document.NoteDocument(blocks = listOf(
+                com.xnote.app.domain.document.TextBlock("body", inlines = listOf(com.xnote.app.domain.document.InlineRun("发送时正文"))),
+            )))
+        }
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { timeline.state.value.ready }
+        compose.onNodeWithTag("agent-attach-notes").performClick()
+        compose.onNodeWithTag("agent-attach-${note.id}").performClick()
+        compose.onNodeWithText("确认 1 篇").performClick()
+        compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
+        compose.onNodeWithTag("agent-input").performTextInput("总结这篇笔记")
+        compose.onNodeWithTag("agent-send").performClick()
+        compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Assistant && it.status == AgentMessageStatus.Complete } } }
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("发送快照 · 测试笔记"))
+        compose.onNodeWithText("发送快照 · 测试笔记").performClick()
+        compose.onNodeWithText("发送时正文").assertExists()
+        screenshot("agent-snapshot-preview")
+        compose.onNodeWithText("关闭").performClick()
+        compose.onNodeWithTag("agent-permission-settings").performClick()
+        compose.onNodeWithTag("agent-permission-Read").performScrollTo().performClick()
+        compose.onNodeWithTag("agent-scope-All").performScrollTo().performClick()
+        compose.onNodeWithText("保存").performClick()
+        compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.level == AgentPermissionLevel.Read && it.scope == AgentScope.All } } }
+    }
+
     // -- Functions
 
     private fun screenshot(name: String) {

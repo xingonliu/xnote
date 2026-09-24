@@ -3,6 +3,7 @@ package com.xnote.app.data.agent
 import com.xnote.app.domain.agent.*
 import kotlinx.serialization.json.*
 import java.io.Reader
+import java.util.UUID
 
 // -- Type Definitions
 
@@ -11,6 +12,7 @@ private data class PartialTool(var id: String = "", var name: String = "", val a
 class ModelStreamDecoder(private val protocol: ModelProtocol) {
     // -- State and Variables
 
+    private val responseId = UUID.randomUUID().toString()
     private val calls = linkedMapOf<Int, PartialTool>()
     private val nativeParts = mutableListOf<JsonElement>()
     private var finish: ModelFinish? = null
@@ -98,7 +100,7 @@ class ModelStreamDecoder(private val protocol: ModelProtocol) {
                         nativeParts += part
                         if (part["thought"]?.jsonPrimitive?.booleanOrNull != true) part.string("text")?.let { events += ModelEvent.Text(it) }
                         part.obj("functionCall")?.let { call ->
-                            calls[calls.size] = PartialTool(call.string("id") ?: "gemini-${calls.size}", call.string("name").orEmpty(),
+                            calls[calls.size] = PartialTool(call.string("id") ?: "gemini-$responseId-${calls.size}", call.string("name").orEmpty(),
                                 StringBuilder(call.obj("args")?.toString() ?: "{}"))
                         }
                     }

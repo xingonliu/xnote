@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
+import kotlinx.serialization.json.*
 
 // -- Type Definitions
 
@@ -27,6 +28,9 @@ class AgentTimeline(
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(AgentTimelineState())
     private val mutableDraft = MutableStateFlow("")
+    private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
+    val noteStore = AgentNoteStore(database)
+    private val conversation = AgentConversationContext(database, noteStore)
     private var runningJob: Job? = null
     @Volatile private var interruptionReason: String? = null
     @Volatile private var stopRequested = false
@@ -42,6 +46,7 @@ class AgentTimeline(
             }
             pauseQueue()
             mutableDraft.value = database.agent().draft()?.text.orEmpty()
+            mutableDraftNotes.value = database.agent().draft()?.let { Json.decodeFromString<List<String>>(it.noteIdsJson) }.orEmpty()
         }
         mutableState.value = AgentTimelineState(ready = true)
     }
@@ -50,6 +55,7 @@ class AgentTimeline(
 
     val state = mutableState.asStateFlow()
     val draft = mutableDraft.asStateFlow()
+    val draftNotes = mutableDraftNotes.asStateFlow()
     val messages = database.agent().observeMessages()
     val runs = database.agent().observeRuns()
     val queue = database.agent().observeQueue()
@@ -63,6 +69,35 @@ class AgentTimeline(
         mutex.withLock { persistDraft(text) }
     }
 
+    suspend fun selectDraftNotes(ids: List<String>) {
+        awaitReady()
+        mutex.withLock {
+            require(ids.distinct().size <= AgentNoteLimits.MaxAttachedNotes) { "每条消息最多附加 8 篇笔记。" }
+            database.agent().saveDraft(AgentDraftEntity(text = mutableDraft.value, noteIdsJson = Json.encodeToString(ids.distinct())))
+            mutableDraftNotes.value = ids.distinct()
+        }
+    }
+
+    suspend fun savePermission(value: AgentPermission) {
+        awaitReady()
+        mutex.withLock {
+            if (mutableState.value.running) { interrupt("permission_changed"); runningJob?.join() }
+            noteStore.savePermissionFromUser(value)
+        }
+    }
+
+    suspend fun answerPermission(runId: String, callId: String, choice: AgentPermission?, always: Boolean = false) {
+        awaitReady()
+        mutex.withLock {
+            if (mutableState.value.running) throw ModelException(ModelError.Busy)
+            if (choice == null) noteStore.denyFromUser(runId, callId) else noteStore.grantFromUser(runId, choice, always)
+            val run = requireNotNull(database.agent().run(runId))
+            val resumed = run.copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
+            database.agent().saveRun(resumed)
+            launchRun(resumed)
+        }
+    }
+
     suspend fun send(text: String) {
         awaitReady()
         mutex.withLock {
@@ -73,8 +108,11 @@ class AgentTimeline(
                     val run = database.agent().unfinishedRuns().singleOrNull { it.status == AgentRunStatus.Running } ?: throw ModelException(ModelError.Busy)
                     val profile = boundProfile(run.profileId, run.profileVersion)
                     planAgentContext(profile, emptyList(), text)
-                    insertMessage(run, AgentMessageRole.User, text, AgentMessageStatus.Pending)
-                    persistDraft("")
+                    val sequence = insertMessage(run, AgentMessageRole.User, text, AgentMessageStatus.Pending)
+                    val message = database.agent().messages().single { it.sequence == sequence }
+                    noteStore.capture(message.id, mutableDraftNotes.value)
+                    conversation.prepare(run, profile)
+                    clearDraft()
                 }
                 return
             }
@@ -102,10 +140,12 @@ class AgentTimeline(
                 val messageId = id()
                 database.agent().insertMessage(AgentMessageEntity(id = messageId, segmentId = segment.id, runId = null,
                     role = AgentMessageRole.User, text = text, status = AgentMessageStatus.Pending, createdAtEpochMs = now()))
+                noteStore.capture(messageId, mutableDraftNotes.value)
+                noteStore.validateSubmission(messageId, profile)
                 database.agent().saveQueueItem(AgentQueueEntity(id(), messageId, profile.id, profile.version,
                     (queued.maxOfOrNull { it.position } ?: -1) + 1,
                     if (mutableState.value.running && queued.none { it.status == AgentQueueStatus.Paused }) AgentQueueStatus.Waiting else AgentQueueStatus.Paused, now()))
-                persistDraft("")
+                clearDraft()
             }
         }
     }
@@ -118,6 +158,7 @@ class AgentTimeline(
             planAgentContext(boundProfile(item.profileId, item.profileVersion), emptyList(), text)
             val message = database.agent().messages().single { it.id == item.messageId }
             database.agent().updateMessage(message.sequence, text, AgentMessageStatus.Pending)
+            noteStore.validateSubmission(message.id, boundProfile(item.profileId, item.profileVersion))
         } }
     }
 
@@ -214,9 +255,10 @@ class AgentTimeline(
             transaction {
                 database.agent().unfinishedRuns().forEach { database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now(), grantJson = null)) }
                 database.agent().pendingQueue().forEach { database.agent().deleteQueueItem(it.id) }
+                database.agent().messages().mapNotNull { it.runId }.distinct().forEach { database.agent().deleteToolEvents(it) }
                 database.agent().messages().forEach { removeMessage(it.id) }
                 database.agent().openSegment()?.let { database.agent().saveSegment(it.copy(closedAtEpochMs = now(), closeReason = "clear_chat")) }
-                persistDraft("")
+                clearDraft()
             }
             mutableState.value = AgentTimelineState(true)
         }
@@ -252,10 +294,13 @@ class AgentTimeline(
                 role = AgentMessageRole.User, text = text, status = AgentMessageStatus.Complete, createdAtEpochMs = now()))
         } else {
             database.agent().dispatchMessage(userId, run.id, segment.id)
+            database.agent().moveSnapshotRefs(userId, segment.id)
             database.agent().saveQueueItem(queued.copy(status = AgentQueueStatus.Dispatched))
         }
         database.agent().saveRun(run)
-        if (queued == null) persistDraft("")
+        if (queued == null) noteStore.capture(userId, mutableDraftNotes.value)
+        conversation.prepare(run, profile)
+        if (queued == null) clearDraft()
         run
     }
 
@@ -291,7 +336,7 @@ class AgentTimeline(
             launchRun(createRun(text, item))
         } catch (error: Exception) {
             transaction { pauseQueue() }
-            mutableState.value = AgentTimelineState(true, notice = safeModelError(error))
+            mutableState.value = AgentTimelineState(true, notice = if (error is AgentSourceAccessException) error.message else safeModelError(error))
         }
     }
 
@@ -310,35 +355,27 @@ class AgentTimeline(
                     currentCoroutineContext().ensureActive()
                     sequence = null
                     text = ""
-                    val plan = transaction {
+                    if (!completePendingTools(run)) return@withTimeout
+                    val requestContext = transaction {
                         val history = database.agent().messages()
                         val attempts = history.count { it.runId == run.id && it.role == AgentMessageRole.Event && it.text == "模型请求" }
                         if (attempts >= AgentRunLimits.MaxRequests) throw AgentBudgetException()
-                        val current = history.filter { it.runId == run.id && it.role == AgentMessageRole.User && it.sourcesJson == "[]" }
-                        val goal = current.joinToString("\n\n[用户补充]\n") { it.text }
-                        require(goal.isNotBlank())
-                        val boundary = history.lastOrNull { it.role == AgentMessageRole.Event && it.text == "开始新话题" }?.sequence ?: 0
-                        val turns = history.filter { it.sequence > boundary && it.runId != run.id && it.runId != null }.groupBy { it.runId }.values.mapNotNull { exchange ->
-                            val previousRun = database.agent().run(checkNotNull(exchange.first().runId))
-                            if (previousRun?.status != AgentRunStatus.Complete || previousRun.errorCode == "history_removed" || exchange.any { it.sourcesJson != "[]" }) return@mapNotNull null
-                            val users = exchange.filter { it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Complete }
-                            val answer = exchange.lastOrNull { it.role == AgentMessageRole.Assistant && it.status == AgentMessageStatus.Complete }
-                            if (users.isNotEmpty() && answer != null) AgentContextTurn(users.joinToString("\n") { it.text }, answer.text) else null
+                        val prepared = conversation.prepare(requireNotNull(database.agent().run(run.id)), profile)
+                        history.filter { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }.forEach {
+                            database.agent().updateMessage(it.sequence, it.text, AgentMessageStatus.Complete)
                         }
-                        val execution = history.filter { it.runId == run.id && it.sourcesJson == "[]" &&
-                            it.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant) && it.text.isNotBlank() }
-                            .map { ModelMessage(it.role, it.text) }.toMutableList()
-                        if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
-                        val plan = planAgentExecutionContext(profile, turns, execution)
-                        current.filter { it.status == AgentMessageStatus.Pending }.forEach { database.agent().updateMessage(it.sequence, it.text, AgentMessageStatus.Complete) }
                         insertMessage(run, AgentMessageRole.Event, "模型请求")
                         sequence = insertMessage(run, AgentMessageRole.Assistant, "", AgentMessageStatus.Streaming)
-                        plan
+                        val reply = database.agent().messages().single { it.sequence == sequence }
+                        database.agent().updateMessageContext(reply.id, Json.encodeToString(prepared.sources), null)
+                        prepared
                     }
                     text = ""
                     var finish: ModelFinish? = null
+                    val calls = mutableListOf<ModelToolCall>()
+                    var nativeParts: JsonArray? = null
                     try {
-                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, plan.messages)).collect { event ->
+                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentReadTools else emptyList())).collect { event ->
                             currentCoroutineContext().ensureActive()
                             when (event) {
                                 is ModelEvent.Text -> {
@@ -348,15 +385,20 @@ class AgentTimeline(
                                 is ModelEvent.Usage -> run = run.copy(inputTokens = addUsage(run.inputTokens, event.inputTokens), outputTokens = addUsage(run.outputTokens, event.outputTokens))
                                 is ModelEvent.Finished -> finish = event.reason
                                 is ModelEvent.ToolCall -> {
-                                    database.agent().saveToolEvent(AgentToolEventEntity(id(), run.id, event.value.id, event.value.name,
-                                        event.value.arguments.toString(), null, AgentToolStatus.Denied, 0, now()))
-                                    throw ModelException(ModelError.Protocol)
+                                    if (!profile.capabilities.tools) {
+                                        val revision = AgentPermissionStore(database).current().revision
+                                        database.agent().saveToolEvent(AgentToolEventEntity(id(), run.id, event.value.id, event.value.name,
+                                            event.value.arguments.toString(), "{\"error\":\"tools_not_verified\"}", AgentToolStatus.Denied, revision, now(), now()))
+                                        throw ModelException(ModelError.Protocol)
+                                    }
+                                    if (calls.size >= AgentNoteLimits.MaxToolCallsPerResponse || calls.any { it.id == event.value.id }) throw ModelException(ModelError.Protocol)
+                                    calls += event.value
                                 }
-                                is ModelEvent.NativeParts -> Unit
+                                is ModelEvent.NativeParts -> nativeParts = event.value
                             }
                         }
                     } catch (failure: ModelException) {
-                        if (text.isEmpty() && failure.error in setOf(ModelError.Network, ModelError.Service, ModelError.Timeout) && retry < AgentRunLimits.MaxNetworkRetries) {
+                        if (text.isEmpty() && calls.isEmpty() && failure.error in setOf(ModelError.Network, ModelError.Service, ModelError.Timeout) && retry < AgentRunLimits.MaxNetworkRetries) {
                             transaction {
                                 database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Failed)
                                 insertMessage(run, AgentMessageRole.Event, "网络重试 ${retry + 1}/${AgentRunLimits.MaxNetworkRetries}")
@@ -366,6 +408,17 @@ class AgentTimeline(
                         }
                         throw failure
                     }
+                    if (finish == ModelFinish.ToolCalls && calls.isNotEmpty()) {
+                        transaction {
+                            val reply = database.agent().messages().single { it.sequence == sequence }
+                            database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Complete)
+                            database.agent().updateMessageContext(reply.id, reply.sourcesJson,
+                                Json.encodeToString(ModelMessage(AgentMessageRole.Assistant, text, calls = calls, nativeParts = nativeParts)))
+                        }
+                        retry = 0
+                        continue
+                    }
+                    if (calls.isNotEmpty()) throw ModelException(ModelError.Protocol)
                     if (finish == ModelFinish.OutputLimit) throw AgentBudgetException()
                     if (finish == ModelFinish.Filtered) throw ModelException(ModelError.InvalidRequest)
                     if (finish != ModelFinish.Complete || text.isBlank()) throw ModelException(ModelError.Interrupted)
@@ -392,12 +445,41 @@ class AgentTimeline(
                 if (interrupted) mutableState.value = AgentTimelineState(true, true, notice = "后台执行已中断，内容已保存；回到前台后可继续。")
             }
         } catch (error: Exception) {
+            val sourceRevoked = error is AgentSourceAccessException
             val budget = error is AgentBudgetException || (error as? ModelException)?.error == ModelError.ContextLimit
-            run = run.copy(status = if (budget) AgentRunStatus.PausedBudget else AgentRunStatus.Failed,
-                errorCode = if (budget) "budget_limit" else (error as? ModelException)?.error?.name ?: "storage_or_service")
+            run = run.copy(status = if (sourceRevoked) AgentRunStatus.Interrupted else if (budget) AgentRunStatus.PausedBudget else AgentRunStatus.Failed,
+                errorCode = if (sourceRevoked) "source_revoked" else if (budget) "budget_limit" else (error as? ModelException)?.error?.name ?: "storage_or_service")
             persistStopped(run, sequence, text, if (budget) AgentMessageStatus.Interrupted else AgentMessageStatus.Failed)
-            mutableState.value = AgentTimelineState(true, true, notice = if (budget) "达到运行或容量上限，已保留内容；请结束任务后缩小请求。" else safeModelError(error))
+            mutableState.value = AgentTimelineState(true, true, notice = if (sourceRevoked) error.message else if (budget) "达到运行或容量上限，已保留内容；请结束任务后缩小请求。" else safeModelError(error))
         }
+    }
+
+    private suspend fun completePendingTools(run: AgentRunEntity): Boolean {
+        val replies = database.agent().messages().filter { it.runId == run.id && it.role == AgentMessageRole.Assistant && it.modelJson != null }
+        for (reply in replies) {
+            val model = Json.decodeFromString<ModelMessage>(checkNotNull(reply.modelJson))
+            if (model.calls.isEmpty() || database.agent().message("tool-results:${reply.id}") != null) continue
+            val results = mutableListOf<ModelToolResult>()
+            val sources = Json.decodeFromString<List<AgentMessageSource>>(reply.sourcesJson).toMutableList()
+            for (call in model.calls) {
+                currentCoroutineContext().ensureActive()
+                when (val outcome = noteStore.executeReadTool(run.id, call)) {
+                    is AgentReadToolResult.PermissionRequired -> {
+                        mutableState.value = mutableState.value.copy(notice = "工具需要授权，队列保持等待。")
+                        return false
+                    }
+                    is AgentReadToolResult.Finished -> { results += outcome.result; sources += outcome.sources }
+                }
+            }
+            transaction {
+                val sourcesJson = Json.encodeToString(sources.distinct())
+                database.agent().updateMessageContext(reply.id, sourcesJson, reply.modelJson)
+                database.agent().insertMessage(AgentMessageEntity(id = "tool-results:${reply.id}", segmentId = run.segmentId, runId = run.id,
+                    role = AgentMessageRole.Tool, text = results.joinToString("\n") { it.name + "：" + it.content }, status = AgentMessageStatus.Complete,
+                    createdAtEpochMs = now(), sourcesJson = sourcesJson, modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = results))))
+            }
+        }
+        return true
     }
 
     private suspend fun persistStopped(run: AgentRunEntity, sequence: Long?, text: String, status: AgentMessageStatus) {
@@ -416,8 +498,14 @@ class AgentTimeline(
         ?: throw ModelException(ModelError.InvalidConfig)
 
     private suspend fun persistDraft(text: String) {
-        database.agent().saveDraft(AgentDraftEntity(text = text))
+        database.agent().saveDraft(AgentDraftEntity(text = text, noteIdsJson = Json.encodeToString(mutableDraftNotes.value)))
         mutableDraft.value = text
+    }
+
+    private suspend fun clearDraft() {
+        database.agent().saveDraft(AgentDraftEntity(text = ""))
+        mutableDraft.value = ""
+        mutableDraftNotes.value = emptyList()
     }
 
     private suspend fun insertMessage(run: AgentRunEntity, role: AgentMessageRole, text: String, status: AgentMessageStatus = AgentMessageStatus.Complete): Long =

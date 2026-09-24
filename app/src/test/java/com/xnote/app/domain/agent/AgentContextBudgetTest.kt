@@ -2,6 +2,7 @@ package com.xnote.app.domain.agent
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.serialization.json.*
 
 // -- Tests
 
@@ -38,6 +39,15 @@ class AgentContextBudgetTest {
         assertThrows(AgentBudgetException::class.java) {
             planAgentExecutionContext(profile, emptyList(), execution + ModelMessage(AgentMessageRole.Assistant, "长".repeat(5000)))
         }
+    }
+
+    @Test fun toolArgumentsResultsAndNativePartsConsumeTheCurrentExecutionBudget() {
+        val current = listOf(ModelMessage(AgentMessageRole.User, "读取"),
+            ModelMessage(AgentMessageRole.Tool, results = listOf(ModelToolResult("call", "read", "私".repeat(5000)))))
+        assertThrows(AgentBudgetException::class.java) { planAgentExecutionContext(profile, emptyList(), current) }
+        val native = listOf(ModelMessage(AgentMessageRole.User, "读取"),
+            ModelMessage(AgentMessageRole.Assistant, nativeParts = buildJsonArray { add(buildJsonObject { put("thoughtSignature", "x".repeat(5000)) }) }))
+        assertThrows(AgentBudgetException::class.java) { planAgentExecutionContext(profile, emptyList(), native) }
     }
 
     @Test fun chineseAndEmojiBudgetUsesUtf8InsteadOfEnglishCharacterRatio() {

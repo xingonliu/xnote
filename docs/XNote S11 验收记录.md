@@ -82,6 +82,25 @@ adb shell pm revoke com.xnote.app android.permission.POST_NOTIFICATIONS
 adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#deniedNotificationsKeepForegroundExecutionAndInAppStopAvailable com.xnote.app.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-尚待完成的 S11.4 验收：实际杀进程后重启并继续、Android 系统 `dataSync` 超时回调及后台启动限制的端到端验证。等待授权/冲突与工具提交恢复需随 S11.5–S11.7 的真实工具联动验证；S11.4 尚未标记完整验收，S11.5–S11.7 尚未交付。
+尚待完成的 S11.4 验收：实际杀进程后重启并继续、Android 系统 `dataSync` 超时回调及后台启动限制的端到端验证。只读工具等待授权后的运行对象重建已在 S11.5 验证，实际进程终止、写入提交恢复和冲突等待仍需完成；S11.4 尚未标记完整验收，S11.5 进行中，S11.6–S11.7 待开发。
 
 平台依据：[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
+
+## S11.5 发送快照、范围与只读工具（进行中）
+
+实现入口：`AgentNoteStore.kt`、`AgentConversationContext.kt`、`AgentNoteTools.kt`、`AgentNoteDialogs.kt`，以及时间线的工具循环。
+
+- Room 7 在消息中新增可恢复的模型交互 JSON、工具事件中新增笔记来源、草稿中新增所选笔记 ID；6→7 自动迁移保留已有记录。原有 2→3→4→5→6 迁移链继续衔接。模型原始函数调用与 Gemini 原始 parts/签名独立保存，可在用户继续时恢复完整工具调用与结果配对。
+- 附加笔记在发送或加入队列时原子保存标题、结构化正文、背景与归属快照，并绑定稳定版本和消息。相同版本复用快照；媒体仅增加独立引用，不复制文件。正文后来变更不会替换旧快照，卡片提供只读预览。草稿保留所选笔记，发送预算失败不丢失选择；已删除的选择可手动移除。
+- 最多附加 8 篇笔记。快照作为明确标记的不可信文本资料进入模型上下文；纯文字模型也可以在预算内理解快照，但只有工具能力验证通过的配置才开放 `read`、`note_search`。快照完整正文、工具 schema、参数、结果和原始 parts 均计入请求预算，当前执行不截断。
+- `read` 显式区分发送快照与当前版本，默认每页最多 6000 个 UTF-16 字符，返回版本和续读位置，不拆开代理对。`note_search` 先过滤当前权限、范围和回收站状态，再匹配标题/正文并分页；每页最多 20 条、查询最多 200 字符。结果不提供全库命中数，`has_more` 的来源也受权限检查。每次响应最多 8 个工具调用，读取工具参数最多 4096 字符；未知参数或工具不执行笔记操作。
+- 一级临时权限只能读取当前片段内、当前权限 revision 下主动发送的有效快照。排队消息在派发前不扩大当前运行范围。二级只能读取范围内笔记；权限等级与范围独立，支持指定笔记本多选。设置变化会中断当前请求，后续读取和每次请求重新投影权限。附加来源失效时保留事实记录并中断，提示重新授权或附加。
+- 模型回复和工具结果带笔记来源。无权使用的历史问答整轮排除；当前工具调用与结果成对排除，保留协议完整性。用户补充与工具结果按完整调用边界组装，不把新输入插到尚未配对的调用中间。进入回收站立即阻止向模型提供快照和派生内容；永久删除由外键清理快照，并回收其独立媒体引用。
+- 越界读取进入持久化的等待授权状态，队列不向前执行。用户可查看请求、拒绝、仅本次运行允许或保存为全局权限；模型不持有升级权限入口。运行授权只保存用户所选范围内的具体笔记 ID，并绑定权限 revision。继续时已提交调用复用事实结果，但返还前仍重新检查来源；同一调用 ID 不得复用为不同操作。清空聊天一并清理工具载荷，审阅事实源独立保留。
+- P11/P19 已接入附加笔记选择、权限等级、范围及笔记本多选；P12 可查看工具名称、调用运行、参数、权限 revision、状态、结果和起止时间。待补齐 P12 的历史权限/范围决策说明及失败重试入口的界面验收。
+
+2026-09-24 最终验证：Android 16 模拟器上 `AgentNoteStoreTest` 10 项、`AgentTimelineTest` 20 项、`AgentFoundationTest` 2 项、`AgentFlowTest` 2 项，共 34 项全部通过。覆盖快照版本与复用、撤权/片段关闭/回收站/永久删除、先授权再分页、结果去重与撤权后缓存失效、一次运行授权、参数校验和分片拼接、派生来源隔离、附件引用、授权等待后重建运行对象、拒绝回传、原文修改后仍读取旧快照、队列快照隔离和整批快照回滚。已检查 720×1280 手机快照预览和输入页截图，快照版本、原正文及关闭操作显示完整。
+
+单元验证：136 项中 135 项通过，真实服务项未显式提供凭据而跳过。`lintDebug`、`assembleDebug`、`assembleDebugAndroidTest` 通过，Lint 0 错误、18 条现有警告。一次构建因宿主机原生内存不足退出；已改用单 worker、较小临时 JVM 堆并分开运行构建与模拟器，未改动项目默认构建配置。受控工具测试不代表三家真实服务联调；实际服务全覆盖仍见 S11.12。
+
+剩余范围：P12 补充验收、实际进程终止后的工具恢复，以及 S11.6–S11.7 的变更事务、单篇 Diff、写工具和编辑器联动。整体 S11.4–S11.7 尚未完成。

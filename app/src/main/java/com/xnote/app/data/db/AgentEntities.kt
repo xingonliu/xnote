@@ -1,5 +1,6 @@
 package com.xnote.app.data.db
 
+import androidx.room3.ColumnInfo
 import androidx.room3.Entity
 import androidx.room3.ForeignKey
 import androidx.room3.Index
@@ -37,6 +38,7 @@ data class AgentMessageEntity(
     val status: AgentMessageStatus,
     val createdAtEpochMs: Long,
     val sourcesJson: String = "[]",
+    @ColumnInfo(defaultValue = "NULL") val modelJson: String? = null,
 )
 
 @Entity(tableName = "agent_runs", indices = [Index(value = ["status"])])
@@ -78,6 +80,7 @@ data class AgentToolEventEntity(
     val permissionRevision: Long,
     val createdAtEpochMs: Long,
     val committedAtEpochMs: Long? = null,
+    @ColumnInfo(defaultValue = "'[]'") val sourcesJson: String = "[]",
 )
 
 @Entity(

@@ -61,6 +61,15 @@ class ModelProtocolTest {
         }
     }
 
+    @Test fun geminiCallsWithoutProviderIdsHaveDistinctDurableIdsAcrossResponses() {
+        fun call(): ModelToolCall {
+            val decoder = ModelStreamDecoder(ModelProtocol.Gemini)
+            decoder.accept("""{"candidates":[{"content":{"parts":[{"functionCall":{"name":"read","args":{"note_id":"note"}},"thoughtSignature":"keep-signature"}]},"finishReason":"STOP"}]}""")
+            return decoder.end().filterIsInstance<ModelEvent.ToolCall>().single().value
+        }
+        assertNotEquals(call().id, call().id)
+    }
+
     @Test fun outputLimitIsNotSuccessfulCompletion() {
         val decoder = ModelStreamDecoder(ModelProtocol.OpenAI)
         decoder.accept("""{"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}""")
