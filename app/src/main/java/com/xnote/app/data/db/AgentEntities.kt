@@ -113,6 +113,17 @@ data class AgentSnapshotRefEntity(
     val permissionRevision: Long,
 )
 
+@Entity(
+    tableName = "agent_tool_snapshot_refs",
+    primaryKeys = ["eventId", "snapshotId"],
+    foreignKeys = [
+        ForeignKey(entity = AgentToolEventEntity::class, parentColumns = ["id"], childColumns = ["eventId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = AgentSnapshotEntity::class, parentColumns = ["id"], childColumns = ["snapshotId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["snapshotId"])],
+)
+data class AgentToolSnapshotRefEntity(val eventId: String, val snapshotId: String)
+
 @Entity(tableName = "agent_changes", indices = [Index(value = ["noteId", "reviewId"])])
 data class AgentChangeEntity(
     @PrimaryKey val id: String,

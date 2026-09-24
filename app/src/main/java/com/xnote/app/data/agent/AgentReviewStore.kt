@@ -32,23 +32,24 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
 
     // -- Functions
 
-    suspend fun applyEdit(runId: String, callId: String, base: NoteEntity, proposed: AgentEditableContent,
+    suspend fun applyEdit(runId: String, callId: String, base: AgentEditBase, proposed: AgentEditableContent,
         selection: AgentSelection? = null): AgentReviewResult = transaction {
         currentCoroutineContext().ensureActive()
         val run = requireNotNull(database.agent().run(runId))
         require(run.status == AgentRunStatus.Running)
-        val current = database.notes().get(base.id) ?: return@transaction AgentReviewResult.Unrecoverable
+        val current = database.notes().get(base.noteId) ?: return@transaction AgentReviewResult.Unrecoverable
         val access = AgentNoteStore(database).access(run)
         if (!access.canEdit(AgentNoteAccess(current.id, current.notebookId, current.deletedAtEpochMs != null))) return@transaction AgentReviewResult.PermissionRequired
         database.agent().committedChange(runId, callId)?.let { prior ->
-            require(prior.noteId == base.id) { "调用 ID 不能用于另一篇笔记。" }
+            require(prior.noteId == base.noteId) { "调用 ID 不能用于另一篇笔记。" }
             return@transaction AgentReviewResult.Applied(Json.decodeFromString(prior.afterNoteJson), requireNotNull(prior.reviewId))
         }
         if (selection != null && selection.version != current.agentVersion()) return@transaction AgentReviewResult.Conflict("选区版本已变化，请重新选择。")
-        require(validateAgentEdit(base.content().document, proposed.document, base.agentVersion(), base.agentVersion(), selection) == AgentEditValidation.Valid) {
+        require(selection == null || proposed.title == base.content.title) { "选区润色不能修改标题。" }
+        require(validateAgentEdit(base.content.document, proposed.document, base.version, base.version, selection) == AgentEditValidation.Valid) {
             "改动包含非法结构、受保护媒体或无效选区。"
         }
-        val merged = mergeAgentContent(base.content(), current.content(), proposed)
+        val merged = mergeAgentContent(base.content, current.content(), proposed)
         if (merged is AgentContentMerge.Conflict) return@transaction AgentReviewResult.Conflict(merged.location)
         val content = (merged as AgentContentMerge.Merged).content
         if (content == current.content()) return@transaction AgentReviewResult.Unchanged(current)

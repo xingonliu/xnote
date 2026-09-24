@@ -7,6 +7,7 @@ import com.xnote.app.domain.document.NoteDocumentJson
 import com.xnote.app.domain.document.TableBlock
 import com.xnote.app.domain.document.TextBlock
 import com.xnote.app.domain.document.plainText
+import com.xnote.app.domain.document.splitAt
 import kotlinx.serialization.json.Json
 
 // -- Type Definitions
@@ -50,6 +51,19 @@ fun validateAgentEdit(
         if (selection.version != currentVersion || block == null || selection.start < 0 ||
             selection.end < selection.start || selection.end > block.inlines.plainText().length
         ) return AgentEditValidation.InvalidSelection
+        val text = block.inlines.plainText()
+        if (listOf(selection.start, selection.end).any { it in 1 until text.length && text[it].isLowSurrogate() && text[it - 1].isHighSurrogate() })
+            return AgentEditValidation.InvalidSelection
+        val changed = proposed.blocks.find { it.id == block.id } as? TextBlock ?: return AgentEditValidation.InvalidSelection
+        if (current.blocks.map { it.id } != proposed.blocks.map { it.id } ||
+            current.blocks.filter { it.id != block.id } != proposed.blocks.filter { it.id != block.id } ||
+            block.copy(inlines = emptyList()) != changed.copy(inlines = emptyList())) return AgentEditValidation.InvalidSelection
+        val suffixLength = text.length - selection.end
+        val newLength = changed.inlines.plainText().length
+        if (newLength < selection.start + suffixLength ||
+            block.inlines.splitAt(selection.start).first != changed.inlines.splitAt(selection.start).first ||
+            block.inlines.splitAt(selection.end).second != changed.inlines.splitAt(newLength - suffixLength).second)
+            return AgentEditValidation.InvalidSelection
     }
     return AgentEditValidation.Valid
 }

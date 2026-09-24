@@ -91,8 +91,14 @@ interface AgentDao {
     @Query("DELETE FROM agent_snapshot_refs WHERE messageId = :messageId")
     suspend fun deleteSnapshotRefs(messageId: String)
 
-    @Query("DELETE FROM agent_snapshots WHERE id NOT IN (SELECT snapshotId FROM agent_snapshot_refs)")
+    @Query("DELETE FROM agent_snapshots WHERE id NOT IN (SELECT snapshotId FROM agent_snapshot_refs UNION SELECT snapshotId FROM agent_tool_snapshot_refs)")
     suspend fun deleteUnusedSnapshots()
+
+    @Insert
+    suspend fun insertToolSnapshotRef(value: AgentToolSnapshotRefEntity)
+
+    @Query("SELECT s.* FROM agent_snapshots s INNER JOIN agent_tool_snapshot_refs r ON r.snapshotId = s.id INNER JOIN agent_tool_events e ON e.id = r.eventId INNER JOIN agent_runs run ON run.id = e.runId WHERE run.segmentId = :segmentId AND e.status = 'Committed' AND s.noteId = :noteId AND s.version = :version LIMIT 1")
+    suspend fun readSnapshot(segmentId: String, noteId: String, version: String): AgentSnapshotEntity?
 
     @Query("DELETE FROM agent_attachment_refs WHERE ownerType = 'snapshot' AND ownerId NOT IN (SELECT id FROM agent_snapshots)")
     suspend fun deleteUnusedSnapshotAttachments()

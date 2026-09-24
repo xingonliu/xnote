@@ -26,10 +26,10 @@ class AgentNoteStoreTest {
             user(db, "third")
             val newer = store.capture("third", listOf("note")).single()
             assertNotEquals(first.snapshotId, newer.snapshotId)
-            val result = store.executeReadTool("run", read("snapshot", snapshotId = first.snapshotId)) as AgentReadToolResult.Finished
+            val result = store.executeTool("run", read("snapshot", snapshotId = first.snapshotId)) as AgentToolResult.Finished
             assertTrue(result.result.content.contains("旧版正文"))
             assertFalse(result.result.content.contains("新版正文"))
-            assertTrue(store.executeReadTool("run", read("current")) is AgentReadToolResult.PermissionRequired)
+            assertTrue(store.executeTool("run", read("current")) is AgentToolResult.PermissionRequired)
         }
     }
 
@@ -63,13 +63,13 @@ class AgentNoteStoreTest {
             db.notebooks().upsert(NotebookEntity("hidden", "隐私笔记本", 1, 1, 1))
             db.notes().upsert(db.notes().get("note")!!.copy(id = "secret", title = "秘密标题", documentJson = document("秘密匹配正文"), notebookId = "hidden", updatedAtEpochMs = 5))
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
-            val result = store.executeReadTool("run", search("search", "")) as AgentReadToolResult.Finished
+            val result = store.executeTool("run", search("search", "")) as AgentToolResult.Finished
             assertTrue(result.result.content.contains("旧版标题"))
             assertFalse(result.result.content.contains("秘密"))
             assertFalse(result.result.content.contains("secret"))
             assertEquals(false, Json.parseToJsonElement(result.result.content).jsonObject["has_more"]!!.jsonPrimitive.boolean)
             assertEquals(listOf(AgentMessageSource("note")), result.sources)
-            assertTrue(store.executeReadTool("run", read("outside", noteId = "secret")) is AgentReadToolResult.PermissionRequired)
+            assertTrue(store.executeTool("run", read("outside", noteId = "secret")) is AgentToolResult.PermissionRequired)
         }
     }
 
@@ -78,27 +78,27 @@ class AgentNoteStoreTest {
             seed(db)
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
             val call = read("once")
-            val first = store.executeReadTool("run", call)
+            val first = store.executeTool("run", call)
             db.notes().upsert(db.notes().get("note")!!.copy(documentJson = document("用户已经改了")))
-            assertEquals(first, store.executeReadTool("run", call))
+            assertEquals(first, store.executeTool("run", call))
             assertEquals(1, db.agent().toolEvents("run").size)
             store.savePermissionFromUser(AgentPermission())
-            val replay = store.executeReadTool("run", call) as AgentReadToolResult.Finished
+            val replay = store.executeTool("run", call) as AgentToolResult.Finished
             assertFalse(replay.result.content.contains("旧版正文"))
             assertTrue(replay.result.content.contains("unavailable"))
             assertTrue(replay.sources.isEmpty())
-            try { store.executeReadTool("run", read("once", noteId = "other")); fail("different operation cannot reuse call id") } catch (_: IllegalArgumentException) { }
+            try { store.executeTool("run", read("once", noteId = "other")); fail("different operation cannot reuse call id") } catch (_: IllegalArgumentException) { }
         }
     }
 
     @Test fun onceGrantIsBoundToRunAndCurrentPermissionRevision() = runBlocking {
         fixture { db, store ->
             seed(db)
-            assertTrue(store.executeReadTool("run", read("needs-authorization")) is AgentReadToolResult.PermissionRequired)
+            assertTrue(store.executeTool("run", read("needs-authorization")) is AgentToolResult.PermissionRequired)
             store.grantFromUser("run", AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled), false)
             val grant = db.agent().run("run")!!
             db.agent().saveRun(grant.copy(status = AgentRunStatus.Running))
-            val granted = store.executeReadTool("run", read("needs-authorization")) as AgentReadToolResult.Finished
+            val granted = store.executeTool("run", read("needs-authorization")) as AgentToolResult.Finished
             assertTrue(granted.result.content.contains("旧版正文"))
             assertEquals(AgentPermission(), AgentPermissionStore(db).current())
             val event = db.agent().toolEvent("run", "needs-authorization")!!
@@ -108,7 +108,7 @@ class AgentNoteStoreTest {
             assertEquals(setOf("note"), decisions.last().grant?.noteIds)
             assertEquals(AgentPermissionLevel.None, decisions.last().permission.level)
             store.savePermissionFromUser(AgentPermission())
-            assertTrue(store.executeReadTool("run", read("after-revoke")) is AgentReadToolResult.PermissionRequired)
+            assertTrue(store.executeTool("run", read("after-revoke")) is AgentToolResult.PermissionRequired)
             assertEquals(event.decisionsJson, db.agent().toolEvent("run", "needs-authorization")!!.decisionsJson)
         }
     }
@@ -118,7 +118,7 @@ class AgentNoteStoreTest {
             seed(db)
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
             val invalid = ModelToolCall("bad", "read", buildJsonObject { put("note_id", "note"); put("ignore_permission", true) })
-            val denied = store.executeReadTool("run", invalid) as AgentReadToolResult.Finished
+            val denied = store.executeTool("run", invalid) as AgentToolResult.Finished
             assertTrue(denied.result.content.contains("invalid_arguments"))
             val document = document("长文本😀".repeat(100))
             db.notes().upsert(db.notes().get("note")!!.copy(documentJson = document))
@@ -126,7 +126,7 @@ class AgentNoteStoreTest {
             val parts = StringBuilder()
             do {
                 val call = ModelToolCall("page-$offset", "read", buildJsonObject { put("note_id", "note"); put("offset", offset); put("limit", 31) })
-                val result = store.executeReadTool("run", call) as AgentReadToolResult.Finished
+                val result = store.executeTool("run", call) as AgentToolResult.Finished
                 val payload = Json.parseToJsonElement(result.result.content).jsonObject
                 parts.append(payload["document_json"]!!.jsonPrimitive.content)
                 offset = payload["next_offset"]?.jsonPrimitive?.intOrNull ?: -1

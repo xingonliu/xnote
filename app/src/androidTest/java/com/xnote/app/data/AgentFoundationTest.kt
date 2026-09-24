@@ -20,6 +20,51 @@ import org.junit.Test
 // -- Tests
 
 class AgentFoundationTest {
+    @Test fun versionEightMigrationPreservesAgentFactsAndAddsReadReferences() = runTest {
+        val context: Context = ApplicationProvider.getApplicationContext()
+        val name = "agent-v8-migration-${System.nanoTime()}.db"
+        val path = context.getDatabasePath(name)
+        path.parentFile?.mkdirs()
+        val document = emptyNoteDocument().encodeToJson()
+        val schema = JSONObject(InstrumentationRegistry.getInstrumentation().context.assets
+            .open("com.xnote.app.data.db.XNoteDatabase/8.json").bufferedReader().use { it.readText() }).getJSONObject("database")
+        try {
+            BundledSQLiteDriver().open(path.absolutePath).use { connection ->
+                val entities = schema.getJSONArray("entities")
+                for (i in 0 until entities.length()) {
+                    val entity = entities.getJSONObject(i)
+                    val table = entity.getString("tableName")
+                    connection.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", table))
+                    val indices = entity.optJSONArray("indices")
+                    if (indices != null) for (j in 0 until indices.length()) connection.execSQL(indices.getJSONObject(j).getString("createSql").replace("\${TABLE_NAME}", table))
+                }
+                val queries = schema.getJSONArray("setupQueries")
+                for (i in 0 until queries.length()) connection.execSQL(queries.getString(i))
+                connection.prepare("INSERT INTO notes VALUES ('note', NULL, '保留标题', ?, NULL, 1, 0, 0, '', 100, 200, NULL, NULL)").use { it.bindText(1, document); it.step() }
+                connection.prepare("INSERT INTO agent_snapshots VALUES ('snapshot', 'note', 'v8', '保留标题', ?, NULL, NULL, 200)").use { it.bindText(1, document); it.step() }
+                connection.execSQL("INSERT INTO agent_snapshot_refs VALUES ('message', 'snapshot', 'segment', 0)")
+                connection.execSQL("INSERT INTO agent_segments VALUES ('segment', 100, NULL, NULL)")
+                connection.execSQL("INSERT INTO agent_runs (id, segmentId, userMessageId, profileId, profileVersion, status, createdAtEpochMs, updatedAtEpochMs) VALUES ('run', 'segment', 'message', 'profile', 1, 'Interrupted', 100, 200)")
+                connection.execSQL("INSERT INTO agent_tool_events (id, runId, callId, name, argumentsJson, resultJson, status, permissionRevision, createdAtEpochMs) VALUES ('event', 'run', 'read', 'read', '{}', '{}', 'Committed', 0, 200)")
+                connection.execSQL("INSERT INTO agent_reviews VALUES ('review', 'note', 'Pending', 200, NULL)")
+                connection.execSQL("PRAGMA user_version = 8")
+            }
+            XNoteDatabase.create(context, name).withClose { db ->
+                assertEquals(document, db.notes().get("note")!!.documentJson)
+                assertEquals(AgentRunStatus.Interrupted, db.agent().run("run")!!.status)
+                assertEquals(AgentReviewStatus.Pending, db.agent().reviews("note").single().status)
+                assertEquals("snapshot", db.agent().snapshotRefs("message").single().snapshotId)
+                assertEquals(AgentToolStatus.Committed, db.agent().toolEvent("run", "read")!!.status)
+                db.agent().insertToolSnapshotRef(AgentToolSnapshotRefEntity("event", "snapshot"))
+                assertEquals(document, db.agent().readSnapshot("segment", "note", "v8")!!.documentJson)
+                db.agent().deleteSnapshotRefs("message")
+                db.agent().deleteToolEvents("run")
+                db.agent().deleteUnusedSnapshots()
+                assertNull(db.agent().snapshot("snapshot"))
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     @Test fun versionThreeMigrationPreservesFactsFilesAndSettings() = runTest {
         val context: Context = ApplicationProvider.getApplicationContext()
         val name = "agent-migration-${System.nanoTime()}.db"

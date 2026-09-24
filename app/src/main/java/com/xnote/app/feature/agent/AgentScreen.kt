@@ -67,6 +67,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
     SideEffect { onOverlayVisible(overlayVisible) }
     DisposableEffect(Unit) { onDispose { onOverlayVisible(false) } }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
+    val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
     LaunchedEffect(messages.size) {
@@ -92,8 +93,16 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
             if (!state.running && unresolved) LiquidButton({ action { timeline.finishUnresolved() } }, backdrop) { Text("保留内容并结束任务") }
         }
         if (!state.ready) Text("正在恢复对话…")
-        (error ?: state.notice)?.let { Text(it, Modifier.testTag("agent-notice"), style = MaterialTheme.typography.bodySmall) }
+        (error ?: state.notice.takeIf { waitingConflict == null })?.let { Text(it, Modifier.testTag("agent-notice"), style = MaterialTheme.typography.bodySmall) }
         if (messages.isEmpty() && state.ready && !keyboardVisible) Text("在这里与 Agent 对话。模型在“我的 → 模型与服务商”配置。", style = MaterialTheme.typography.bodyMedium)
+        waitingConflict?.let { run ->
+            val conflict = tools.firstOrNull { it.runId == run.id && it.status == AgentToolStatus.Requested }
+            if (conflict != null) {
+                Text(state.notice ?: "写入与当前内容冲突，正文已保留，队列已暂停。", Modifier.testTag("agent-notice"))
+                LiquidButton({ action { timeline.replanConflict(run.id, conflict.callId) } }, backdrop,
+                    enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
+            }
+        }
         if (runs.any { it.status == AgentRunStatus.WaitingPermission }) {
             val request = tools.firstOrNull { it.status == AgentToolStatus.Requested && runs.any { run -> run.id == it.runId && run.status == AgentRunStatus.WaitingPermission } }
             if (request != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -175,6 +184,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
         action { timeline.selectDraftNotes(ids); attachDialog = false }
     }
     if (permissionDialog || permissionRequest != null) AgentPermissionDialog(permission, notebooks, backdrop, permissionRequest != null,
+        requiredLevel = if (permissionRequest?.name == "write") AgentPermissionLevel.Edit else AgentPermissionLevel.Read,
         onDismiss = { permissionDialog = false; permissionRequest = null }) { choice, always ->
         val request = permissionRequest
         action {

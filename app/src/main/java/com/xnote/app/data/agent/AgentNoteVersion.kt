@@ -1,10 +1,20 @@
 package com.xnote.app.data.agent
 
 import com.xnote.app.data.db.NoteEntity
+import com.xnote.app.data.db.AgentSnapshotEntity
+import com.xnote.app.domain.agent.AgentEditableContent
+import com.xnote.app.domain.document.decodeNoteDocument
 import kotlinx.serialization.json.*
 import java.security.MessageDigest
 
+// -- Type Definitions
+
+data class AgentEditBase(val noteId: String, val version: String, val content: AgentEditableContent)
+
 // -- Functions
+
+fun NoteEntity.editBase() = AgentEditBase(id, agentVersion(), AgentEditableContent(title, decodeNoteDocument(documentJson)))
+fun AgentSnapshotEntity.editBase() = AgentEditBase(noteId, version, AgentEditableContent(title, decodeNoteDocument(documentJson)))
 
 fun NoteEntity.agentVersion(): String {
     val identity = buildJsonArray {

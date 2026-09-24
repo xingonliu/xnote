@@ -25,14 +25,15 @@ import kotlinx.coroutines.Dispatchers
         AgentToolEventEntity::class,
         AgentSnapshotEntity::class,
         AgentSnapshotRefEntity::class,
+        AgentToolSnapshotRefEntity::class,
         AgentChangeEntity::class,
         AgentReviewEntity::class,
         AgentAttachmentRefEntity::class,
         ModelProfileEntity::class,
         AgentDraftEntity::class,
     ],
-    version = 8,
-    autoMigrations = [AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8)],
+    version = 9,
+    autoMigrations = [AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9)],
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {

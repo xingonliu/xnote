@@ -4,7 +4,7 @@ import androidx.room3.immediateTransaction
 import androidx.room3.useWriterConnection
 import com.xnote.app.data.db.*
 import com.xnote.app.domain.agent.*
-import com.xnote.app.domain.document.referencedAttachmentIds
+import com.xnote.app.domain.document.*
 import com.xnote.app.domain.text.extractPlainText
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -39,15 +39,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         val sources = noteIds.distinct().map { noteId ->
             val note = database.notes().get(noteId)
             require(note != null && note.deletedAtEpochMs == null) { "附加笔记已删除，请移除后重试。" }
-            val version = note.agentVersion()
-            val snapshot = database.agent().snapshotForVersion(noteId, version) ?: AgentSnapshotEntity(
-                id(), note.id, version, note.title, note.documentJson, note.backgroundKey, note.notebookId, now(),
-            ).also { snapshot ->
-                database.agent().insertSnapshot(snapshot)
-                note.toDomain().referencedAttachmentIds().forEach { attachment ->
-                    database.agent().insertAttachmentRef(AgentAttachmentRefEntity("snapshot", snapshot.id, attachment))
-                }
-            }
+            val snapshot = captureVersion(note)
             database.agent().insertSnapshotRef(AgentSnapshotRefEntity(message.id, snapshot.id, message.segmentId, permission.revision))
             AgentMessageSource(note.id, snapshot.id)
         }
@@ -59,7 +51,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         val message = requireNotNull(database.agent().message(messageId))
         val snapshots = database.agent().snapshotRefs(messageId).mapNotNull { database.agent().snapshot(it.snapshotId) }
         val text = message.text + snapshotPrompt(snapshots)
-        planAgentExecutionContext(profile, emptyList(), listOf(ModelMessage(AgentMessageRole.User, text)), if (profile.capabilities.tools) AgentReadTools else emptyList())
+        planAgentExecutionContext(profile, emptyList(), listOf(ModelMessage(AgentMessageRole.User, text)), if (profile.capabilities.tools) AgentNoteTools else emptyList())
     }
 
     suspend fun access(run: AgentRunEntity): AgentAccessContext {
@@ -113,7 +105,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         }.toString() }
     }
 
-    suspend fun executeReadTool(runId: String, call: ModelToolCall): AgentReadToolResult = transaction {
+    suspend fun executeTool(runId: String, call: ModelToolCall): AgentToolResult = transaction {
         currentCoroutineContext().ensureActive()
         val run = requireNotNull(database.agent().run(runId))
         require(run.status == AgentRunStatus.Running) { "运行已暂停或停止，不能继续派发工具。" }
@@ -121,7 +113,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments)) { "工具调用 ID 不能复用为不同操作。" }
         if (old?.status in setOf(AgentToolStatus.Committed, AgentToolStatus.Denied, AgentToolStatus.Failed)) {
             val sources = Json.decodeFromString<List<AgentMessageSource>>(checkNotNull(old).sourcesJson)
-            return@transaction if (canUseSources(run, sources)) AgentReadToolResult.Finished(
+            return@transaction if (canUseSources(run, sources)) AgentToolResult.Finished(
                 ModelToolResult(call.id, call.name, checkNotNull(old.resultJson)), sources,
             ) else unavailable(call)
         }
@@ -130,23 +122,27 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             AgentToolStatus.Requested, permission.revision, now())
         database.agent().saveToolEvent(event)
         val result = try {
-            require(call.id.isNotBlank() && call.arguments.toString().length <= AgentNoteLimits.MaxToolArgumentCharacters)
+            val argumentLimit = if (call.name == "write") AgentNoteLimits.MaxWriteArgumentCharacters else AgentNoteLimits.MaxToolArgumentCharacters
+            require(call.id.isNotBlank() && call.arguments.toString().length <= argumentLimit)
             when (call.name) {
                 "read" -> read(run, call, Json.decodeFromJsonElement<AgentReadArguments>(call.arguments))
                 "note_search" -> search(run, call, Json.decodeFromJsonElement<AgentSearchArguments>(call.arguments))
+                "write" -> write(run, call, Json.decodeFromJsonElement<AgentWriteArguments>(call.arguments))
                 else -> finished(call, buildJsonObject { put("error", "unsupported_tool") })
             }
         } catch (_: IllegalArgumentException) {
             finished(call, buildJsonObject { put("error", "invalid_arguments") })
         }
-        if (result is AgentReadToolResult.Finished) {
+        if (result is AgentToolResult.Finished) {
             val error = Json.parseToJsonElement(result.result.content).jsonObject["error"]?.jsonPrimitive?.content
             val reason = when (error) {
-                "invalid_arguments" -> "参数未通过结构或范围校验，未执行读取。"
+                "invalid_arguments" -> "参数未通过结构或范围校验，未执行操作。"
+                "read_required" -> "当前话题没有该版本的读取基线，须先读取再修改。"
                 "unsupported_tool" -> "该工具未开放，未执行操作。"
-                "unavailable_under_current_permission" -> "发送快照不存在、已失效或当前权限不允许读取，未替换为当前正文。"
-                else -> if (call.name == "note_search") "先按当前可读范围过滤，再匹配和分页；不返回范围外命中信息。"
-                    else if (result.sources.any { it.snapshotId != null }) "读取指定发送快照；当前读取权限或当前片段的有效附加授权允许访问。"
+                "unavailable_under_current_permission" -> "指定快照不存在、已失效或当前权限不允许读取，未替换为当前正文。"
+                else -> if (call.name == "write") "当前三级可写范围允许修改；正文、搜索索引、审阅与工具结果在同一事务提交。"
+                    else if (call.name == "note_search") "先按当前可读范围过滤，再匹配和分页；不返回范围外命中信息。"
+                    else if (result.sources.any { it.snapshotId != null }) "读取指定版本快照；当前读取权限或当前片段的有效附加授权允许访问。"
                     else "当前全局范围或有效运行授权允许读取该笔记的当前版本。"
             }
             database.agent().saveToolEvent(event.copy(resultJson = result.result.content,
@@ -156,6 +152,12 @@ class AgentNoteStore(private val database: XNoteDatabase) {
                     else -> AgentToolStatus.Denied
                 }, decisionsJson = decisions(event, run, reason),
                 permissionRevision = permission.revision, committedAtEpochMs = now()))
+        } else if (result is AgentToolResult.Conflict) {
+            database.agent().saveToolEvent(event.copy(permissionRevision = permission.revision,
+                resultJson = buildJsonObject { put("error", "edit_conflict"); put("location", result.location); put("next_step", "read_current_and_replan") }.toString(),
+                sourcesJson = Json.encodeToString(listOf(AgentMessageSource(call.arguments.getValue("note_id").jsonPrimitive.content))),
+                decisionsJson = decisions(event, run, "写入与当前内容冲突，正文未改变；等待用户后重新读取并调整。")))
+            database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingConflict, updatedAtEpochMs = now()))
         } else {
             database.agent().saveToolEvent(event.copy(permissionRevision = permission.revision,
                 decisionsJson = decisions(event, run, "当前权限与范围不足以执行请求，等待用户授权；队列不继续。")))
@@ -171,7 +173,16 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         require(event.status == AgentToolStatus.Requested)
         database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Denied,
             resultJson = "{\"error\":\"user_denied\"}", committedAtEpochMs = now(),
-            decisionsJson = decisions(event, run, "用户拒绝本次请求，未读取笔记。")))
+            decisionsJson = decisions(event, run, "用户拒绝本次请求，未执行操作。")))
+    }
+
+    suspend fun replanConflictFromUser(runId: String, callId: String) = transaction {
+        val run = requireNotNull(database.agent().run(runId))
+        require(run.status == AgentRunStatus.WaitingConflict)
+        val event = requireNotNull(database.agent().toolEvent(runId, callId))
+        require(event.status == AgentToolStatus.Requested && event.resultJson != null)
+        database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Failed, committedAtEpochMs = now(),
+            decisionsJson = decisions(event, run, "用户要求保留现有内容，重新读取并调整；旧写入不再执行。")))
     }
 
     /** The selected scope is an explicit user choice. A run grant captures note IDs without changing global scope. */
@@ -196,36 +207,73 @@ class AgentNoteStore(private val database: XNoteDatabase) {
 
     suspend fun savePermissionFromUser(value: AgentPermission): AgentPermission = permissions.saveFromUser(value)
 
-    private suspend fun read(run: AgentRunEntity, call: ModelToolCall, args: AgentReadArguments): AgentReadToolResult {
+    private suspend fun read(run: AgentRunEntity, call: ModelToolCall, args: AgentReadArguments): AgentToolResult {
         require(args.note_id.isNotBlank() && args.offset >= 0 && args.limit in 1..AgentNoteLimits.ReadPageCharacters)
         val source = AgentMessageSource(args.note_id, args.snapshot_id)
         if (!canUseSources(run, listOf(source))) {
             // Snapshot failure never silently substitutes the current version.
-            return if (args.snapshot_id != null) unavailable(call) else AgentReadToolResult.PermissionRequired(call.id)
+            return if (args.snapshot_id != null) unavailable(call) else AgentToolResult.PermissionRequired(call.id)
         }
         val note = requireNotNull(database.notes().get(args.note_id))
-        val snapshot = args.snapshot_id?.let { requireNotNull(database.agent().snapshot(it)) }
-        val document = snapshot?.documentJson ?: note.documentJson
+        val requestedSnapshot = args.snapshot_id?.let { requireNotNull(database.agent().snapshot(it)) }
+        val document = requestedSnapshot?.documentJson ?: note.documentJson
         require(args.offset <= document.length && (args.offset == document.length || !document[args.offset].isLowSurrogate()))
         var end = (args.offset.toLong() + args.limit).coerceAtMost(document.length.toLong()).toInt()
         if (end < document.length && end > args.offset && document[end - 1].isHighSurrogate()) end--
         require(end > args.offset || args.offset == document.length)
+        val snapshot = requestedSnapshot ?: captureVersion(note)
+        val event = requireNotNull(database.agent().toolEvent(run.id, call.id))
+        database.agent().insertToolSnapshotRef(AgentToolSnapshotRefEntity(event.id, snapshot.id))
         return finished(call, buildJsonObject {
-            put("note_id", note.id); put("version", snapshot?.version ?: note.agentVersion())
-            put("source", if (snapshot == null) "current" else "snapshot")
-            snapshot?.let { put("snapshot_id", it.id) }
-            put("title", snapshot?.title ?: note.title); put("offset", args.offset)
+            put("note_id", note.id); put("version", snapshot.version)
+            put("source", if (args.snapshot_id == null) "current" else "snapshot")
+            put("snapshot_id", snapshot.id)
+            put("title", snapshot.title); put("offset", args.offset)
             put("document_json", document.substring(args.offset, end))
             put("next_offset", if (end < document.length) JsonPrimitive(end) else JsonNull)
         }, listOf(source))
     }
 
-    private suspend fun search(run: AgentRunEntity, call: ModelToolCall, args: AgentSearchArguments): AgentReadToolResult {
+    private suspend fun write(run: AgentRunEntity, call: ModelToolCall, args: AgentWriteArguments): AgentToolResult {
+        require(args.note_id.isNotBlank() && args.base_version.isNotBlank())
+        val current = database.notes().get(args.note_id)
+        if (current == null || !access(run).canEdit(AgentNoteAccess(current.id, current.notebookId, current.deletedAtEpochMs != null)))
+            return AgentToolResult.PermissionRequired(call.id)
+        val snapshot = database.agent().readSnapshot(run.segmentId, args.note_id, args.base_version)
+            ?: activeSnapshotRefs(run.segmentId).mapNotNull { database.agent().snapshot(it.snapshotId) }
+                .firstOrNull { it.noteId == args.note_id && it.version == args.base_version }
+            ?: return finished(call, buildJsonObject { put("error", "read_required") })
+        val proposed = AgentEditableContent(args.title, decodeAgentDocument(args.document_json))
+        val outcome = AgentReviewStore(database).applyEdit(run.id, call.id, snapshot.editBase(), proposed, args.selection)
+        return when (outcome) {
+            is AgentReviewResult.Conflict -> AgentToolResult.Conflict(call.id, outcome.location)
+            AgentReviewResult.PermissionRequired -> AgentToolResult.PermissionRequired(call.id)
+            AgentReviewResult.Unrecoverable -> unavailable(call)
+            is AgentReviewResult.Applied -> finished(call, buildJsonObject {
+                put("note_id", outcome.note.id); put("version", outcome.note.agentVersion()); put("review_id", outcome.reviewId); put("status", "applied")
+            }, listOf(AgentMessageSource(outcome.note.id)))
+            is AgentReviewResult.Unchanged -> finished(call, buildJsonObject {
+                put("note_id", outcome.note.id); put("version", outcome.note.agentVersion()); put("status", "unchanged")
+            }, listOf(AgentMessageSource(outcome.note.id)))
+        }
+    }
+
+    private suspend fun captureVersion(note: NoteEntity): AgentSnapshotEntity =
+        database.agent().snapshotForVersion(note.id, note.agentVersion()) ?: AgentSnapshotEntity(
+            id(), note.id, note.agentVersion(), note.title, note.documentJson, note.backgroundKey, note.notebookId, now(),
+        ).also { snapshot ->
+            database.agent().insertSnapshot(snapshot)
+            note.toDomain().referencedAttachmentIds().forEach { attachment ->
+                database.agent().insertAttachmentRef(AgentAttachmentRefEntity("snapshot", snapshot.id, attachment))
+            }
+        }
+
+    private suspend fun search(run: AgentRunEntity, call: ModelToolCall, args: AgentSearchArguments): AgentToolResult {
         require(args.query.length <= AgentNoteLimits.MaxQueryCharacters && args.offset >= 0 && args.limit in 1..AgentNoteLimits.SearchPageSize)
         val access = access(run)
         val grant = access.grant?.takeIf { it.permissionRevision == access.permission.revision && it.runId == run.id }
         if (access.permission.level < AgentPermissionLevel.Read && (grant?.level ?: AgentPermissionLevel.None) < AgentPermissionLevel.Read) {
-            return AgentReadToolResult.PermissionRequired(call.id)
+            return AgentToolResult.PermissionRequired(call.id)
         }
         val matches = database.notes().getAll().asSequence().filter {
             access.canReadCurrent(AgentNoteAccess(it.id, it.notebookId, it.deletedAtEpochMs != null))
@@ -254,7 +302,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
     }
 
     private fun finished(call: ModelToolCall, value: JsonObject, sources: List<AgentMessageSource> = emptyList()) =
-        AgentReadToolResult.Finished(ModelToolResult(call.id, call.name, value.toString()), sources)
+        AgentToolResult.Finished(ModelToolResult(call.id, call.name, value.toString()), sources)
     private suspend fun <T> transaction(block: suspend () -> T): T = database.useWriterConnection { it.immediateTransaction { block() } }
     private fun id(): String = UUID.randomUUID().toString()
     private fun now(): Long = System.currentTimeMillis()

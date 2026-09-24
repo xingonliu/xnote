@@ -49,7 +49,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         }
         require(execution.any { it.role == AgentMessageRole.User })
         if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
-        val tools = if (profile.capabilities.tools) AgentReadTools else emptyList()
+        val tools = if (profile.capabilities.tools) AgentNoteTools else emptyList()
         return AgentRequestContext(planAgentExecutionContext(profile, turns, execution, tools), sources.distinct())
     }
 }

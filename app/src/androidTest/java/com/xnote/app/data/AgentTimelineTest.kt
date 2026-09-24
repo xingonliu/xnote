@@ -314,7 +314,7 @@ class AgentTimelineTest {
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("read", "note_search"), requests.first().tools.map { it.name })
+            assertEquals(listOf("read", "note_search", "write"), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
             val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
@@ -414,6 +414,64 @@ class AgentTimelineTest {
         }
     }
 
+    @Test fun writeConflictSurvivesRuntimeRecreationAndReplansWithQueuePaused() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+            val reachedWrite = CompletableDeferred<Unit>()
+            val releaseWrite = CompletableDeferred<Unit>()
+            val model = client { request ->
+                requests += request
+                when (requests.size) {
+                    1, 3 -> {
+                        emit(ModelEvent.ToolCall(ModelToolCall("read-${requests.size}", "read", buildJsonObject { put("note_id", "readable") })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    2, 4 -> {
+                        val version = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("version").jsonPrimitive.content
+                        if (requests.size == 2) {
+                            val original = db.notes().get("readable")!!
+                            db.notes().upsert(original.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("用户重写"))))).encodeToJson()))
+                            reachedWrite.complete(Unit); releaseWrite.await()
+                        }
+                        emit(ModelEvent.ToolCall(ModelToolCall("write-${requests.size}", "write", buildJsonObject {
+                            put("note_id", "readable"); put("base_version", version); put("title", "受保护标题")
+                            put("document_json", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun(if (requests.size == 2) "Agent 重写" else "用户重写，补充说明"))))).encodeToJson())
+                        })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    else -> { emit(ModelEvent.Text("已完成调整，可逐篇审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                }
+            }
+            val timeline = AgentTimeline(db, profiles, model, scope)
+            timeline.send("修改笔记")
+            reachedWrite.await()
+            timeline.enqueue("下一项")
+            releaseWrite.complete(Unit)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val waiting = db.agent().unfinishedRuns().single()
+            assertEquals(AgentRunStatus.WaitingConflict, waiting.status)
+            assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
+            assertTrue(db.agent().noteChanges("readable").isEmpty())
+            val restored = AgentTimeline(db, profiles, model, scope)
+            restored.awaitReady()
+            assertEquals(2, requests.size)
+            restored.replanConflict(waiting.id, "write-2")
+            withTimeout(5000) { restored.state.first { it.ready && !it.running } }
+            assertEquals(5, requests.size)
+            assertTrue(requests[2].messages.last().results.single().content.contains("edit_conflict"))
+            assertEquals(AgentRunStatus.Complete, db.agent().run(waiting.id)!!.status)
+            assertEquals(1, db.agent().noteChanges("readable").size)
+            assertTrue(db.notes().get("readable")!!.documentJson.contains("用户重写，补充说明"))
+            assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
+            restored.reviewStore.reject("readable")
+            assertTrue(db.notes().get("readable")!!.documentJson.contains("用户重写"))
+            assertFalse(db.notes().get("readable")!!.documentJson.contains("补充说明"))
+        }
+    }
+
     private suspend fun seedReadableNote(db: XNoteDatabase) {
         val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("受保护正文"))))).encodeToJson()
         db.notes().upsert(NoteEntity("readable", null, "受保护标题", document, null, 0, 0, 0, "受保护正文", 1, 1, null, null))
@@ -436,6 +494,7 @@ class AgentTimelineTest {
         } finally {
             scope.coroutineContext[Job]?.cancelAndJoin()
             db.agent().unfinishedRuns().forEach { db.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled)) }
+            db.agent().pendingQueue().forEach { db.agent().deleteQueueItem(it.id) }
             profiles.delete("profile")
             db.close()
         }

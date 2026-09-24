@@ -86,9 +86,9 @@ adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#denie
 
 `AgentBackgroundTest#systemDataSyncTimeoutPersistsRecoverableInterruption` 在 Android 16 上通过：依据官方测试接口把 `data_sync_fgs_timeout_duration` 暂设为 3000 毫秒，启动真实前台服务后回桌面，由系统触发 `onTimeout`；运行持久化为 `foreground_service_timeout`，保留原输入并停止服务。测试后已删除临时 device_config 值、重置兼容性开关。该用例需显式传入 `systemTimeout=true`，普通回归跳过。
 
-进程用例需依次单独调用 `prepareAndWaitForKill`（`processPhase=prepare`）和 `recoverAndContinueWithoutReplayingCommittedRead`（`processPhase=recover`）。准备阶段写入私有 `files/agent-process-recovery-ready`，内容为 `<PID>:ready`；宿主核对 `pidof com.xnote.app` 后执行 `run-as com.xnote.app kill -9 <PID>`。准备阶段 instrumentation 报进程终止是预期结果；恢复阶段 1 项断言测试通过才算验收成功。测试使用独立 `agent-process-recovery-test.db`，恢复验收结束后清理该测试库和临时凭据。
+进程用例需依次单独调用 `prepareAndWaitForKill`（`processPhase=prepare`）和 `recoverAndContinueWithoutReplayingCommittedTools`（`processPhase=recover`）。准备阶段写入私有 `files/agent-process-recovery-ready`，内容为 `<PID>:ready`；宿主核对 `pidof com.xnote.app` 后执行 `run-as com.xnote.app kill -9 <PID>`。准备阶段 instrumentation 报进程终止是预期结果；恢复阶段 1 项断言测试通过才算验收成功。测试使用独立 `agent-process-recovery-test.db`，恢复验收结束后清理该测试库和临时凭据。
 
-尚待完成的 S11.4 验收：Android 后台启动限制的端到端验证，以及随 S11.6–S11.7 写工具接入后的提交恢复与冲突等待。只读工具的实际进程终止、重启继续及授权等待后的运行对象重建已验证。S11.4 尚未标记完整验收，S11.6–S11.7 待开发。
+尚待完成的 S11.4 验收：Android 后台启动限制的端到端验证，以及后续创建/删除工具的恢复边界。读取和写入提交后的实际进程终止、重启继续、授权与写入冲突等待后的运行对象重建已验证；写工具证据见下文。S11.4 尚未标记完整验收；S11.6–S11.7 当前进度见下文。
 
 平台依据：[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
 
@@ -121,7 +121,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 - 编辑事务重新检查运行与当前三级可写范围，校验结构、媒体和选区，比较读取基线、最新正文和拟应用内容。标题、段落属性、文字与格式、不同表格单元格和块顺序分别合并；不重叠的用户改动保留。过期选区要求重新选择。没有内容差异时不制造待审阅记录。
 - 文字按 Unicode 码点及其格式比较，不拆开代理对。差异使用有界 Myers 路径，追踪数组最多 262144 个整数（约 1 MiB，不含输入与输出）；并行差异过大时返回冲突。表格单元格没有稳定 ID，因此双方同时改变表格结构时不猜测对应关系；须基于最新版本重新调整。媒体内容及相对顺序保持受保护。
-- 正文、派生统计、搜索索引、改动前后完整版本、Agent 来源和单篇审阅状态处于同一 Room 写事务。同篇未审阅改动跨运行累计；已提交的运行/调用复用改动记录。用户保存的实际内容变化在有效审阅或撤回窗口内另存 User 来源，不混入 Agent 的审阅批次。事实按插入顺序处理，系统时钟回拨不会倒置回退顺序或选错最近接受批次。Room 表结构保持版本 8。
+- 正文、派生统计、搜索索引、改动前后完整版本、Agent 来源和单篇审阅状态处于同一 Room 写事务。同篇未审阅改动跨运行累计；已提交的运行/调用复用改动记录。用户保存的实际内容变化在有效审阅或撤回窗口内另存 User 来源，不混入 Agent 的审阅批次。事实按插入顺序处理，系统时钟回拨不会倒置回退顺序或选错最近接受批次。该领域层基于既有改动表；当前版本 9 的读取引用扩展见下文。
 - 接受只确认现有内容，不首次保存或再次改写正文。拒绝先在内存逆序合并整批 Agent 改动，全部成功后才提交一次正文；任一处冲突只更新审阅状态，整篇正文与索引不部分回退。回退保存时沿用最新背景、归属等元数据。最近接受的批次在 30 天内可撤回，并执行同样的完整冲突检查；已撤回批次标记 `Undone`，不会接着撤回更早的接受。
 - 待审阅和有效撤回记录独立引用媒体，不复制文件。拒绝、撤回及过期接受解除相应引用，笔记和其他有效引用仍保护文件。永久删除清理该篇改动载荷与引用，审阅卡片保留“无法恢复”状态；回收站的既有清理期限未延长。
 - P04 通过 Agent 页“笔记改动”进入，与聊天记录独立。显示当前笔记背景、累计来源与版本、红色删除/绿色新增、格式与表格差异；每篇提供全部接受、全部拒绝和最近接受的撤回。冲突显示当时的改动记录，可保留当前内容或准备重新调整。重新调整保留已有草稿并附加该篇笔记，等待用户发送，不自行扩大权限。
@@ -130,6 +130,23 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 已验证数据库重开后待审阅状态与正文一致、跨轮累计、局部冲突阻止整批回退、接受不重复保存、30 天边界、用户编辑保留、调用去重、权限撤回后仍可本地审阅，以及清空聊天后独立审阅。已检查 720×1280 手机累计 Diff 与冲突页截图。
 
-剩余联动：S11.7 的生产 `create`/`write`/`delete` 工具、创建与删除的整篇审阅、编辑器选区润色和并行自动保存，以及写工具冲突/进程恢复。当前只读工具保持开放，尚未向模型提供写工具。S11.6 的领域事务与编辑 Diff 已接入，不据此宣称 S11.4–S11.7 全部完成。
+剩余联动：S11.7 的生产 `create`/`delete` 工具、创建与删除的整篇审阅、编辑器选区入口和并行自动保存。`write` 与冲突/进程恢复进度见下文。S11.6 的领域事务与编辑 Diff 已接入，不据此宣称 S11.4–S11.7 全部完成。
 
 事务参考：[Room 数据访问与写事务](https://developer.android.com/training/data-storage/room/accessing-data)，通过 Context7 核查连接写事务与 Flow 查询；外层异常引发正文和事实记录共同回滚由端侧用例验证。
+
+## S11.7 版本化写工具与冲突恢复（进行中）
+
+- 工具能力验证通过后，模型可调用 `read`、`note_search` 和 `write`。`write` 只接受笔记 ID、读取基线版本、完整标题、结构化正文 JSON 及可选选区；三级权限与当前可写范围在事务内重新检查，一级和二级进入等待授权，不写入正文。创建和删除工具仍在后续实现范围内。
+- `read` 将完整读取基线及其媒体引用与工具结果一同提交，并返回可用于后续分页的 `snapshot_id`；分页传回该 ID 可固定版本。Room 9 新增独立的工具读取引用，8→9 自动迁移衔接原迁移链。读取引用不加入主动附加集合，不授予笔记、笔记本或下一话题的权限。清空工具记录、清空聊天和永久删除仍可清理不再使用的基线与附件引用。
+- `write.base_version` 必须对应当前话题已提交的读取基线或已派发消息的发送快照，搜索结果中的版本本身不足以写入。正文与基线由应用读取，不接收模型提交的伪造旧正文。拟修改版本与当前版本通过三方合并保存，沿用最新背景与归属；正文、搜索索引、审阅、来源和工具结果共用事务。调用 ID/工具名/参数绑定，重复调用返回已提交结果，不重复写入；返回历史结果仍受当前来源权限控制。
+- 全部写入参数上限为 262144 个 UTF-16 字符，读取/搜索参数仍为 4096；这是独立防护上限，实际模型上下文与输出预算继续生效。未知字段、非法文档、媒体删除/重排、越界选区均不写入。选区校验保护范围外文字及格式、其他块、标题和段落属性，并拒绝拆开 Unicode 代理对；选区实际编辑入口仍待接入。
+- 写入冲突持久化为 `WaitingConflict`，保留正文并暂停队列；重建运行对象不自动发送。Agent 页提供“重新读取并调整”及“保留内容并结束任务”。用户确认重新调整后旧调用固定为失败结果，模型收到要求重新读取的冲突反馈，旧写入不再重试；新版本下的后续写入进入独立单篇审阅。
+- `AgentProcessRecoveryTest` 的显式两阶段用例已扩展为读取提交、写入提交、部分回复和队列保存后由宿主机杀进程，再在新进程验证中断、用户继续、调用与改动不重复、独立审阅和保留用户补充的拒绝操作。
+
+最终验证：144 项单元测试中 143 项通过、1 项真实服务用例默认跳过。Android 16 上 `AgentWriteToolTest` 9 项、`AgentTimelineTest` 21 项、`AgentNoteStoreTest` 10 项、`AgentFoundationTest` 3 项、`AgentReviewStoreTest` 11 项、`NoteLibraryInstrumentedTest` 16 项以及写入/审阅/Agent 界面 7 项，合计 77 项全部通过。覆盖数据库重开后的基线、写入去重、权限与媒体保护、整笔事务回滚、当前话题隔离、固定版本分页、冲突后的运行对象重建、队列暂停及 8→9/3→9 迁移。已检查 720×1280 手机写入冲突页与实际写工具生成的累计 Diff；拒绝只移除 Agent 新增内容，用户改写保留。`lintDebug`、`assembleDebug`、`assembleDebugAndroidTest`、`testDebugUnitTest` 最终通过，Lint 0 错误、18 条现有警告。
+
+实际进程恢复复验通过：显式 `processPhase=prepare` 在读取和写入均提交、部分回复及队列保存后留下就绪标记；宿主机核对运行 PID 为 5936 后发送 SIGKILL，准备端如预期报告进程终止。`processPhase=recover` 在另一个 PID 中通过全部断言，且 1 项恢复测试通过：没有自动模型请求，运行显示中断，原读取与写入事件及单条改动保持不变，用户继续仅发送一次后续请求，队列保持暂停；最后拒绝 Agent 改动仍保留重启后用户补充。测试使用专用数据库及测试凭据，完成后清理。该证据验证本地恢复，不代表真实模型服务写工具联调。
+
+剩余范围：`create`/`delete` 与明确创建归属、运行内新笔记授权、创建/删除的整篇审阅及删除卡片；编辑器携带笔记/选区入口和并行自动保存；S11.4 真实后台启动限制验收。S11.4–S11.7 整体仍未完成。
+
+迁移参考：[Room 数据库迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)，通过 Context7 核查导出 schema、自动迁移和迁移验证；当前 schema 为 `app/schemas/com.xnote.app.data.db.XNoteDatabase/9.json`。

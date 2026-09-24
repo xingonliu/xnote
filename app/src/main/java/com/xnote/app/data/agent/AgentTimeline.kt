@@ -99,6 +99,19 @@ class AgentTimeline(
         }
     }
 
+    suspend fun replanConflict(runId: String, callId: String) {
+        awaitReady()
+        mutex.withLock {
+            if (mutableState.value.running) throw ModelException(ModelError.Busy)
+            val resumed = transaction {
+                noteStore.replanConflictFromUser(runId, callId)
+                requireNotNull(database.agent().run(runId)).copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
+                    .also { database.agent().saveRun(it) }
+            }
+            launchRun(resumed)
+        }
+    }
+
     suspend fun send(text: String) {
         awaitReady()
         mutex.withLock {
@@ -376,7 +389,7 @@ class AgentTimeline(
                     val calls = mutableListOf<ModelToolCall>()
                     var nativeParts: JsonArray? = null
                     try {
-                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentReadTools else emptyList())).collect { event ->
+                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools else emptyList())).collect { event ->
                             currentCoroutineContext().ensureActive()
                             when (event) {
                                 is ModelEvent.Text -> {
@@ -465,12 +478,17 @@ class AgentTimeline(
             val sources = Json.decodeFromString<List<AgentMessageSource>>(reply.sourcesJson).toMutableList()
             for (call in model.calls) {
                 currentCoroutineContext().ensureActive()
-                when (val outcome = noteStore.executeReadTool(run.id, call)) {
-                    is AgentReadToolResult.PermissionRequired -> {
+                when (val outcome = noteStore.executeTool(run.id, call)) {
+                    is AgentToolResult.PermissionRequired -> {
                         mutableState.value = mutableState.value.copy(notice = "工具需要授权，队列保持等待。")
                         return false
                     }
-                    is AgentReadToolResult.Finished -> { results += outcome.result; sources += outcome.sources }
+                    is AgentToolResult.Conflict -> {
+                        transaction { pauseQueue() }
+                        mutableState.value = mutableState.value.copy(notice = "写入与当前内容冲突：${outcome.location}。正文未改变，队列已暂停。")
+                        return false
+                    }
+                    is AgentToolResult.Finished -> { results += outcome.result; sources += outcome.sources }
                 }
             }
             transaction {

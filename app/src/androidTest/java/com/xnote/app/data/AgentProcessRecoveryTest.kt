@@ -43,12 +43,19 @@ class AgentProcessRecoveryTest {
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("终止前正文"))))).encodeToJson()
             db.notes().upsert(NoteEntity("process-note", null, "进程测试", document, null, 0, 0, 0, "终止前正文", 1, 1, null, null))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
             var requests = 0
             val model = object : ModelClient {
                 override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
                     if (++requests == 1) {
                         emit(ModelEvent.ToolCall(ModelToolCall("durable-read", "read", buildJsonObject { put("note_id", "process-note") })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    } else if (requests == 2) {
+                        val version = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("version").jsonPrimitive.content
+                        emit(ModelEvent.ToolCall(ModelToolCall("durable-write", "write", buildJsonObject {
+                            put("note_id", "process-note"); put("base_version", version); put("title", "进程测试")
+                            put("document_json", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("Agent 整理：终止前正文"))))).encodeToJson())
+                        })))
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     } else {
                         emit(ModelEvent.Text("终止前已保存的部分回复"))
@@ -58,7 +65,7 @@ class AgentProcessRecoveryTest {
                 }
             }
             val timeline = AgentTimeline(db, profiles, model, scope)
-            timeline.send("读取笔记后继续整理")
+            timeline.send("读取并修改笔记后继续整理")
             withTimeout(60_000) { while (!marker.exists()) delay(50) }
             timeline.enqueue("恢复后仍应等待的队列")
             marker.writeText("${android.os.Process.myPid()}:ready")
@@ -69,7 +76,7 @@ class AgentProcessRecoveryTest {
         }
     }
 
-    @Test fun recoverAndContinueWithoutReplayingCommittedRead() = runBlocking {
+    @Test fun recoverAndContinueWithoutReplayingCommittedTools() = runBlocking {
         assumeTrue(InstrumentationRegistry.getArguments().getString("processPhase") == "recover")
         val context = ApplicationProvider.getApplicationContext<Context>()
         val marker = File(context.filesDir, MarkerName)
@@ -81,7 +88,9 @@ class AgentProcessRecoveryTest {
         val model = object : ModelClient {
             override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
                 requests++
-                assertTrue(request.messages.flatMap { it.results }.single().content.contains("终止前正文"))
+                val results = request.messages.flatMap { it.results }
+                assertTrue(results.single { it.name == "read" }.content.contains("终止前正文"))
+                assertTrue(results.single { it.name == "write" }.content.contains("applied"))
                 assertTrue(request.messages.any { it.text == "终止前已保存的部分回复" })
                 emit(ModelEvent.Text("重启后继续完成"))
                 emit(ModelEvent.Finished(ModelFinish.Complete))
@@ -96,16 +105,26 @@ class AgentProcessRecoveryTest {
             assertEquals(AgentRunStatus.Interrupted, run.status)
             assertEquals("process_interrupted", run.errorCode)
             assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
-            val committed = db.agent().toolEvents(run.id).single()
-            assertEquals(AgentToolStatus.Committed, committed.status)
+            val committed = db.agent().toolEvents(run.id)
+            assertEquals(2, committed.size)
+            assertTrue(committed.all { it.status == AgentToolStatus.Committed })
             val note = db.notes().get("process-note")!!
-            db.notes().upsert(note.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("重启后用户的新正文"))))).encodeToJson()))
+            assertTrue(note.documentJson.contains("Agent 整理：终止前正文"))
+            val changes = db.agent().noteChanges(note.id)
+            assertEquals(1, changes.size)
+            assertEquals(AgentReviewStatus.Pending, timeline.reviewStore.detail(note.id)!!.review.status)
+            val user = note.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("Agent 整理：终止前正文；用户补充"))))).encodeToJson())
+            db.notes().upsert(user)
             timeline.continueRun(run.id)
             withTimeout(5000) { timeline.state.first { !it.running } }
             assertEquals(1, requests)
             assertEquals(AgentRunStatus.Complete, db.agent().run(run.id)!!.status)
-            assertEquals(committed, db.agent().toolEvents(run.id).single())
+            assertEquals(committed, db.agent().toolEvents(run.id))
+            assertEquals(changes, db.agent().noteChanges(note.id))
+            assertEquals(user, db.notes().get(note.id))
             assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
+            timeline.reviewStore.reject(note.id)
+            assertEquals("终止前正文；用户补充", decodeNoteDocument(db.notes().get(note.id)!!.documentJson).blocks.filterIsInstance<TextBlock>().single().inlines.plainText())
         } finally {
             timeline.clearChat()
             scope.coroutineContext[Job]?.cancelAndJoin()

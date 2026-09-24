@@ -92,7 +92,7 @@ class AgentReviewFlowTest {
         library.saveNoteContent(note.id, "周末计划", document("先整理笔记，再写总结。"))
         database.agent().saveRun(AgentRunEntity("review-run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
         AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
-        timeline.reviewStore.applyEdit("review-run", "change", database.notes().get(note.id)!!, AgentEditableContent("周末计划", document("先整理想法，再写总结。")))
+        timeline.reviewStore.applyEdit("review-run", "change", database.notes().get(note.id)!!.editBase(), AgentEditableContent("周末计划", document("先整理想法，再写总结。")))
         database.agent().saveRun(database.agent().run("review-run")!!.copy(status = AgentRunStatus.Complete))
         note.id
     }

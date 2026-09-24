@@ -39,6 +39,21 @@ class AgentEditPolicyTest {
         }
     }
 
+    @Test fun selectionPolishPreservesOutsideTextStylesBlocksAndUnicodeBoundaries() {
+        val block = TextBlock("selected", inlines = listOf(InlineRun("前缀😀", bold = true), InlineRun("原文"), InlineRun("后缀", italic = true)))
+        val base = NoteDocument(blocks = listOf(block, text))
+        val selection = AgentSelection("v", "selected", 4, 6)
+        val polished = block.copy(inlines = listOf(InlineRun("前缀😀", bold = true), InlineRun("润色后的内容", highlight = true), InlineRun("后缀", italic = true)))
+        val proposed = base.copy(blocks = listOf(polished, text))
+        assertEquals(AgentEditValidation.Valid, validateAgentEdit(base, proposed, "v", "v", selection))
+        assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(base, proposed, "v", "v", selection.copy(start = 3)))
+        for (invalid in listOf(
+            proposed.copy(blocks = listOf(polished.copy(quoted = true), text)),
+            proposed.copy(blocks = listOf(polished, text.copy(checked = true))),
+            proposed.copy(blocks = listOf(polished.copy(inlines = polished.inlines.map { it.copy(bold = false) }), text)),
+        )) assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(base, invalid, "v", "v", selection))
+    }
+
     @Test fun undoRetentionHasExactThirtyDayBoundary() {
         assertFalse(canUndoAcceptedAgentReview(null, 0))
         assertFalse(canUndoAcceptedAgentReview(100, 99))

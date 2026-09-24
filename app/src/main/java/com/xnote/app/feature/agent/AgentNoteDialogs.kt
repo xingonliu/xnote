@@ -48,11 +48,11 @@ fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, back
 
 @Composable
 fun AgentPermissionDialog(permission: AgentPermission, notebooks: List<NotebookEntity>, backdrop: Backdrop, authorizing: Boolean,
-    onDismiss: () -> Unit, onSave: (AgentPermission, Boolean) -> Unit) {
-    var choice by remember { mutableStateOf(permission.copy(level = if (authorizing && permission.level == AgentPermissionLevel.None) AgentPermissionLevel.Read else permission.level)) }
+    requiredLevel: AgentPermissionLevel = AgentPermissionLevel.Read, onDismiss: () -> Unit, onSave: (AgentPermission, Boolean) -> Unit) {
+    var choice by remember { mutableStateOf(permission.copy(level = if (authorizing && permission.level < requiredLevel) requiredLevel else permission.level)) }
     var always by remember { mutableStateOf(false) }
     XNoteDialog(true, onDismiss, if (authorizing) "授权本次工具调用" else "Agent 权限与范围", backdrop,
-        confirmAction = XNoteDialogAction(if (authorizing) "允许并继续" else "保存", { onSave(choice, always) }, !authorizing || choice.level >= AgentPermissionLevel.Read),
+        confirmAction = XNoteDialogAction(if (authorizing) "允许并继续" else "保存", { onSave(choice, always) }, !authorizing || choice.level >= requiredLevel),
         dismissAction = XNoteDialogAction("取消", onDismiss)) {
         Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("操作权限", style = MaterialTheme.typography.labelLarge)

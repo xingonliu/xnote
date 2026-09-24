@@ -22,12 +22,12 @@ class AgentReviewStoreTest {
     @Test fun appliesImmediatelyAndAccumulatesAcrossRunsWhilePreservingUserEditsOnRejection() = runBlocking {
         fixture { db, store, library ->
             val base = db.notes().get("note")!!
-            val first = store.applyEdit("run", "first", base, content("A middle end")) as AgentReviewResult.Applied
+            val first = store.applyEdit("run", "first", base.editBase(), content("A middle end")) as AgentReviewResult.Applied
             assertEquals("A middle end", text(db.notes().get("note")!!))
             library.saveNoteContent("note", "用户标题", document("A 用户正文 end"))
             val latest = db.notes().get("note")!!
             db.agent().saveRun(db.agent().run("run")!!.copy(id = "next-run"))
-            val second = store.applyEdit("next-run", "second", latest, content("A 用户正文 Z").copy(title = "用户标题")) as AgentReviewResult.Applied
+            val second = store.applyEdit("next-run", "second", latest.editBase(), content("A 用户正文 Z").copy(title = "用户标题")) as AgentReviewResult.Applied
             assertEquals(first.reviewId, second.reviewId)
             assertEquals(2, db.agent().reviewChanges(first.reviewId).size)
             assertEquals(listOf(AgentChangeOrigin.Agent, AgentChangeOrigin.User, AgentChangeOrigin.Agent), db.agent().noteChanges("note").map { it.origin })
@@ -42,11 +42,11 @@ class AgentReviewStoreTest {
         fixture { db, store, library ->
             val base = db.notes().get("note")!!
             library.saveNoteContent("note", "用户标题", document("start user end"))
-            assertTrue(store.applyEdit("run", "merge", base, content("A middle end")) is AgentReviewResult.Applied)
+            assertTrue(store.applyEdit("run", "merge", base.editBase(), content("A middle end")) is AgentReviewResult.Applied)
             assertEquals("A user end", text(db.notes().get("note")!!))
             assertEquals("用户标题", db.notes().get("note")!!.title)
             val beforeConflict = db.notes().get("note")!!
-            assertTrue(store.applyEdit("run", "conflict", base, content("start Agent end")) is AgentReviewResult.Conflict)
+            assertTrue(store.applyEdit("run", "conflict", base.editBase(), content("start Agent end")) is AgentReviewResult.Conflict)
             assertEquals(beforeConflict, db.notes().get("note"))
             assertNull(db.agent().committedChange("run", "conflict"))
         }
@@ -54,8 +54,8 @@ class AgentReviewStoreTest {
 
     @Test fun wholeBatchRollbackDoesNotApplyEarlierSuccessfulInverseWhenAnotherInverseConflicts() = runBlocking {
         fixture { db, store, library ->
-            store.applyEdit("run", "first", db.notes().get("note")!!, content("A middle end"))
-            store.applyEdit("run", "second", db.notes().get("note")!!, content("A middle Z"))
+            store.applyEdit("run", "first", db.notes().get("note")!!.editBase(), content("A middle end"))
+            store.applyEdit("run", "second", db.notes().get("note")!!.editBase(), content("A middle Z"))
             library.saveNoteContent("note", "", document("用户 middle Z"))
             val current = db.notes().get("note")!!
             assertTrue(store.reject("note") is AgentReviewResult.Conflict)
@@ -71,7 +71,7 @@ class AgentReviewStoreTest {
         fixture { db, _, library ->
             var time = 10L
             val store = AgentReviewStore(db) { time }
-            store.applyEdit("run", "first", db.notes().get("note")!!, content("A middle end"))
+            store.applyEdit("run", "first", db.notes().get("note")!!.editBase(), content("A middle end"))
             val applied = db.notes().get("note")!!
             store.accept("note")
             assertEquals(applied, db.notes().get("note"))
@@ -79,7 +79,7 @@ class AgentReviewStoreTest {
             time += AgentAcceptedUndoRetentionMs - 1
             assertTrue(store.undoAccepted("note") is AgentReviewResult.Applied)
             assertEquals("start user end", text(db.notes().get("note")!!))
-            val second = store.applyEdit("run", "second", db.notes().get("note")!!, content("B user end")) as AgentReviewResult.Applied
+            val second = store.applyEdit("run", "second", db.notes().get("note")!!.editBase(), content("B user end")) as AgentReviewResult.Applied
             assertNotEquals(db.agent().reviews("note").first().id, second.reviewId)
             store.accept("note")
             time += AgentAcceptedUndoRetentionMs
@@ -94,19 +94,19 @@ class AgentReviewStoreTest {
             val base = db.notes().get("note")!!
             for (level in listOf(AgentPermissionLevel.None, AgentPermissionLevel.Read)) {
                 AgentPermissionStore(db).saveFromUser(AgentPermission(level, AgentScope.All))
-                assertEquals(AgentReviewResult.PermissionRequired, store.applyEdit("run", "denied", base, content("Agent")))
+                assertEquals(AgentReviewResult.PermissionRequired, store.applyEdit("run", "denied", base.editBase(), content("Agent")))
             }
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
-            val first = store.applyEdit("run", "once", base, content("A middle end"))
-            assertEquals(first, store.applyEdit("run", "once", base, content("A middle end")))
+            val first = store.applyEdit("run", "once", base.editBase(), content("A middle end"))
+            assertEquals(first, store.applyEdit("run", "once", base.editBase(), content("A middle end")))
             assertEquals(1, db.agent().noteChanges("note").size)
             val image = ImageBlock("image", "asset")
             val current = db.notes().get("note")!!.copy(documentJson = NoteDocument(blocks = listOf(image, TextBlock("body"))).encodeToJson())
             db.notes().upsert(current)
-            try { store.applyEdit("run", "media", current, content("removed image")); fail("protected media") } catch (_: IllegalArgumentException) { }
+            try { store.applyEdit("run", "media", current.editBase(), content("removed image")); fail("protected media") } catch (_: IllegalArgumentException) { }
             assertEquals(current, db.notes().get("note"))
             AgentPermissionStore(db).saveFromUser(AgentPermission())
-            assertEquals(AgentReviewResult.PermissionRequired, store.applyEdit("run", "once", base, content("A middle end")))
+            assertEquals(AgentReviewResult.PermissionRequired, store.applyEdit("run", "once", base.editBase(), content("A middle end")))
             store.accept("note") // Local review remains allowed after revocation.
         }
     }
@@ -116,7 +116,7 @@ class AgentReviewStoreTest {
             val before = db.notes().get("note")!!
             try {
                 db.useWriterConnection { writer -> writer.immediateTransaction {
-                    store.applyEdit("run", "rollback", before, content("A middle end"))
+                    store.applyEdit("run", "rollback", before.editBase(), content("A middle end"))
                     error("simulate failure before commit")
                 } }
             } catch (_: IllegalStateException) { }
@@ -131,7 +131,7 @@ class AgentReviewStoreTest {
             val base = db.notes().get("note")!!.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body"), ImageBlock("image", "asset"))).encodeToJson())
             db.notes().upsert(base)
             val next = AgentEditableContent("Agent标题", decodeNoteDocument(base.documentJson))
-            store.applyEdit("run", "media-reference", base, next)
+            store.applyEdit("run", "media-reference", base.editBase(), next)
             assertEquals(listOf("asset"), db.agent().referencedAttachmentIds())
             library.permanentlyDeleteNotes(listOf("note"))
             assertEquals(AgentReviewStatus.Unrecoverable, db.agent().reviews("note").single().status)
@@ -151,7 +151,7 @@ class AgentReviewStoreTest {
             db.notes().upsert(note)
             db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
-            AgentReviewStore(db).applyEdit("run", "durable", note, content("A middle end"))
+            AgentReviewStore(db).applyEdit("run", "durable", note.editBase(), content("A middle end"))
             db.close()
             db = XNoteDatabase.create(context, name)
             val restored = AgentReviewStore(db)
@@ -164,9 +164,9 @@ class AgentReviewStoreTest {
 
     @Test fun laterRejectedBatchDoesNotHideLastAcceptedUndoAndUndoCannotWalkBackOlderBatches() = runBlocking {
         fixture { db, store, _ ->
-            store.applyEdit("run", "one", db.notes().get("note")!!, content("A middle end"))
+            store.applyEdit("run", "one", db.notes().get("note")!!.editBase(), content("A middle end"))
             store.accept("note")
-            store.applyEdit("run", "two", db.notes().get("note")!!, content("A middle Z"))
+            store.applyEdit("run", "two", db.notes().get("note")!!.editBase(), content("A middle Z"))
             store.reject("note")
             assertNotNull(store.detail("note")!!.undoReview)
             assertTrue(store.undoAccepted("note") is AgentReviewResult.Applied)
@@ -179,9 +179,9 @@ class AgentReviewStoreTest {
     @Test fun staleSelectionAndUnchangedProposalDoNotCreateChanges() = runBlocking {
         fixture { db, store, library ->
             val base = db.notes().get("note")!!
-            assertTrue(store.applyEdit("run", "no-change", base, content("start middle end")) is AgentReviewResult.Unchanged)
+            assertTrue(store.applyEdit("run", "no-change", base.editBase(), content("start middle end")) is AgentReviewResult.Unchanged)
             library.saveNoteContent("note", "用户标题", document("start middle end"))
-            assertTrue(store.applyEdit("run", "selection", base, content("A middle end"), AgentSelection(base.agentVersion(), "body", 0, 5)) is AgentReviewResult.Conflict)
+            assertTrue(store.applyEdit("run", "selection", base.editBase(), content("A middle end"), AgentSelection(base.agentVersion(), "body", 0, 5)) is AgentReviewResult.Conflict)
             assertTrue(db.agent().reviews("note").isEmpty())
         }
     }
@@ -190,16 +190,16 @@ class AgentReviewStoreTest {
         fixture { db, _, _ ->
             var time = 100L
             val store = AgentReviewStore(db) { time }
-            store.applyEdit("run", "first", db.notes().get("note")!!, content("A middle end"))
+            store.applyEdit("run", "first", db.notes().get("note")!!.editBase(), content("A middle end"))
             time = 50L
-            store.applyEdit("run", "second", db.notes().get("note")!!, content("B middle end"))
+            store.applyEdit("run", "second", db.notes().get("note")!!.editBase(), content("B middle end"))
             assertTrue(store.reject("note") is AgentReviewResult.Applied)
             assertEquals("start middle end", text(db.notes().get("note")!!))
             time = 100L
-            store.applyEdit("run", "older-batch", db.notes().get("note")!!, content("A middle end"))
+            store.applyEdit("run", "older-batch", db.notes().get("note")!!.editBase(), content("A middle end"))
             store.accept("note")
             time = 50L
-            store.applyEdit("run", "newer-batch", db.notes().get("note")!!, content("A middle Z"))
+            store.applyEdit("run", "newer-batch", db.notes().get("note")!!.editBase(), content("A middle Z"))
             store.accept("note")
             assertTrue(store.undoAccepted("note") is AgentReviewResult.Applied)
             assertEquals("A middle end", text(db.notes().get("note")!!))
