@@ -386,9 +386,10 @@ class AgentTimeline(
                                 is ModelEvent.Finished -> finish = event.reason
                                 is ModelEvent.ToolCall -> {
                                     if (!profile.capabilities.tools) {
-                                        val revision = AgentPermissionStore(database).current().revision
+                                        val permission = AgentPermissionStore(database).current()
                                         database.agent().saveToolEvent(AgentToolEventEntity(id(), run.id, event.value.id, event.value.name,
-                                            event.value.arguments.toString(), "{\"error\":\"tools_not_verified\"}", AgentToolStatus.Denied, revision, now(), now()))
+                                            event.value.arguments.toString(), "{\"error\":\"tools_not_verified\"}", AgentToolStatus.Denied, permission.revision, now(), now(),
+                                            decisionsJson = Json.encodeToString(listOf(AgentToolDecision(now(), permission, null, emptySet(), "当前模型尚未通过工具能力验证，未派发工具。")))))
                                         throw ModelException(ModelError.Protocol)
                                     }
                                     if (calls.size >= AgentNoteLimits.MaxToolCallsPerResponse || calls.any { it.id == event.value.id }) throw ModelException(ModelError.Protocol)

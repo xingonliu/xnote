@@ -19,6 +19,7 @@ import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.text.extractPlainText
+import kotlinx.serialization.json.Json
 
 // -- Functions
 
@@ -88,14 +89,27 @@ fun AgentSnapshotDialog(snapshot: AgentSnapshotEntity, backdrop: Backdrop, onDis
 }
 
 @Composable
-fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onDismiss: () -> Unit) {
+fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue: (() -> Unit)?, onDismiss: () -> Unit) {
     XNoteDialog(true, onDismiss, "工具调用详情", backdrop, XNoteDialogAction("关闭", onDismiss)) {
         Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${event.name} · ${event.status.toolStatusLabel()}")
             Text("运行 ${event.runId.take(8)} · 权限版本 ${event.permissionRevision}", style = MaterialTheme.typography.bodySmall)
+            val decisions = Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson)
+            if (decisions.isEmpty()) Text("此历史调用未保存授权依据。", style = MaterialTheme.typography.bodySmall)
+            decisions.forEach { decision ->
+                Text("${java.util.Date(decision.atEpochMs)} · ${decision.reason}")
+                Text("当时权限：${decision.permission.level.permissionLabel()} · ${decision.permission.scope.scopeLabel()} · 版本 ${decision.permission.revision}")
+                if (decision.permission.scope == AgentScope.Notebooks) Text("笔记本：${decision.permission.notebookIds.joinToString().ifEmpty { "未选择" }}")
+                Text("当时主动附加：${decision.attachedNoteIds.size} 篇")
+                decision.grant?.let { Text("本次运行授权：${it.level.permissionLabel()} · ${it.noteIds.size} 篇；仅在当时权限版本内有效。") }
+            }
             Text("参数：${event.argumentsJson}")
             Text("结果：${event.resultJson ?: "等待执行或授权"}")
             Text("开始：${java.util.Date(event.createdAtEpochMs)}\n结束：${event.committedAtEpochMs?.let { java.util.Date(it) } ?: "尚未结束"}", style = MaterialTheme.typography.bodySmall)
+            if (onContinue != null) {
+                Text("继续所属任务会保留已提交结果，后续执行重新检查当前权限。", style = MaterialTheme.typography.bodySmall)
+                LiquidButton(onContinue, backdrop, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续此任务") }
+            }
         }
     }
 }
@@ -115,7 +129,7 @@ fun AgentScope.scopeLabel(): String = when (this) {
 
 fun AgentToolStatus.toolStatusLabel(): String = when (this) {
     AgentToolStatus.Requested -> "等待授权或执行"
-    AgentToolStatus.Denied -> "用户已拒绝"
+    AgentToolStatus.Denied -> "未获允许"
     AgentToolStatus.Executing -> "正在执行"
     AgentToolStatus.Committed -> "已完成"
     AgentToolStatus.Failed -> "失败"

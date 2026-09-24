@@ -19,6 +19,9 @@ import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.junit.Assert.assertEquals
 
 // -- Tests
 
@@ -63,16 +66,19 @@ class AgentFlowTest {
         screenshot("agent-before-send")
         compose.onNodeWithTag("agent-send").assertIsEnabled().performClick()
         try {
-            compose.waitUntil(5000) { runBlocking { database.agent().messages().lastOrNull()?.status == AgentMessageStatus.Complete } }
+            compose.waitUntil(5000) { !timeline.state.value.running && runBlocking {
+                database.agent().messages().any { it.role == AgentMessageRole.Assistant && it.status == AgentMessageStatus.Complete }
+            } }
         } catch (error: Throwable) {
             screenshot("agent-send-failure")
             throw AssertionError("状态=${timeline.state.value}; 消息=${runBlocking { database.agent().messages().map { it.status } }}", error)
         }
-        compose.onNodeWithText("已完成").assertExists()
         compose.onNodeWithTag("agent-input").assert(SemanticsMatcher.expectValue(
             androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5000) { compose.onAllNodesWithText("我的").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("已完成", substring = true))
+        compose.onNodeWithText("已完成", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("我的").performClick()
         compose.onNodeWithText("Agent").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
@@ -113,6 +119,55 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scope-All").performScrollTo().performClick()
         compose.onNodeWithText("保存").performClick()
         compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.level == AgentPermissionLevel.Read && it.scope == AgentScope.All } } }
+    }
+
+    @Test fun authorizeInspectDecisionAndContinueFailedTaskWithoutReplayingRead() {
+        val note = runBlocking {
+            timeline.awaitReady()
+            profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            library.createNote(null)
+        }
+        var requests = 0
+        val recoveringModel = object : ModelClient {
+            override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
+                when (++requests) {
+                    1 -> {
+                        emit(ModelEvent.ToolCall(ModelToolCall("inspect-once", "read", buildJsonObject { put("note_id", note.id) })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    2 -> { emit(ModelEvent.Text("已经读取，正在整理")); throw ModelException(ModelError.Quota) }
+                    else -> { emit(ModelEvent.Text("继续任务已完成")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                }
+            }
+        }
+        val recovery = AgentTimeline(database, profiles, recoveringModel, scope)
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = recoveringModel, agentTimeline = recovery) } }
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { recovery.state.value.ready }
+        compose.onNodeWithTag("agent-input").performTextInput("读取并整理")
+        compose.onNodeWithTag("agent-send").performClick()
+        compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag("agent-authorize").performClick()
+        compose.onNodeWithTag("agent-scope-Unfiled").performScrollTo().performClick()
+        compose.onNodeWithText("允许并继续").performClick()
+        compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
+        compose.onNodeWithText("read · 已完成").performClick()
+        compose.onNodeWithText("我的").assertDoesNotExist()
+        compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
+        compose.onAllNodesWithText("当时权限：一级 · 不可查看 · 仅主动附加笔记 · 版本 0")[0].assertExists()
+        compose.onNodeWithText("本次运行授权：二级 · 可查看 · 1 篇；仅在当时权限版本内有效。").performScrollTo().assertIsDisplayed()
+        screenshot("agent-tool-decision")
+        compose.onNodeWithTag("agent-tool-continue").performScrollTo().performClick()
+        compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.text == "继续任务已完成" } } }
+        compose.onNodeWithText("我的").assertExists()
+        runBlocking {
+            assertEquals(1, database.agent().toolEvents(database.agent().messages().first().runId!!).size)
+            assertEquals(AgentPermission(), AgentPermissionStore(database).current())
+            assertEquals(3, requests)
+        }
     }
 
     // -- Functions

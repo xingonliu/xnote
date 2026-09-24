@@ -34,7 +34,8 @@ import kotlinx.coroutines.launch
 // -- Functions
 
 @Composable
-fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: PaddingValues, modifier: Modifier = Modifier) {
+fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: PaddingValues, modifier: Modifier = Modifier,
+    onOverlayVisible: (Boolean) -> Unit = {}) {
     val messages by timeline.messages.collectAsState(emptyList())
     val runs by timeline.runs.collectAsState(emptyList())
     val queue by timeline.queue.collectAsState(emptyList())
@@ -62,6 +63,9 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
     var error by remember { mutableStateOf<String?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     var restored by remember { mutableStateOf(false) }
+    val overlayVisible = attachDialog || permissionDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || confirmClear
+    SideEffect { onOverlayVisible(overlayVisible) }
+    DisposableEffect(Unit) { onDispose { onOverlayVisible(false) } }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
@@ -178,7 +182,11 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
         }
     }
     snapshotPreview?.let { AgentSnapshotDialog(it, backdrop) { snapshotPreview = null } }
-    toolPreview?.let { AgentToolDialog(it, backdrop) { toolPreview = null } }
+    toolPreview?.let { event ->
+        val run = runs.find { it.id == event.runId }
+        val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
+        AgentToolDialog(event, backdrop, if (canContinue) ({ action { timeline.continueRun(event.runId); toolPreview = null } }) else null) { toolPreview = null }
+    }
     XNoteDialog(confirmClear, { confirmClear = false }, "清空聊天", backdrop,
         confirmAction = XNoteDialogAction("清空", { action { timeline.clearChat(); input = ""; confirmClear = false } }, destructive = true),
         dismissAction = XNoteDialogAction("取消", { confirmClear = false })) {

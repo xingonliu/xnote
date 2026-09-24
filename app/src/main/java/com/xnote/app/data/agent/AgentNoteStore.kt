@@ -140,10 +140,25 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             finished(call, buildJsonObject { put("error", "invalid_arguments") })
         }
         if (result is AgentReadToolResult.Finished) {
+            val error = Json.parseToJsonElement(result.result.content).jsonObject["error"]?.jsonPrimitive?.content
+            val reason = when (error) {
+                "invalid_arguments" -> "参数未通过结构或范围校验，未执行读取。"
+                "unsupported_tool" -> "该工具未开放，未执行操作。"
+                "unavailable_under_current_permission" -> "发送快照不存在、已失效或当前权限不允许读取，未替换为当前正文。"
+                else -> if (call.name == "note_search") "先按当前可读范围过滤，再匹配和分页；不返回范围外命中信息。"
+                    else if (result.sources.any { it.snapshotId != null }) "读取指定发送快照；当前读取权限或当前片段的有效附加授权允许访问。"
+                    else "当前全局范围或有效运行授权允许读取该笔记的当前版本。"
+            }
             database.agent().saveToolEvent(event.copy(resultJson = result.result.content,
-                sourcesJson = Json.encodeToString(result.sources), status = AgentToolStatus.Committed,
+                sourcesJson = Json.encodeToString(result.sources), status = when (error) {
+                    null -> AgentToolStatus.Committed
+                    "invalid_arguments" -> AgentToolStatus.Failed
+                    else -> AgentToolStatus.Denied
+                }, decisionsJson = decisions(event, run, reason),
                 permissionRevision = permission.revision, committedAtEpochMs = now()))
         } else {
+            database.agent().saveToolEvent(event.copy(permissionRevision = permission.revision,
+                decisionsJson = decisions(event, run, "当前权限与范围不足以执行请求，等待用户授权；队列不继续。")))
             database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingPermission, updatedAtEpochMs = now()))
         }
         result
@@ -155,7 +170,8 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         val event = requireNotNull(database.agent().toolEvent(runId, callId))
         require(event.status == AgentToolStatus.Requested)
         database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Denied,
-            resultJson = "{\"error\":\"user_denied\"}", committedAtEpochMs = now()))
+            resultJson = "{\"error\":\"user_denied\"}", committedAtEpochMs = now(),
+            decisionsJson = decisions(event, run, "用户拒绝本次请求，未读取笔记。")))
     }
 
     /** The selected scope is an explicit user choice. A run grant captures note IDs without changing global scope. */
@@ -229,6 +245,14 @@ class AgentNoteStore(private val database: XNoteDatabase) {
     }
 
     private fun unavailable(call: ModelToolCall) = finished(call, buildJsonObject { put("error", "unavailable_under_current_permission") })
+
+    private suspend fun decisions(event: AgentToolEventEntity, run: AgentRunEntity, reason: String): String {
+        val access = access(run)
+        val grant = access.grant?.takeIf { it.runId == run.id && it.permissionRevision == access.permission.revision }
+        return Json.encodeToString(Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson) +
+            AgentToolDecision(now(), access.permission, grant, access.attachedNoteIds, reason))
+    }
+
     private fun finished(call: ModelToolCall, value: JsonObject, sources: List<AgentMessageSource> = emptyList()) =
         AgentReadToolResult.Finished(ModelToolResult(call.id, call.name, value.toString()), sources)
     private suspend fun <T> transaction(block: suspend () -> T): T = database.useWriterConnection { it.immediateTransaction { block() } }

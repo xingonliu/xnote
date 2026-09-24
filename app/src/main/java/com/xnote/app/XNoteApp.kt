@@ -416,6 +416,7 @@ fun XNoteApp(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        var agentOverlayVisible by remember { mutableStateOf(false) }
         val density = androidx.compose.ui.platform.LocalDensity.current
         var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
         val isTablet = maxWidth >= TabletBreakpoint
@@ -565,6 +566,7 @@ fun XNoteApp(
                 content = {
                     DestinationContent(
                         agentTimeline = agentTimeline,
+                        onAgentOverlayVisible = { agentOverlayVisible = it },
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
                         uiState = uiState,
@@ -603,7 +605,9 @@ fun XNoteApp(
                         onOpenProfileDetail = { profilePage = it },
                     )
                 },
-                overlay = { contentBackdrop ->
+                overlay = overlay@ { contentBackdrop ->
+                    // Agent dialogs cover the page; shell controls must not overlap or receive input above them.
+                    if (agentOverlayVisible) return@overlay
                     if (showsShellHeader) {
                         XNoteHeader(
                             title = if (navigationState.isSearchOpen) {
@@ -760,6 +764,7 @@ fun XNoteApp(
 @Composable
 private fun DestinationContent(
     agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
+    onAgentOverlayVisible: (Boolean) -> Unit,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
@@ -898,7 +903,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, backdrop, contentPadding, modifier) else PlaceholderScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, backdrop, contentPadding, modifier, onAgentOverlayVisible) else PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

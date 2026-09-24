@@ -25,6 +25,30 @@ class AgentBackgroundTest {
         checkBackground(true)
     }
 
+    @Test fun systemDataSyncTimeoutPersistsRecoverableInterruption() = runBlocking {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("systemTimeout") == "true")
+        val app = ApplicationProvider.getApplicationContext<XNoteApplication>()
+        val timeline = app.container.agentTimeline
+        timeline.awaitReady()
+        timeline.clearChat()
+        app.container.modelProfiles.save(ModelProfile("timeout-test", name = "系统超时测试", protocol = ModelProtocol.OpenAI,
+            baseUrl = "https://192.0.2.1/v1", modelId = "test", isDefault = true), "local-timeout-test")
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            scenario.onActivity { runBlocking { timeline.send("系统超时测试") } }
+            InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
+            withTimeout(20_000) { timeline.state.first { !it.running } }
+            val run = app.container.database.agent().unfinishedRuns().single()
+            assertEquals(AgentRunStatus.Interrupted, run.status)
+            assertEquals("foreground_service_timeout", run.errorCode)
+            assertTrue(app.container.database.agent().messages().any { it.text == "系统超时测试" })
+        } finally {
+            timeline.clearChat()
+            scenario.close()
+            app.container.modelProfiles.delete("timeout-test")
+        }
+    }
+
     // -- Functions
 
     private suspend fun checkBackground(denyNotifications: Boolean) {

@@ -82,11 +82,17 @@ adb shell pm revoke com.xnote.app android.permission.POST_NOTIFICATIONS
 adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#deniedNotificationsKeepForegroundExecutionAndInAppStopAvailable com.xnote.app.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-尚待完成的 S11.4 验收：实际杀进程后重启并继续、Android 系统 `dataSync` 超时回调及后台启动限制的端到端验证。只读工具等待授权后的运行对象重建已在 S11.5 验证，实际进程终止、写入提交恢复和冲突等待仍需完成；S11.4 尚未标记完整验收，S11.5 进行中，S11.6–S11.7 待开发。
+2026-09-24 系统补充验收：`AgentProcessRecoveryTest` 在磁盘测试库中保存一次已提交读取、部分流式回复和排队任务后，由宿主机对已核对 PID 的应用进程发送 SIGKILL。独立进程重新打开数据库，验证任务为 `process_interrupted`、队列暂停且没有自动模型请求；用户继续后沿用原工具结果，保留部分回复，仅发送一次后续请求，已提交工具事件保持不变。该用例使用受控模型，不依赖真实服务。
+
+`AgentBackgroundTest#systemDataSyncTimeoutPersistsRecoverableInterruption` 在 Android 16 上通过：依据官方测试接口把 `data_sync_fgs_timeout_duration` 暂设为 3000 毫秒，启动真实前台服务后回桌面，由系统触发 `onTimeout`；运行持久化为 `foreground_service_timeout`，保留原输入并停止服务。测试后已删除临时 device_config 值、重置兼容性开关。该用例需显式传入 `systemTimeout=true`，普通回归跳过。
+
+进程用例需依次单独调用 `prepareAndWaitForKill`（`processPhase=prepare`）和 `recoverAndContinueWithoutReplayingCommittedRead`（`processPhase=recover`）。准备阶段写入私有 `files/agent-process-recovery-ready`，内容为 `<PID>:ready`；宿主核对 `pidof com.xnote.app` 后执行 `run-as com.xnote.app kill -9 <PID>`。准备阶段 instrumentation 报进程终止是预期结果；恢复阶段 1 项断言测试通过才算验收成功。测试使用独立 `agent-process-recovery-test.db`，恢复验收结束后清理该测试库和临时凭据。
+
+尚待完成的 S11.4 验收：Android 后台启动限制的端到端验证，以及随 S11.6–S11.7 写工具接入后的提交恢复与冲突等待。只读工具的实际进程终止、重启继续及授权等待后的运行对象重建已验证。S11.4 尚未标记完整验收，S11.6–S11.7 待开发。
 
 平台依据：[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
 
-## S11.5 发送快照、范围与只读工具（进行中）
+## S11.5 发送快照、范围与只读工具
 
 实现入口：`AgentNoteStore.kt`、`AgentConversationContext.kt`、`AgentNoteTools.kt`、`AgentNoteDialogs.kt`，以及时间线的工具循环。
 
@@ -97,10 +103,14 @@ adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#denie
 - 一级临时权限只能读取当前片段内、当前权限 revision 下主动发送的有效快照。排队消息在派发前不扩大当前运行范围。二级只能读取范围内笔记；权限等级与范围独立，支持指定笔记本多选。设置变化会中断当前请求，后续读取和每次请求重新投影权限。附加来源失效时保留事实记录并中断，提示重新授权或附加。
 - 模型回复和工具结果带笔记来源。无权使用的历史问答整轮排除；当前工具调用与结果成对排除，保留协议完整性。用户补充与工具结果按完整调用边界组装，不把新输入插到尚未配对的调用中间。进入回收站立即阻止向模型提供快照和派生内容；永久删除由外键清理快照，并回收其独立媒体引用。
 - 越界读取进入持久化的等待授权状态，队列不向前执行。用户可查看请求、拒绝、仅本次运行允许或保存为全局权限；模型不持有升级权限入口。运行授权只保存用户所选范围内的具体笔记 ID，并绑定权限 revision。继续时已提交调用复用事实结果，但返还前仍重新检查来源；同一调用 ID 不得复用为不同操作。清空聊天一并清理工具载荷，审阅事实源独立保留。
-- P11/P19 已接入附加笔记选择、权限等级、范围及笔记本多选；P12 可查看工具名称、调用运行、参数、权限 revision、状态、结果和起止时间。待补齐 P12 的历史权限/范围决策说明及失败重试入口的界面验收。
+- P11/P19 已接入附加笔记选择、权限等级、范围及笔记本多选；P12 可查看工具名称、调用运行、参数、权限 revision、状态、结果和起止时间。Room 8 通过 7→8 迁移新增授权判定历史，保留请求等待、用户拒绝和获准执行时各自的全局权限、范围、有效运行授权与判定依据；后续设置变化不改写历史。旧调用没有判定记录时明确说明。非法参数标记失败，越权与未开放工具标记未获允许。失败或停止的所属任务可从工具详情继续，沿用已提交结果并重新检查当前权限；该入口不重放已完成工具。
 
 2026-09-24 最终验证：Android 16 模拟器上 `AgentNoteStoreTest` 10 项、`AgentTimelineTest` 20 项、`AgentFoundationTest` 2 项、`AgentFlowTest` 2 项，共 34 项全部通过。覆盖快照版本与复用、撤权/片段关闭/回收站/永久删除、先授权再分页、结果去重与撤权后缓存失效、一次运行授权、参数校验和分片拼接、派生来源隔离、附件引用、授权等待后重建运行对象、拒绝回传、原文修改后仍读取旧快照、队列快照隔离和整批快照回滚。已检查 720×1280 手机快照预览和输入页截图，快照版本、原正文及关闭操作显示完整。
 
 单元验证：136 项中 135 项通过，真实服务项未显式提供凭据而跳过。`lintDebug`、`assembleDebug`、`assembleDebugAndroidTest` 通过，Lint 0 错误、18 条现有警告。一次构建因宿主机原生内存不足退出；已改用单 worker、较小临时 JVM 堆并分开运行构建与模拟器，未改动项目默认构建配置。受控工具测试不代表三家真实服务联调；实际服务全覆盖仍见 S11.12。
 
-剩余范围：P12 补充验收、实际进程终止后的工具恢复，以及 S11.6–S11.7 的变更事务、单篇 Diff、写工具和编辑器联动。整体 S11.4–S11.7 尚未完成。
+P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面用例覆盖等待授权、仅本次运行允许、历史授权依据展示、后续模型失败及工具详情内继续；继续后全局权限仍为一级，原调用只有一条已提交记录。实际进程终止后工具恢复另行通过，过程见 S11.4。
+
+最终界面回归 3 项通过，并检查了工具详情截图。Agent 弹层打开期间暂停展示外层标题和导航，防止覆盖弹层或接收其上方点击，关闭后恢复；验收断言同时覆盖这些状态。发送用例明确等待助手完成并滚动到完成状态。最终 Debug/测试 APK 构建和 Lint 通过，Lint 0 错误、18 条现有警告。S11.5 已完成。
+
+剩余范围：S11.4 的后台启动受限补充验证，以及 S11.6–S11.7 的变更事务、单篇 Diff、写工具和编辑器联动。整体 S11.4–S11.7 尚未完成。

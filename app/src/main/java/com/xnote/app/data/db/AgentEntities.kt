@@ -81,6 +81,7 @@ data class AgentToolEventEntity(
     val createdAtEpochMs: Long,
     val committedAtEpochMs: Long? = null,
     @ColumnInfo(defaultValue = "'[]'") val sourcesJson: String = "[]",
+    @ColumnInfo(defaultValue = "'[]'") val decisionsJson: String = "[]",
 )
 
 @Entity(

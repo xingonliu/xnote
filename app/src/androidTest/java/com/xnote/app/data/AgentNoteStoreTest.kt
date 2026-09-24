@@ -101,8 +101,15 @@ class AgentNoteStoreTest {
             val granted = store.executeReadTool("run", read("needs-authorization")) as AgentReadToolResult.Finished
             assertTrue(granted.result.content.contains("旧版正文"))
             assertEquals(AgentPermission(), AgentPermissionStore(db).current())
+            val event = db.agent().toolEvent("run", "needs-authorization")!!
+            val decisions = Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson)
+            assertEquals(2, decisions.size)
+            assertNull(decisions.first().grant)
+            assertEquals(setOf("note"), decisions.last().grant?.noteIds)
+            assertEquals(AgentPermissionLevel.None, decisions.last().permission.level)
             store.savePermissionFromUser(AgentPermission())
             assertTrue(store.executeReadTool("run", read("after-revoke")) is AgentReadToolResult.PermissionRequired)
+            assertEquals(event.decisionsJson, db.agent().toolEvent("run", "needs-authorization")!!.decisionsJson)
         }
     }
 
