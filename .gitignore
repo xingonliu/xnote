@@ -19,3 +19,11 @@ captures/
 # Operating systems
 .DS_Store
 Thumbs.db
+
+# Flutter
+flutter/
+.dart_tool/
+.flutter-plugins*
+**/ephemeral/
+**/GeneratedPluginRegistrant.*
+
