@@ -118,11 +118,13 @@ fun AttachmentKind.storageValue(): String = when (this) {
     AttachmentKind.Image -> "image"
     AttachmentKind.Sticker -> "sticker"
     AttachmentKind.Drawing -> "drawing"
+    AttachmentKind.File -> "file"
 }
 
 fun String.toAttachmentKind(): AttachmentKind = when (this) {
     "sticker" -> AttachmentKind.Sticker
     "drawing" -> AttachmentKind.Drawing
+    "file" -> AttachmentKind.File
     else -> AttachmentKind.Image
 }
 

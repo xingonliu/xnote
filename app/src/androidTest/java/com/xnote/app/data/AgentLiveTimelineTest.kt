@@ -33,7 +33,7 @@ class AgentLiveTimelineTest {
             timeline.send("请用中文回复：连接成功。")
             val runs = withTimeout(200000) { timeline.runs.first { it.singleOrNull()?.status in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.PausedBudget) } }
             assertEquals("真实服务未正常完成：${runs.single().errorCode}", AgentRunStatus.Complete, runs.single().status)
-            val messages = db.agent().messages()
+            val messages = db.agent().messages().filter { it.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant) }
             assertEquals(2, messages.size)
             assertEquals(AgentMessageStatus.Complete, messages.last().status)
             assertTrue(messages.last().text.isNotBlank())

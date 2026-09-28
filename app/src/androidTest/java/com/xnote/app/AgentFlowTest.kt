@@ -45,6 +45,8 @@ class AgentFlowTest {
 
     @After fun cleanup() = runBlocking {
         scope.coroutineContext[Job]?.cancelAndJoin()
+        database.agent().unfinishedRuns().forEach { database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled)) }
+        database.agent().pendingQueue().forEach { database.agent().deleteQueueItem(it.id) }
         profiles.list().forEach { profiles.delete(it.id) }
         database.close()
     }
@@ -145,7 +147,7 @@ class AgentFlowTest {
         screenshot("agent-empty-layout")
         compose.onNodeWithTag("agent-add-attachment").performClick()
         compose.onNodeWithText("笔记").assertIsDisplayed()
-        compose.onNodeWithText("图片").assertDoesNotExist()
+        compose.onNodeWithText("图片").assertExists()
         screenshot("agent-attachment-menu")
         compose.onNodeWithText("笔记").performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
@@ -218,7 +220,8 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-send").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
         hideKeyboard()
-        compose.onNodeWithTag("agent-authorize").performClick()
+        compose.waitUntil(5000) { compose.onAllNodes(hasTestTag("agent-authorize") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("agent-authorize").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.onNodeWithTag("agent-scope-Unfiled").performScrollTo().performClick()
         compose.onNodeWithText("允许并继续").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
@@ -236,6 +239,7 @@ class AgentFlowTest {
             assertEquals(1, database.agent().toolEvents(database.agent().messages().first().runId!!).size)
             assertEquals(AgentPermission(), AgentPermissionStore(database).current())
             assertEquals(3, requests)
+            assertEquals(AgentRunStatus.Complete, database.agent().run(database.agent().messages().first().runId!!)!!.status)
         }
     }
 

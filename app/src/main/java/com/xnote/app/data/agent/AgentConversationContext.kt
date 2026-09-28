@@ -49,7 +49,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             if (projected == null) continue
             sourceIds += message.id
             factIds += database.profileMemory().references(message.id).map { it.factId }
-            if (projected.message.text.isBlank() && projected.message.calls.isEmpty() && projected.message.results.isEmpty()) continue
+            if (projected.message.text.isBlank() && projected.message.calls.isEmpty() && projected.message.results.isEmpty() && projected.message.files.isEmpty()) continue
             if (projected.message.calls.isNotEmpty()) {
                 val result = database.agent().message("tool-results:${message.id}") ?: continue
                 val projectedResult = notes.projectMessage(run.id, result) ?: continue
@@ -65,7 +65,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         }
         require(execution.any { it.role == AgentMessageRole.User })
         if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
-        val tools = if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools else emptyList()
+        val tools = if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools + AgentFileTools else emptyList()
         val base = planAgentExecutionContext(profile, turns, execution, tools)
         var remaining = profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens - base.estimatedInputTokens
         val memoryMessages = mutableListOf<ModelMessage>()

@@ -23,6 +23,7 @@ class AgentTimeline(
     private val scope: CoroutineScope,
     private val startBackground: () -> Unit = {},
     private val scheduleMemory: () -> Unit = {},
+    val fileStore: AgentFileStore? = null,
 ) {
     // -- State and Variables
 
@@ -31,7 +32,7 @@ class AgentTimeline(
     private val mutableDraft = MutableStateFlow("")
     private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
     private val mutableDraftSelection = MutableStateFlow<AgentDraftSelection?>(null)
-    val noteStore = AgentNoteStore(database)
+    val noteStore = AgentNoteStore(database, fileStore)
     val reviewStore = AgentReviewStore(database)
     val episodeStore = AgentEpisodeStore(database)
     val noteMemory = AgentNoteMemoryStore(database)
@@ -73,6 +74,16 @@ class AgentTimeline(
     // -- Functions
 
     suspend fun awaitReady() { initialization.await() }
+
+    suspend fun importFile(uri: android.net.Uri) {
+        awaitReady()
+        mutex.withLock { requireNotNull(fileStore).importInput(uri) }
+    }
+
+    suspend fun removeDraftFile(id: String) {
+        awaitReady()
+        mutex.withLock { requireNotNull(fileStore).removeDraft(id) }
+    }
 
     suspend fun saveDraft(text: String) {
         awaitReady()
@@ -161,7 +172,7 @@ class AgentTimeline(
     suspend fun send(text: String) {
         awaitReady()
         mutex.withLock {
-            if (text.isBlank()) return
+            if (text.isBlank() && fileStore?.hasDraft() != true) return
             persistDraft(text)
             if (mutableState.value.running) {
                 require(mutableDraftSelection.value == null) { "选区润色须作为独立任务发送，可先加入队列。" }
@@ -172,6 +183,7 @@ class AgentTimeline(
                     val sequence = insertMessage(run, AgentMessageRole.User, text, AgentMessageStatus.Pending)
                     val message = database.agent().messages().single { it.sequence == sequence }
                     noteStore.capture(message.id, mutableDraftNotes.value, mutableDraftSelection.value)
+                    fileStore?.capture(message.id)
                     conversation.prepare(run, profile)
                     clearDraft()
                 }
@@ -185,7 +197,7 @@ class AgentTimeline(
     suspend fun enqueue(text: String) {
         awaitReady()
         mutex.withLock {
-            if (text.isBlank()) return
+            if (text.isBlank() && fileStore?.hasDraft() != true) return
             persistDraft(text)
             transaction {
                 val queued = database.agent().pendingQueue()
@@ -202,6 +214,7 @@ class AgentTimeline(
                 database.agent().insertMessage(AgentMessageEntity(id = messageId, segmentId = segment.id, runId = null,
                     role = AgentMessageRole.User, text = text, status = AgentMessageStatus.Pending, createdAtEpochMs = now()))
                 noteStore.capture(messageId, mutableDraftNotes.value, mutableDraftSelection.value)
+                fileStore?.capture(messageId)
                 noteStore.validateSubmission(messageId, profile)
                 database.agent().saveQueueItem(AgentQueueEntity(id(), messageId, profile.id, profile.version,
                     (queued.maxOfOrNull { it.position } ?: -1) + 1,
@@ -243,6 +256,7 @@ class AgentTimeline(
             database.agent().deleteQueueItem(item.id)
             removeMessage(item.messageId)
         } }
+        fileStore?.collectGarbage()
     }
 
     suspend fun resumeQueue() {
@@ -307,6 +321,7 @@ class AgentTimeline(
             episodeStore.invalidate(message.segmentId)
             removeMessage(messageId)
         } }
+        fileStore?.collectGarbage()
     }
 
     suspend fun clearChat() {
@@ -325,6 +340,7 @@ class AgentTimeline(
             }
             mutableState.value = AgentTimelineState(true)
         }
+        fileStore?.collectGarbage()
     }
 
     suspend fun newTopic() {
@@ -367,6 +383,7 @@ class AgentTimeline(
         }
         database.agent().saveRun(run)
         if (queued == null) noteStore.capture(userId, mutableDraftNotes.value, mutableDraftSelection.value)
+        if (queued == null) fileStore?.capture(userId)
         conversation.prepare(run, profile)
         if (queued == null) clearDraft()
         run
@@ -448,7 +465,7 @@ class AgentTimeline(
                     val calls = mutableListOf<ModelToolCall>()
                     var nativeParts: JsonArray? = null
                     try {
-                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools else emptyList())).collect { event ->
+                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools + AgentFileTools else emptyList())).collect { event ->
                             currentCoroutineContext().ensureActive()
                             when (event) {
                                 is ModelEvent.Text -> {
@@ -585,6 +602,7 @@ class AgentTimeline(
     }
 
     private suspend fun clearDraft() {
+        fileStore?.clearDraft()
         database.agent().saveDraft(AgentDraftEntity(text = ""))
         mutableDraft.value = ""
         mutableDraftNotes.value = emptyList()

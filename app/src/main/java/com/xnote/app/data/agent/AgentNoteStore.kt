@@ -13,7 +13,7 @@ import java.util.UUID
 
 // -- Type Definitions
 
-class AgentNoteStore(private val database: XNoteDatabase) {
+class AgentNoteStore(private val database: XNoteDatabase, private val files: AgentFileStore? = null) {
     // -- State and Variables
 
     private val permissions = AgentPermissionStore(database)
@@ -64,7 +64,8 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         val message = requireNotNull(database.agent().message(messageId))
         val snapshots = database.agent().snapshotRefs(messageId).mapNotNull { database.agent().snapshot(it.snapshotId) }
         val text = message.text + snapshotPrompt(snapshots, Json.decodeFromString(message.sourcesJson))
-        planAgentExecutionContext(profile, emptyList(), listOf(ModelMessage(AgentMessageRole.User, text)), if (profile.capabilities.tools) AgentNoteTools else emptyList())
+        val model = ModelMessage(AgentMessageRole.User, text)
+        planAgentExecutionContext(profile, emptyList(), listOf(files?.project(messageId, model, profile) ?: model), if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools + AgentFileTools else emptyList())
     }
 
     suspend fun access(run: AgentRunEntity): AgentAccessContext {
@@ -104,7 +105,14 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         if (!AgentMemoryProvenance(database).canUse(message.id, run)) return@transaction null
         val sources = Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson)
         if (!canUseSources(run, sources)) return@transaction projectOwnTrash(run, message, sources)
-        val model = message.modelJson?.let { Json.decodeFromString<ModelMessage>(it) } ?: ModelMessage(message.role, message.text)
+        var model = message.modelJson?.let { Json.decodeFromString<ModelMessage>(it) } ?: ModelMessage(message.role, message.text)
+        if (files != null && message.role == AgentMessageRole.User) {
+            model = if (message.runId != run.id) model.copy(text = agentMessageMemoryText(database, message)) else {
+                val profile = database.agent().profiles().find { it.id == run.profileId }?.let { Json.decodeFromString<ModelProfile>(it.profileJson) }
+                    ?: throw ModelException(ModelError.InvalidConfig)
+                files.project(message.id, model, profile)
+            }
+        }
         if (message.role != AgentMessageRole.User || sources.isEmpty()) return@transaction AgentProjectedMessage(model, sources)
         val attachments = sources.mapNotNull { source -> source.snapshotId?.let { database.agent().snapshot(it) } }
         AgentProjectedMessage(model.copy(text = model.text + snapshotPrompt(attachments, sources)), sources)
@@ -171,11 +179,12 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             AgentToolStatus.Requested, permission.revision, now())
         database.agent().saveToolEvent(event)
         val result = try {
-            val argumentLimit = if (call.name in setOf("write", "create")) AgentNoteLimits.MaxWriteArgumentCharacters else AgentNoteLimits.MaxToolArgumentCharacters
+            val argumentLimit = if (call.name in setOf("write", "create", "output_file")) AgentNoteLimits.MaxWriteArgumentCharacters else AgentNoteLimits.MaxToolArgumentCharacters
             require(call.id.isNotBlank() && call.arguments.toString().length <= argumentLimit)
             if (selectedSource(run) != null && call.name in setOf("create", "delete")) {
                 finished(call, buildJsonObject { put("error", "selection_scope") })
             } else when (call.name) {
+                "output_file" -> files?.output(run, call, Json.decodeFromJsonElement(call.arguments)) ?: finished(call, buildJsonObject { put("error", "file_storage_unavailable") })
                 "memory_search", "memory_read" -> AgentHistoryMemoryStore(database).execute(run, call)
                 "memory_remember" -> remember(run, call, Json.decodeFromJsonElement<AgentRememberArguments>(call.arguments))
                 "read" -> read(run, call, Json.decodeFromJsonElement<AgentReadArguments>(call.arguments))

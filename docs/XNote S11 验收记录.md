@@ -251,9 +251,9 @@ S11.4–S11.7 已完成。与已合入的 Agent 页面布局衔接，保留公�
 - Android 16 模拟器专项 122 项全部通过：Agent 事实源、权限与快照、运行与队列、创建／写入／删除、审阅、迁移、编辑器并行保存与携带、全文／选区润色、手机及模拟平板宽度流程，以及图片、格式、表格、输入法组合态与返回重开。日志：`app/build/s11-final-agent-tests.log`。
 - 原生平台另外验证 4 项：通知停止（含回桌面与熄屏）、启动前已拒绝通知、实际系统 dataSync 超时、实际 SIGKILL 后恢复。进程准备 PID 7891 经核对后终止，恢复阶段通过，五条已提交读取／写入／创建／删除工具记录没有重复执行。日志分别为 `s11-final-background-notification.log`、`s11-final-background-denied.log`、`s11-final-background-timeout.log`、`s11-final-process-recover.log`，均位于 `app/build/`。
 - Debug shell 独立复验后台启动限制：进程重要性 300，收到真实 `ForegroundServiceStartNotAllowedException`，运行 `Interrupted/background_unavailable`、模型请求 0。停止并重建辅助服务后，从独立数据库恢复同一运行；前台显式继续得到 `Complete`、模型请求 1、原输入一条，报告 `recreatedForContinuation=true`。测试库已清理；报告为 `app/build/s11-final-background-restricted.json`、`s11-final-background-continued.json`，平台日志为 `s11-final-background-platform.log`。辅助服务仅属于 Debug，受 DUMP 权限保护；测试不访问真实模型。
-- 系统超时配置已恢复为未设置，通知权限已恢复。已查看手机全文／选区草稿与审阅截图，以及 900dp 模拟平板宽度的选区流程；卡片、选区提示和审阅按钮可见。截图位于 `app/build/s11-editor-agent-screenshots/` 及 `app/build/tablet-selection-polish-*.png`。完整真机、设备尺寸和三家真实模型服务矩阵仍属于 S11.12。
+- 系统超时配置已恢复为未设置，通知权限已恢复。已查看手机全文／选区草稿与审阅截图，以及 900dp 模拟平板宽度的选区流程；卡片、选区提示和审阅按钮可见。截图位于 `app/build/s11-editor-agent-screenshots/` 及 `app/build/tablet-selection-polish-*.png`。S11.12 的手机／模拟平板及 OpenAI 兼容真实服务证据见下文。
 
-S11.8–S11.12 按实施方案继续推进；本节受控模型测试不替代真实模型服务覆盖证据。
+S11.8–S11.12 的实现及真实服务覆盖证据见下文。
 
 ## S11.8 片段摘要与情景记忆（基础验收）
 
@@ -263,7 +263,7 @@ S11.8–S11.12 按实施方案继续推进；本节受控模型测试不替代�
 
 集中参数见 `AgentMemoryLimits`：摘要输出最多 2048 Token（同时取 Profile 输出上限），每任务最多 3 次尝试，重试间隔至少 1 分钟，滚动 24 小时最多 24 次、20 万保守预留 Token。服务返回用量另存输入/输出 Token，不伪装估算为实际用量。配置失效或源输入超过预算显示任务阻塞状态，不改用另一模型。
 
-验证：`AgentEpisodeTest` 2 项；Android 16 的 `AgentEpisodeStoreTest` 5 项、`AgentTimelineTest` 24 项、`NotebookMigrationTest` 1 项共 30 项通过。覆盖来源删除、过期快照授权、模型变更、重复调度、结构校验失败、有限重试、前台优先、中文 FTS 和 2→11 保留数据迁移。全体单元测试 160 项中 159 项通过、真实服务项默认跳过。`lintDebug` 0 错误、19 条既有依赖/资源/公共控件警告。画像候选与用量管理界面见下方 S11.9 验收；S11.10–S11.12 继续开发。
+验证：`AgentEpisodeTest` 2 项；Android 16 的 `AgentEpisodeStoreTest` 5 项、`AgentTimelineTest` 24 项、`NotebookMigrationTest` 1 项共 30 项通过。覆盖来源删除、过期快照授权、模型变更、重复调度、结构校验失败、有限重试、前台优先、中文 FTS 和 2→11 保留数据迁移。全体单元测试 160 项中 159 项通过、真实服务项默认跳过。`lintDebug` 0 错误、19 条既有依赖/资源/公共控件警告。画像候选与用量管理界面见下方 S11.9 验收；S11.10–S11.12 的验收见下文。
 
 调度依据：[Android 数据层与 WorkManager 官方文档](https://developer.android.com/jetpack/guide/data-layer)，通过 Context7 核查 CoroutineWorker、网络约束和持久调度行为。
 
@@ -287,3 +287,32 @@ Room 12 新增独立画像事实、替换链、遗忘键、自动记忆设置和
 自动上下文按当前任务预算添加画像、去重的近期／相关情景和最多 3 篇相关笔记。笔记读取始终检查当前版本，附加快照仍保持发送版本。“记忆与画像”支持全聊天文字搜索、展开与复制；“存储与隐私”展示笔记索引数量、内容估算、未完成摘要和独立清除入口。Room 12→13 增加历史 FTS 与来源关联，13→14 增加笔记派生索引；既有笔记、草稿和记忆保留。
 
 2026-09-28 验证：Android 16 上笔记记忆 5 项、历史记忆 5 项、时间线 24 项、记忆管理 UI 1 项、笔记权限 10 项及 2→14 迁移 1 项全部通过（分两轮执行，历史用例重复覆盖）。另有新增来源关联后的片段摘要 8 项通过。全体 JVM 单元测试通过（真实服务用例按默认跳过），Lint 0 错误、19 条既有警告。日志：`build/s11-note-tests.log`、`build/s11-memory-final.log`。覆盖原文回退、分页完整性及中文／emoji／转义预算、重复调用上限、来源删除、撤权、编辑与清除期间的旧结果丢弃、稳定期与请求去重、认证失败不重试、回收站和永久删除。协议参考及迁移事务通过 Context7 核查。
+
+
+## S11.11 图片与文件消息
+
+输入支持图片、PDF、UTF-8 TXT／Markdown，复制到应用私有目录并独立保存草稿／消息引用，不创建笔记。每条消息最多 4 个文件、合计 12 MiB；单文件最多 8 MiB，图片转换后最多 4 MiB、长边 2048 像素，动画取静态首帧；文本最多 128 KiB／32768 字符，PDF 最多 20 页且提取文本最多 32768 字符。损坏、编码错误、过量与能力不支持均保留已有草稿。取消系统选择不会改变草稿。
+
+三种协议使用各自的图片／PDF 内容块。设置页分别执行图片与 PDF 读取测试，随机校验码不出现在文字提示中，成功后才保存对应能力；目录元数据不冒充验证。未验证 PDF 原生输入时，仅对每页均能提取文字的 PDF 使用文字回退，并标明图片和版式未提供。含扫描页且未通过原生能力验证时拒绝发送。二进制按每图 4096、每 PDF 页 4096 加提取文字的保守 Token 估算计入完整输入预算，不将 Base64 长度伪称为模型 Token；最终用量仍以服务返回为准。
+
+`output_file` 每运行最多生成 4 个 TXT／Markdown 文件，内容最多 32768 字符／128 KiB，拒绝路径及其他扩展名；调用 ID 去重继续沿用工具提交记录。文件卡片支持文字／图片预览、系统保存和分享；PDF 展示文字预览并提示版式限制。P23 单列聊天文件占用。删除消息、队列或清除聊天解除引用并回收无引用文件；另存和分享副本独立保留。Room 14→15 增加文件元数据，复用附件表和引用表。
+
+附件可提取文字与生成文件内容进入片段摘要、历史 FTS 和 `memory_read`，与所属消息共同失效。历史图片仅保留文件标识及已有回复，不凭空生成图片描述；后续文字任务不重发旧二进制附件。系统保存与分享通过真实 Android 内容 URI 验证 UTF-8 字节一致，分享 URI 仅授予读取权。
+
+运行预算不足时，成对压缩已完整结束的工具调用和结果，保留调用标识、工具名、状态、错误及写入回执。当前目标、补充输入和未完成内容保持完整；最小请求仍超预算则暂停。后台摘要因前台任务让路时保留租约并重试，取消 WorkManager 本身仍正常传播取消。
+
+协议与解析依据：[OpenAI 图片](https://developers.openai.com/api/docs/guides/images)、[OpenAI 文件输入](https://developers.openai.com/api/docs/guides/file-inputs)、[Anthropic PDF 内容块](https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/document_block_param.py)、[Gemini GenerateContent](https://ai.google.dev/api/generate-content)、[PdfBox-Android](https://github.com/TomRoush/PdfBox-Android)。PDF 文字提取使用 PdfBox-Android 2.0.27.0，覆盖最低 Android 13；解析缓冲限制为 8 MiB 内存／64 MiB 总临时存储。
+
+## S11.12 全链路验收与收尾
+
+2026-09-28，真实服务使用本地既有 OpenAI Chat Completions 兼容配置（`api.liangrekui.com`、`gpt-5.6-terra`），验收 Profile 明确设置上下文 65536、输出 8192 Token；摘要仍按产品上限 2048 Token。`AgentLiveAcceptanceTest` 在 Android 16 上完整通过，耗时约 303 秒。实际覆盖文字流式、工具调用与结果回传、图片随机码读取、PDF 随机码读取、Markdown 附件转 `output_file`、严格结构化片段摘要、长笔记摘要、`memory_search` 和 `memory_read` 后回答原行程。两个历史工具均有 Committed 记录，历史读取后回复包含杭州目的地。凭据不进入源码、消息或日志；测试结束清除临时配置与测试资料。日志：`build/s11-live-acceptance.log`、`build/s11-live-stages.log`。Anthropic、Gemini 的请求、流式事件、错误与工具回传使用协议级自动化验证。
+
+构建验证：`testDebugUnitTest` 共 162 项，161 项通过，1 项需显式配置的 JVM 真实服务用例默认跳过；真实服务另由上述 Android 用例执行。`assembleDebug`、`assembleDebugAndroidTest`、`assembleRelease` 和 `lintDebug` 成功。Lint 0 错误、22 条警告：19 条既有依赖／资源／公共控件警告，以及 PDFBox 间接引入 BouncyCastle 的 3 条信任管理器警告；应用请求继续使用默认 OkHttp TLS，不调用这些 PDF 依赖中的 TLS 实现。Release 的 R8 仅忽略 PDFBox 可选 JPEG 2000 解码器的缺失类型，PDF 文字提取不使用该解码器。日志：`build/s11-final-build.log`、`build/s11-final-ui-build.log`、`build/s11-release-final.log`。
+
+最终 Android 回归覆盖 24 个测试类、155 项用例：事实源、2→15 迁移、模型配置、权限矩阵、快照、队列、实时写入、并行编辑、累计 Diff 与回退、片段／画像／笔记记忆、来源删除／遗忘、历史分页、文件导入与回收，以及公共控件和页面流程。154 项在集中回归通过，设置页的保存失败重试用例以语义点击复验通过；相关手机 UI 共 8 项全部通过。日志：`build/s11-final-android.log`、`build/s11-final-phone-ui.log`。最终 UI 收尾后的 Debug、测试 APK、Lint 和 Release 再次成功，见 `build/s11-final-polish-build.log`。
+
+设备与界面验收使用 Android 16 模拟器：720×1280／280 dpi 手机，以及 1280×800／160 dpi 模拟平板。平板文件、画像、模型设置和 Agent 流程 13 项全部通过；已查看两种尺寸的文件预览、画像管理和模型设置截图，操作与文字无裁切。无障碍检查覆盖内容语义、点击动作、启用状态及公共控件尺寸。截图在 `build/s11-phone/`、`build/s11-tablet/`，平板日志为 `build/s11-final-tablet-ui.log`。测试后屏幕尺寸、密度已恢复。
+
+最新实现再次通过实际进程终止恢复：核对准备标记和 PID 14792 后执行 SIGKILL，新进程恢复运行与部分回复，五条已提交工具记录不重放，队列保持暂停，用户并行编辑得到保留。恢复用例 1 项通过，日志为 `build/s11-process-prepare.log`、`build/s11-process-recover.log`。后台通知、锁屏、通知拒绝、系统超时与后台启动限制继续采用上文原生平台验收证据。
+
+S11.1–S11.12 已完成，README、开发顺序、实施方案、功能清单和记忆架构已同步。

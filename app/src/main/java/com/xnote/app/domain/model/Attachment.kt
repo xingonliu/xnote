@@ -6,6 +6,7 @@ enum class AttachmentKind {
     Image,
     Sticker,
     Drawing,
+    File,
 }
 
 data class Attachment(

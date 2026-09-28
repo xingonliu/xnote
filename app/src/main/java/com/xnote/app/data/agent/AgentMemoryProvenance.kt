@@ -28,7 +28,8 @@ class AgentMemoryProvenance(private val database: XNoteDatabase) {
             val source = database.agent().message(sourceId) ?: return false
             val sourceRun = source.runId?.let { database.agent().run(it) } ?: return false
             if (sourceRun.errorCode == "history_removed" || !profiles.canUseMessage(sourceId)) return false
-            if (source.status != AgentMessageStatus.Complete) return false
+            // A resumed answer may depend on a saved partial reply; only mutable output is unavailable.
+            if (source.status in setOf(AgentMessageStatus.Pending, AgentMessageStatus.Streaming)) return false
             // Current-run note sources are projected by AgentNoteStore, including safe deletion receipts.
             if (run?.id == sourceRun.id) continue
             val accessRun = run ?: sourceRun.copy(segmentId = "derived-memory", grantJson = null)

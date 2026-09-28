@@ -40,7 +40,7 @@ class AgentHistoryMemoryStore(private val database: XNoteDatabase) {
             if (!notes.canUseSources(run, sources)) continue
             val text = if (message.role == AgentMessageRole.Tool) database.agent().toolEvents(originalRun.id)
                 .filter { notes.canUseSources(run, Json.decodeFromString(it.sourcesJson)) }
-                .joinToString("\n") { "${it.name}: ${it.status.name}" } else message.text
+                .joinToString("\n") { "${it.name}: ${it.status.name}" } else agentMessageMemoryText(database, message)
             if (text.isNotBlank()) safe += SafeHistoryMessage(message, text, sources)
         }
         return safe
@@ -104,7 +104,9 @@ class AgentHistoryMemoryStore(private val database: XNoteDatabase) {
                 require(character in 0..message.text.length)
                 var chunk = message.text.drop(character).take(remaining)
                 while (estimatedAgentTokens(JsonPrimitive(chunk).toString()) + 400 > tokenRemaining && chunk.isNotEmpty()) chunk = chunk.take(chunk.length * 3 / 4)
-                if (chunk.lastOrNull()?.isHighSurrogate() == true && message.text.getOrNull(character + chunk.length)?.isLowSurrogate() == true) chunk = chunk.dropLast(1)
+                if (chunk.lastOrNull()?.isHighSurrogate() == true && message.text.getOrNull(character + chunk.length)?.isLowSurrogate() == true) {
+                    chunk = if (chunk.length == 1) message.text.substring(character, character + 2) else chunk.dropLast(1)
+                }
                 if (chunk.isEmpty()) break
                 val item = buildJsonObject {
                     put("id", message.row.id); put("sequence", message.row.sequence); put("role", message.row.role.name)

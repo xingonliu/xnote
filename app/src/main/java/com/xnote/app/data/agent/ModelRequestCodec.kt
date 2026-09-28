@@ -21,7 +21,18 @@ fun modelRequestJson(profile: ModelProfile, request: ModelRequest): JsonObject =
                         add(buildJsonObject { put("role", "tool"); put("tool_call_id", result.id); put("content", result.content) })
                     } else add(buildJsonObject {
                         put("role", if (message.role == AgentMessageRole.Assistant) "assistant" else "user")
-                        put("content", message.text)
+                        if (message.files.isEmpty()) put("content", message.text) else putJsonArray("content") {
+                            add(buildJsonObject { put("type", "text"); put("text", message.text) })
+                            message.files.forEach { file -> add(buildJsonObject {
+                                if (file.mimeType == "application/pdf") {
+                                    put("type", "file"); putJsonObject("file") {
+                                        put("filename", file.name); put("file_data", "data:${file.mimeType};base64,${file.base64}")
+                                    }
+                                } else {
+                                    put("type", "image_url"); putJsonObject("image_url") { put("url", "data:${file.mimeType};base64,${file.base64}") }
+                                }
+                            }) }
+                        }
                         if (message.calls.isNotEmpty()) putJsonArray("tool_calls") {
                             message.calls.forEach { call -> add(buildJsonObject {
                                 put("id", call.id); put("type", "function")
@@ -46,6 +57,10 @@ fun modelRequestJson(profile: ModelProfile, request: ModelRequest): JsonObject =
                 put("role", if (message.role == AgentMessageRole.Assistant) "assistant" else "user")
                 putJsonArray("content") {
                     if (message.text.isNotEmpty()) add(buildJsonObject { put("type", "text"); put("text", message.text) })
+                    message.files.forEach { file -> add(buildJsonObject {
+                        put("type", if (file.mimeType == "application/pdf") "document" else "image")
+                        putJsonObject("source") { put("type", "base64"); put("media_type", file.mimeType); put("data", file.base64) }
+                    }) }
                     message.calls.forEach { call -> add(buildJsonObject {
                         put("type", "tool_use"); put("id", call.id); put("name", call.name); put("input", call.arguments)
                     }) }
@@ -68,6 +83,9 @@ fun modelRequestJson(profile: ModelProfile, request: ModelRequest): JsonObject =
                 put("role", if (message.role == AgentMessageRole.Assistant) "model" else "user")
                 if (message.nativeParts != null) put("parts", message.nativeParts) else putJsonArray("parts") {
                     if (message.text.isNotEmpty()) add(buildJsonObject { put("text", message.text) })
+                    message.files.forEach { file -> add(buildJsonObject {
+                        putJsonObject("inlineData") { put("mimeType", file.mimeType); put("data", file.base64) }
+                    }) }
                     message.calls.forEach { call -> add(buildJsonObject { putJsonObject("functionCall") {
                         put("id", call.id); put("name", call.name); put("args", call.arguments)
                     } }) }

@@ -9,6 +9,21 @@ import kotlinx.serialization.json.*
 class AgentContextBudgetTest {
     private val profile = ModelProfile("profile", name = "模型", protocol = ModelProtocol.OpenAI, modelId = "model", contextTokens = 4096, outputTokens = 512)
 
+    @Test fun runningCompressionKeepsGoalAndAtomicToolReceiptsWithoutDanglingCalls() {
+        val call = ModelToolCall("read-1", "read", buildJsonObject { put("note_id", "note") })
+        val result = ModelToolResult(call.id, call.name, buildJsonObject { put("note_id", "note"); put("version", "current"); put("body", "正文".repeat(3000)) }.toString())
+        val current = listOf(ModelMessage(AgentMessageRole.User, "完整当前目标"), ModelMessage(AgentMessageRole.Assistant, calls = listOf(call)),
+            ModelMessage(AgentMessageRole.Tool, results = listOf(result)), ModelMessage(AgentMessageRole.User, "完整补充"))
+        val plan = planAgentExecutionContext(profile, emptyList(), current)
+        assertTrue(plan.compressed)
+        assertEquals(current.first(), plan.messages.first()); assertEquals(current.last(), plan.messages.last())
+        assertTrue(plan.messages.none { it.calls.isNotEmpty() || it.results.isNotEmpty() })
+        assertTrue(plan.messages[1].text.contains("read-1") && plan.messages[1].text.contains("current"))
+        assertTrue(plan.estimatedInputTokens + profile.outputTokens + ModelLimits.ToolReserveTokens <= profile.contextTokens)
+        val pending = current.dropLast(2) + ModelMessage(AgentMessageRole.Assistant, "尚未完成".repeat(2000))
+        assertThrows(AgentBudgetException::class.java) { planAgentExecutionContext(profile, emptyList(), pending) }
+    }
+
     @Test fun inputAndSystemKeepReservedOutputAndToolBudget() {
         val input = "当前目标"
         val plan = planAgentContext(profile, listOf(AgentContextTurn("问", "答")), input)

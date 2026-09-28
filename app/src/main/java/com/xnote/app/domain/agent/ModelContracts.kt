@@ -15,7 +15,8 @@ enum class ModelProtocol(val label: String, val root: String) {
 }
 
 @Serializable
-data class ModelCapabilities(val textStreaming: Boolean = false, val tools: Boolean = false, val testedAtEpochMs: Long? = null)
+data class ModelCapabilities(val textStreaming: Boolean = false, val tools: Boolean = false, val testedAtEpochMs: Long? = null,
+    val images: Boolean = false, val pdf: Boolean = false, val attachmentsTestedAtEpochMs: Long? = null)
 
 @Serializable
 data class ModelProfile(
@@ -41,12 +42,15 @@ data class ModelToolCall(val id: String, val name: String, val arguments: JsonOb
 @Serializable
 data class ModelToolResult(val id: String, val name: String, val content: String)
 @Serializable
+data class ModelInputFile(val name: String, val mimeType: String, val base64: String, val estimatedTokens: Int)
+@Serializable
 data class ModelMessage(
     val role: AgentMessageRole,
     val text: String = "",
     val calls: List<ModelToolCall> = emptyList(),
     val results: List<ModelToolResult> = emptyList(),
     val nativeParts: JsonArray? = null,
+    val files: List<ModelInputFile> = emptyList(),
 )
 
 data class ModelRequest(

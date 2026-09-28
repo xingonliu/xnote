@@ -97,7 +97,6 @@ fun AgentMemoryScreen(timeline: AgentTimeline, onBack: () -> Unit) {
                 XNoteGroupCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(fact.value, style = MaterialTheme.typography.titleMedium)
-                        Text(fact.key, style = MaterialTheme.typography.labelMedium)
                         Text(if (fact.status == "review") "待确认，尚未使用" else if (fact.evidence in setOf("Inferred", "Repeated")) "推断记忆，已确认" else "已生效")
                         Text("来源：${fact.sourceQuote}", style = MaterialTheme.typography.bodySmall)
                         Text(DateFormat.getDateTimeInstance().format(Date(fact.createdAtEpochMs)), style = MaterialTheme.typography.bodySmall)

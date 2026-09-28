@@ -166,13 +166,13 @@ class ModelSettingsFlowTest {
         compose.onNodeWithTag("model-save").performScrollTo().performTouchInput { click() }
         compose.onNodeWithText("请填写 API Key").assertIsDisplayed()
         compose.onNodeWithTag("model-key").performScrollTo().performTextInput("  local-test-key  ")
-        compose.onNodeWithTag("model-save").performScrollTo().performTouchInput { click() }
+        compose.onNodeWithTag("model-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { compose.onAllNodesWithText(ModelError.MissingCredential.display).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(ModelError.MissingCredential.display).assertIsDisplayed()
         compose.onNodeWithTag("model-save").assertIsEnabled()
         screenshot("model-save-error-toast")
         compose.runOnIdle { failWrite = false }
-        compose.onNodeWithTag("model-save").performScrollTo().performTouchInput { click() }
+        compose.onNodeWithTag("model-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { failingStore.list().size == 1 } }
         compose.onNodeWithText("配置已保存").assertIsDisplayed()
         val profile = runBlocking { failingStore.list().single() }

@@ -29,9 +29,10 @@ class XNoteContainer(
     val database: XNoteDatabase = XNoteDatabase.create(appContext)
     val modelProfiles = com.xnote.app.data.agent.ModelProfileStore(database, com.xnote.app.data.agent.AndroidModelCredentialStore(appContext))
     val modelClient: com.xnote.app.data.agent.ModelClient = com.xnote.app.data.agent.HttpModelClient()
+    val agentFiles = com.xnote.app.data.agent.AgentFileStore(database, appContext)
     val agentTimeline = com.xnote.app.data.agent.AgentTimeline(database, modelProfiles, modelClient, applicationScope,
         startBackground = { com.xnote.app.data.agent.AgentRunService.start(appContext) },
-        scheduleMemory = { com.xnote.app.data.agent.AgentMemoryWorker.enqueue(appContext) })
+        scheduleMemory = { com.xnote.app.data.agent.AgentMemoryWorker.enqueue(appContext) }, fileStore = agentFiles)
     val settings = AppSettingsStore(appContext)
     val searchHistory = SearchHistoryStore(appContext)
     val noteLibrary = NoteLibrary(
@@ -44,6 +45,7 @@ class XNoteContainer(
         RecycleBinCleanupWorker.enqueue(appContext)
         applicationScope.launch {
             noteLibrary.purgeExpiredTrash()
+            agentFiles.collectGarbage()
         }
         applicationScope.launch {
             combine(database.notes().observeActive(), agentTimeline.noteStore.permission) { notes, permission -> notes to permission }

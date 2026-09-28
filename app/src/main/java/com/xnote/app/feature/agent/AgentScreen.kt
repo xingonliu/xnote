@@ -60,6 +60,9 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     val permission by timeline.noteStore.permission.collectAsState(AgentPermission())
     val snapshots by timeline.noteStore.snapshots.collectAsState(emptyList())
     val tools by timeline.noteStore.toolEvents.collectAsState(emptyList())
+    val fileCards by (timeline.fileStore?.cards ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(emptyList())
+    var filePreview by remember { mutableStateOf<com.xnote.app.data.db.AgentFileCard?>(null) }
+    var importingFile by remember { mutableStateOf(false) }
     var attachDialog by remember { mutableStateOf(false) }
     var permissionDialog by remember { mutableStateOf(false) }
     var permissionRequest by remember { mutableStateOf<AgentToolEventEntity?>(null) }
@@ -90,7 +93,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     var restored by remember { mutableStateOf(false) }
     // -- Derived Values
 
-    val overlayVisible = attachDialog || permissionDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || attachmentMenu || moreMenu || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen
+    val overlayVisible = attachDialog || permissionDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || attachmentMenu || moreMenu || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
+    val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
@@ -121,6 +125,12 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     if (memoryOpen) {
         AgentMemoryScreen(timeline, onBack = { memoryOpen = false })
         return
+    }
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) action {
+            importingFile = true
+            try { timeline.importFile(uri) } finally { importingFile = false }
+        }
     }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().imePadding().padding(
@@ -153,7 +163,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                     val run = runs.find { it.id == message.runId }
                     AgentMessageSurface(message.role) {
                             Text(when (message.role) { AgentMessageRole.User -> "你"; AgentMessageRole.Assistant -> "Agent"; else -> "执行记录" }, style = MaterialTheme.typography.labelMedium)
-                            SelectionContainer { Text((if (message.role == AgentMessageRole.Tool) "工具结果已保存" else message.text).ifEmpty { if (message.status == AgentMessageStatus.Streaming) "正在生成…" else if (message.modelJson != null) "工具调用" else "未生成回复" }) }
+                            SelectionContainer { Text((if (message.role == AgentMessageRole.Tool) "工具结果已保存" else message.text).ifEmpty { if (message.role == AgentMessageRole.User) "附加文件" else if (message.status == AgentMessageStatus.Streaming) "正在生成…" else if (message.modelJson != null) "工具调用" else "未生成回复" }) }
+                            AgentFilesStrip(fileCards.filter { it.ownerType == "message" && it.ownerId == message.id }, { filePreview = it })
                             if (message.role == AgentMessageRole.User) {
                                 Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
                                     val snapshot = snapshots.find { it.id == source.snapshotId }
@@ -255,10 +266,12 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                     }
                 }
             }
+            if (importingFile) Text("正在导入文件…", style = MaterialTheme.typography.bodySmall)
+            if (draftFiles.isNotEmpty()) AgentFilesStrip(draftFiles, { filePreview = it }, { id -> action { timeline.removeDraftFile(id) } })
             AgentComposer(
                 input = input, onInputChange = { value -> input = value; action { timeline.saveDraft(value) } },
                 enabled = state.ready && restored, running = state.running,
-                canSend = state.ready && restored && ((state.running && draftSelection == null) || (!state.running && !unresolved && queue.isEmpty())) && input.isNotBlank(),
+                canSend = state.ready && restored && !importingFile && ((state.running && draftSelection == null) || (!state.running && !unresolved && queue.isEmpty())) && (input.isNotBlank() || draftFiles.isNotEmpty()),
                 permission = permission, notes = selectedNotes.map { id ->
                     val note = availableNotes.find { it.id == id }
                     AgentComposerNote(id, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用",
@@ -275,7 +288,9 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             )
         }
         XNoteDropdownMenu(attachmentMenu, { attachmentMenu = false },
-            listOf(XNoteDropdownMenuItem("笔记", { keyboard?.hide(); attachDialog = true })), backdrop,
+            listOf(XNoteDropdownMenuItem("笔记", { keyboard?.hide(); attachDialog = true }),
+                XNoteDropdownMenuItem("图片", { keyboard?.hide(); filePicker.launch(arrayOf("image/*")) }, enabled = timeline.fileStore != null && !importingFile),
+                XNoteDropdownMenuItem("文件（PDF / TXT / MD）", { keyboard?.hide(); filePicker.launch(arrayOf("*/*")) }, enabled = timeline.fileStore != null && !importingFile)), backdrop,
             anchor = attachmentAnchor, placement = XNotePopupPlacement.BelowStart)
         XNoteDropdownMenu(moreMenu, { moreMenu = false }, listOf(
             XNoteDropdownMenuItem("任务队列 · ${queue.size}", { keyboard?.hide(); queueDrawer = true }),
@@ -287,8 +302,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             Text("队列中的消息会依次执行；运行中可在输入框补充当前任务。")
             if (queue.isEmpty()) Text("暂无待执行任务")
-            if (input.isNotBlank()) LiquidButton({ val sent = input; action { timeline.enqueue(sent); input = "" } }, backdrop,
-                enabled = state.ready && restored, modifier = Modifier.testTag("agent-enqueue")) { Text("将输入内容加入队列") }
+            if (input.isNotBlank() || draftFiles.isNotEmpty()) LiquidButton({ val sent = input; action { timeline.enqueue(sent); input = "" } }, backdrop,
+                enabled = state.ready && restored && !importingFile, modifier = Modifier.testTag("agent-enqueue")) { Text("将输入内容加入队列") }
             if (queue.isNotEmpty() && !state.running && !unresolved) LiquidButton({ action { timeline.resumeQueue(); queueDrawer = false } },
                 backdrop, modifier = Modifier.testTag("agent-resume-queue")) { Text("继续队列") }
             queue.forEach { queued ->
@@ -297,6 +312,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                         onSave = { value -> action { timeline.editQueued(queued.id, value) } },
                         onMove = { direction -> action { timeline.moveQueued(queued.id, direction) } },
                         onRemove = { action { timeline.removeQueued(queued.id) } })
+                    AgentFilesStrip(fileCards.filter { it.ownerType == "message" && it.ownerId == message.id }, { filePreview = it })
                 }
             }
             TextButton({ queueDrawer = false }) { Text("关闭") }
@@ -305,6 +321,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             input = timeline.draft.value
             reviewsOpen = false
         }
+        filePreview?.let { card -> timeline.fileStore?.let { AgentFilePreview(card, it, backdrop) { filePreview = null } } }
         if (draftPreviewId != null) {
             val note = availableNotes.find { it.id == draftPreviewId }
             XNoteDialog(true, { draftPreviewId = null }, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用", backdrop,

@@ -15,7 +15,7 @@ class ModelCapabilityTest(private val client: ModelClient, private val store: Mo
     suspend fun test(profile: ModelProfile): ModelCapabilityResult {
         val secret = store.credential(profile)
         val probe = profile.copy(outputTokens = minOf(profile.outputTokens, 1024))
-        var capabilities = ModelCapabilities(testedAtEpochMs = System.currentTimeMillis())
+        var capabilities = profile.capabilities.copy(textStreaming = false, tools = false, testedAtEpochMs = System.currentTimeMillis())
         try {
             var hasText = false
             var completed = false

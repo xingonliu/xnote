@@ -15,6 +15,24 @@ import com.sun.net.httpserver.HttpServer
 // -- Tests
 
 class ModelProtocolTest {
+    @Test fun imageAndPdfUseEachProtocolsNativeFilePartsAndBinaryBudget() {
+        val message = ModelMessage(AgentMessageRole.User, "读取附件", files = listOf(
+            ModelInputFile("photo.png", "image/png", "aW1hZ2U=", 4096), ModelInputFile("report.pdf", "application/pdf", "cGRm", 8192)))
+        val openai = modelRequestJson(profile(ModelProtocol.OpenAI), request.copy(messages = listOf(message)))
+            .getValue("messages").jsonArray.last().jsonObject.getValue("content").jsonArray
+        assertEquals("data:image/png;base64,aW1hZ2U=", openai[1].jsonObject.getValue("image_url").jsonObject.getValue("url").jsonPrimitive.content)
+        assertEquals("data:application/pdf;base64,cGRm", openai[2].jsonObject.getValue("file").jsonObject.getValue("file_data").jsonPrimitive.content)
+        val anthropic = modelRequestJson(profile(ModelProtocol.Anthropic), request.copy(messages = listOf(message)))
+            .getValue("messages").jsonArray.single().jsonObject.getValue("content").jsonArray
+        assertEquals("document", anthropic[2].jsonObject.getValue("type").jsonPrimitive.content)
+        assertEquals("application/pdf", anthropic[2].jsonObject.getValue("source").jsonObject.getValue("media_type").jsonPrimitive.content)
+        val gemini = modelRequestJson(profile(ModelProtocol.Gemini), request.copy(messages = listOf(message)))
+            .getValue("contents").jsonArray.single().jsonObject.getValue("parts").jsonArray
+        assertEquals("cGRm", gemini[2].jsonObject.getValue("inlineData").jsonObject.getValue("data").jsonPrimitive.content)
+        assertEquals(estimatedModelMessageTokens(message), estimatedModelMessageTokens(message.copy(files = message.files.map { it.copy(base64 = "x".repeat(200000)) })))
+        assertThrows(AgentBudgetException::class.java) { planAgentExecutionContext(profile(ModelProtocol.OpenAI).copy(contextTokens = 8192), emptyList(), listOf(message)) }
+    }
+
     private fun profile(protocol: ModelProtocol) = ModelProfile("profile", name = "测试", protocol = protocol, modelId = "test-model")
     private val request = ModelRequest("system", listOf(ModelMessage(AgentMessageRole.User, "你好")))
 

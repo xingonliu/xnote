@@ -112,6 +112,16 @@ fun ModelSettingsScreen(
                                 finally { testing = false }
                             }
                         }, backdrop, enabled = !testing && !saving && saved.enabled) { Text(if (testing) "测试中…" else "测试连接") }
+                        Text("图片：${if (saved.capabilities.images) "已验证" else "未验证"} · PDF 原生输入：${if (saved.capabilities.pdf) "已验证" else "未验证"}", style = MaterialTheme.typography.bodySmall)
+                        LiquidButton({
+                            testing = true
+                            job = scope.launch {
+                                try { notify(ModelAttachmentCapabilityTest(client, store).test(saved).detail) }
+                                catch (cancelled: CancellationException) { throw cancelled }
+                                catch (failure: Exception) { notify(safeModelError(failure)) }
+                                finally { testing = false }
+                            }
+                        }, backdrop, enabled = !testing && !saving && saved.enabled) { Text("验证图片与 PDF（两次请求）") }
                         if (testing) LiquidButton({ job?.cancel(); notify("测试已取消") }, backdrop) { Text("取消测试") }
                         LiquidButton({
                             saving = true

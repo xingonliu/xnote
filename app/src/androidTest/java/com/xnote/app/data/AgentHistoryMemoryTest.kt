@@ -13,6 +13,18 @@ import org.junit.Test
 // -- Tests
 
 class AgentHistoryMemoryTest {
+    @Test fun resumedCompletedReplyCanUseSavedPartialSourceUntilDeleted() = runBlocking {
+        fixture { db, run ->
+            db.agent().insertMessage(AgentMessageEntity(id = "partial", segmentId = run.segmentId, runId = run.id,
+                role = AgentMessageRole.Assistant, text = "已保存的部分回复", status = AgentMessageStatus.Interrupted, createdAtEpochMs = 10))
+            AgentMemoryProvenance(db).save("continued", listOf("partial"))
+            assertTrue(AgentMemoryProvenance(db).canUse("continued", run))
+            assertTrue(AgentMemoryProvenance(db).canUse("continued"))
+            db.agent().deleteMessage("partial")
+            assertFalse(AgentMemoryProvenance(db).canUse("continued", run))
+        }
+    }
+
     @Test fun largeChineseReadAutomaticallyPagesUnderTokenLimitWithoutLosingText() = runBlocking {
         fixture { db, run ->
             val body = "中文资料😀\"".repeat(600)

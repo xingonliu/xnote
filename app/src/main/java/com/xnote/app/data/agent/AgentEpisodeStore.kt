@@ -39,7 +39,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
         val messages = eligible(segmentId)
         database.memory().deleteMessageFts(segmentId)
         messages.filter { it.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant) }.forEach {
-            database.memory().insertMessageFts(AgentMessageFtsEntity(messageId = it.id, segmentId = segmentId, text = FtsIndexText.prepare(it.text)))
+            database.memory().insertMessageFts(AgentMessageFtsEntity(messageId = it.id, segmentId = segmentId, text = FtsIndexText.prepare(agentMessageMemoryText(database, it))))
         }
         if (database.memory().job(segmentId) != null) return
         if (messages.isEmpty()) return
@@ -61,7 +61,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
 
     private suspend fun fingerprint(messages: List<AgentMessageEntity>): String = agentSourceHash(buildString {
         messages.forEach { message ->
-            append(Json.encodeToString(listOf(message.id, message.text, message.sourcesJson, message.modelJson.orEmpty(), message.status.name)))
+            append(Json.encodeToString(listOf(message.id, agentMessageMemoryText(database, message), message.sourcesJson, message.modelJson.orEmpty(), message.status.name)))
         }
         messages.mapNotNull { it.runId }.distinct().forEach { runId ->
             database.agent().toolEvents(runId).forEach { event ->
@@ -90,7 +90,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
                 safe.forEach { message -> add(buildJsonObject {
                     put("id", message.id); put("role", message.role.name)
                     // Tool results are represented by committed status, never by copied note bodies.
-                    if (message.role != AgentMessageRole.Tool) put("text", message.text)
+                    if (message.role != AgentMessageRole.Tool) put("text", agentMessageMemoryText(database, message))
                 }) }
             })
             put("tools", buildJsonArray {
