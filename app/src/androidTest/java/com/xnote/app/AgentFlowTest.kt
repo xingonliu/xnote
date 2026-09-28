@@ -2,7 +2,6 @@ package com.xnote.app
 
 import android.content.Context
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -22,6 +21,7 @@ import java.io.File
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 // -- Tests
 
@@ -52,14 +52,7 @@ class AgentFlowTest {
     @Test fun sendNavigateBackAndStartNewTopic() {
         runBlocking { profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key") }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
-        // Match MainActivity's resize policy; the generic Compose host otherwise pans the window.
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
-            androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
-                .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).forEach {
-                    if (it is androidx.activity.ComponentActivity) it.enableEdgeToEdge()
-                    it.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-                }
-        }
+        configureWindow()
         compose.onNodeWithText("Agent").performClick()
         compose.waitUntil(5000) { timeline.state.value.ready }
         compose.onNodeWithTag("agent-input").performTextInput("帮我整理今天的想法")
@@ -77,8 +70,8 @@ class AgentFlowTest {
             androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         hideKeyboard()
         compose.waitUntil(5000) { compose.onAllNodesWithText("我的").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("已完成", substring = true))
-        compose.onNodeWithText("已完成", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("这是一条逐步保存的回复。", substring = true))
+        compose.onNodeWithText("这是一条逐步保存的回复。", substring = true).assertExists()
         compose.onNodeWithText("我的").performClick()
         compose.onNodeWithText("Agent").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
@@ -101,7 +94,8 @@ class AgentFlowTest {
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
         compose.onNodeWithText("Agent").performClick()
         compose.waitUntil(5000) { timeline.state.value.ready }
-        compose.onNodeWithTag("agent-attach-notes").performClick()
+        compose.onNodeWithTag("agent-add-attachment").performClick()
+        compose.onNodeWithText("笔记").performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
         compose.onNodeWithText("确认 1 篇").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
@@ -119,6 +113,81 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scope-All").performScrollTo().performClick()
         compose.onNodeWithText("保存").performClick()
         compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.level == AgentPermissionLevel.Read && it.scope == AgentScope.All } } }
+    }
+
+    @Test fun composerMenusAndReviewDrawerKeepTheDraftAndAttachment() {
+        val note = runBlocking {
+            timeline.awaitReady()
+            profiles.save(ModelProfile("layout", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
+            val created = library.createNote(null)
+            library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "布局测试笔记"))
+        }
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
+        configureWindow()
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { timeline.state.value.ready }
+        compose.onNodeWithTag("agent-clear").assertDoesNotExist()
+        compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
+        compose.onAllNodesWithText("Agent").assertCountEquals(1)
+        compose.onNodeWithTag("agent-send").assertIsNotEnabled()
+        val header = compose.onNodeWithTag("agent-header").fetchSemanticsNode().boundsInRoot
+        val reviews = compose.onNodeWithTag("agent-reviews").fetchSemanticsNode().boundsInRoot
+        val topic = compose.onNodeWithTag("agent-new-topic").fetchSemanticsNode().boundsInRoot
+        val more = compose.onNodeWithTag("agent-more").fetchSemanticsNode().boundsInRoot
+        assertTrue(reviews.right <= topic.left && topic.right <= more.left)
+        assertTrue(header.contains(reviews.center) && header.contains(more.center))
+        val composer = compose.onNodeWithTag("agent-composer").fetchSemanticsNode().boundsInRoot
+        val add = compose.onNodeWithTag("agent-add-attachment").fetchSemanticsNode().boundsInRoot
+        val permission = compose.onNodeWithTag("agent-permission-settings").fetchSemanticsNode().boundsInRoot
+        val send = compose.onNodeWithTag("agent-send").fetchSemanticsNode().boundsInRoot
+        assertTrue(composer.contains(add.center) && composer.contains(permission.center) && composer.contains(send.center))
+        assertTrue(add.right <= permission.left && permission.right <= send.left)
+        screenshot("agent-empty-layout")
+        compose.onNodeWithTag("agent-add-attachment").performClick()
+        compose.onNodeWithText("笔记").assertIsDisplayed()
+        compose.onNodeWithText("图片").assertDoesNotExist()
+        screenshot("agent-attachment-menu")
+        compose.onNodeWithText("笔记").performClick()
+        compose.onNodeWithTag("agent-attach-${note.id}").performClick()
+        compose.onNodeWithText("确认 1 篇").performClick()
+        compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
+        compose.onNodeWithTag("agent-draft-note-${note.id}").performClick()
+        compose.onNodeWithText("关闭").performClick()
+        compose.onNodeWithTag("agent-input").performTextInput("保留这段草稿")
+        compose.waitUntil(5000) { timeline.draft.value == "保留这段草稿" }
+        compose.onNodeWithTag("agent-add-attachment").performClick()
+        compose.onNodeWithText("笔记").assertIsDisplayed()
+        screenshot("agent-keyboard-attachment-menu")
+        compose.onNodeWithText("笔记").performClick()
+        compose.onNodeWithText("取消").performClick()
+        hideKeyboard()
+        compose.onNodeWithTag("agent-reviews").performClick()
+        compose.onNodeWithText("暂无笔记改动").assertIsDisplayed()
+        compose.onNodeWithText("我的").assertDoesNotExist()
+        screenshot("agent-review-popup")
+        compose.onNodeWithText("关闭").performClick()
+        compose.onNodeWithTag("agent-input").assertTextContains("保留这段草稿")
+        compose.onNodeWithTag("agent-draft-note-${note.id}").assertIsDisplayed()
+        compose.onNodeWithTag("agent-remove-note-${note.id}").performClick()
+        compose.waitUntil(5000) { timeline.draftNotes.value.isEmpty() }
+        compose.onNodeWithTag("agent-more").performClick()
+        compose.onNodeWithText("任务队列 · 0").assertIsDisplayed()
+        compose.onNodeWithText("模型与服务商").assertIsDisplayed()
+        compose.onNodeWithText("清空聊天").assertDoesNotExist()
+        compose.onNodeWithText("任务队列 · 0").performClick()
+        compose.onNodeWithTag("agent-enqueue").performClick()
+        compose.waitUntil(5000) { runBlocking { database.agent().pendingQueue().size == 1 } }
+        compose.onNodeWithText("保留这段草稿").assertIsDisplayed()
+        screenshot("agent-queue-popup")
+        compose.onNodeWithText("编辑").performClick()
+        compose.onNode(hasSetTextAction() and hasText("保留这段草稿")).performTextReplacement("调整后的任务")
+        hideKeyboard()
+        compose.onNodeWithText("保存").performClick()
+        compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.text == "调整后的任务" } } }
+        compose.onNodeWithText("删除").performClick()
+        compose.waitUntil(5000) { runBlocking { database.agent().pendingQueue().isEmpty() } }
+        compose.onNodeWithText("关闭").performClick()
+        compose.onNodeWithTag("agent-input").assertTextContains("")
     }
 
     @Test fun authorizeInspectDecisionAndContinueFailedTaskWithoutReplayingRead() {
@@ -172,6 +241,17 @@ class AgentFlowTest {
 
     // -- Functions
 
+    private fun configureWindow() {
+        // Match MainActivity's resize policy; the generic Compose host otherwise pans the window.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).forEach {
+                    if (it is androidx.activity.ComponentActivity) it.enableEdgeToEdge()
+                    it.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+                }
+        }
+    }
+
     private fun hideKeyboard() {
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
             androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
@@ -183,7 +263,8 @@ class AgentFlowTest {
 
     private fun screenshot(name: String) {
         val directory = File(context.getExternalFilesDir(null), "s11-screenshots").apply { mkdirs() }
-        compose.onRoot().captureToImage().asAndroidBitmap().let { bitmap ->
+        compose.waitForIdle()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
             File(directory, "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         }
     }

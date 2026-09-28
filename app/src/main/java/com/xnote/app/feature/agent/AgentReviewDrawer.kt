@@ -1,25 +1,20 @@
 package com.xnote.app.feature.agent
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.*
 import com.xnote.app.data.db.*
 import com.xnote.app.data.repository.NoteLibrary
@@ -27,9 +22,6 @@ import com.xnote.app.design.*
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.*
-import com.xnote.app.domain.model.AppSettings
-import com.xnote.app.domain.model.resolveBackgroundKey
-import com.xnote.app.feature.background.*
 import com.xnote.app.feature.notes.editor.toAnnotatedString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -43,22 +35,26 @@ private val RemovedColor = Color(0xFFC0392B)
 // -- Functions
 
 @Composable
-fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: AppSettings, initialNoteId: String? = null, onBack: () -> Unit) {
+fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdrop, initialNoteId: String? = null, onDismiss: () -> Unit) {
+    // -- State
+
     val store = timeline.reviewStore
     val reviews by store.reviews.collectAsState(emptyList())
     val active by library.observeActiveNotes().collectAsState(emptyList())
     val trash by library.observeTrashedNotes().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
-    val backdrop = rememberLayerBackdrop()
     var selected by rememberSaveable(initialNoteId) { mutableStateOf(initialNoteId) }
     var detail by remember { mutableStateOf<AgentReviewDetail?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    // -- Derived Values
+
     val notes = active + trash
-    val background = resolveBackgroundKey(notes.find { it.id == selected }?.backgroundKey, settings.defaultBackground)
     val current = detail
-    fun back() { if (selected != null) { selected = null; detail = null; notice = null } else onBack() }
+    // -- Functions
+
+    fun back() { if (selected != null) { selected = null; detail = null; notice = null } else onDismiss() }
     fun action(block: suspend () -> Unit) { scope.launch {
         busy = true
         try { block(); refresh++ }
@@ -75,79 +71,83 @@ fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: A
         if (restore) library.restoreNotes(listOf(noteId))
         timeline.selectDraftNotes((timeline.draftNotes.value + noteId).distinct())
         timeline.saveDraft(listOf(timeline.draft.value, "请重新读取附加笔记的当前版本，保留我的编辑，并调整尚未审阅的改动。").filter { it.isNotBlank() }.joinToString("\n\n"))
-        onBack()
+        onDismiss()
     } }
-    BackHandler { back() }
-    LaunchedEffect(selected, reviews, notes, refresh) { detail = selected?.let { store.detail(it) } }
-    EditorBackgroundTheme(background, library, settings, active = selected != null) { image, onSizeChanged ->
-        XNotePageScaffold(backdrop, scrollEdges = emptySet(), pageBackground = {
-            XNoteNoteSurface(background, Modifier.fillMaxSize().onSizeChanged(onSizeChanged), image)
-        }, content = {
-            val insets = WindowInsets.safeDrawing.asPaddingValues()
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("agent-review-content").padding(
-                start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
-                bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                notice?.let { Text(it, Modifier.testTag("agent-review-notice")) }
-                if (selected == null) {
-                    Text("Agent 改动已保存到笔记。每篇独立审阅，清空聊天不会清除这里的记录。")
-                    if (reviews.isEmpty()) Text("暂无笔记改动")
-                    reviews.groupBy { it.noteId }.forEach { (noteId, batches) ->
-                        val pending = batches.any { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
-                        LiquidButton({ selected = noteId; notice = null }, backdrop, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
-                            Text((notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记") + if (pending) " · 待审阅" else " · 已审阅")
-                        }
-                    }
-                } else if (current == null) Text("正在读取改动…") else {
-                    Text(current.current?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记", style = MaterialTheme.typography.titleLarge)
-                    Text("来源：Agent · ${current.changes.size} 次累计改动", style = MaterialTheme.typography.bodySmall)
-                    current.changes.firstOrNull()?.let { first -> Text("版本 ${first.beforeVersion?.take(12) ?: "新建"} → ${current.changes.last().afterVersion.take(12)}", style = MaterialTheme.typography.bodySmall) }
-                    Text("红色删除 · 绿色新增；用户后续编辑保留。", style = MaterialTheme.typography.bodySmall)
-                    val rollback = current.rollback
-                    val note = current.current
-                    val created = current.changes.any { it.kind == AgentChangeKind.Create }
-                    val deleted = current.changes.any { it.kind == AgentChangeKind.Trash }
-                    if (created) Text("本批包含新建笔记。整篇拒绝会将其移入回收站；存在用户内容时会暂停。")
-                    if (deleted && note != null) Text(if (note.deletedAtEpochMs == null) "笔记已恢复，将保留当前恢复状态。"
-                        else if (created) "本批新建的笔记目前在回收站。" else "笔记已移入回收站。拒绝删除可恢复；原笔记本不存在时恢复到未归档。")
-                    when {
-                        note == null -> Text("笔记已永久删除，改动无法恢复。")
-                        rollback is AgentContentMerge.Merged -> {
-                            val actual = AgentEditableContent(note.title, decodeNoteDocument(note.documentJson))
-                            if (created) AgentCumulativeDiff(AgentEditableContent("", NoteDocument()), actual)
-                            else if (!deleted || rollback.content != actual) AgentCumulativeDiff(rollback.content, actual)
-                        }
-                        rollback is AgentContentMerge.Conflict -> {
-                            if (notice == null) Text("回退与当前内容冲突：${rollback.location}。全部拒绝不会部分写入。", Modifier.testTag("agent-review-conflict"))
-                            Text("以下为已保存的 Agent 改动记录：")
-                            current.changes.forEach { change ->
-                                val before = change.beforeNoteJson?.let { Json.decodeFromString<NoteEntity>(it) }
-                                val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson)
-                                AgentCumulativeDiff(before?.let { AgentEditableContent(it.title, decodeNoteDocument(it.documentJson)) } ?: AgentEditableContent("", NoteDocument()), AgentEditableContent(after.title, decodeNoteDocument(after.documentJson)))
-                            }
-                        }
-                        current.review.status == AgentReviewStatus.Undone -> Text("最近接受的改动已撤回。")
-                        else -> Text("该批改动已拒绝。")
-                    }
-                    if (current.review.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) && note != null) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LiquidButton({ action { store.accept(note.id); notice = "已接受，保留当前内容。" } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
-                            LiquidButton({ action { report(store.reject(note.id)) } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-reject")) { Text("全部拒绝") }
-                        }
-                    }
-                    if (rollback is AgentContentMerge.Conflict && note != null) {
-                        if (current.review.status == AgentReviewStatus.Accepted) LiquidButton(onBack, backdrop, enabled = !busy) { Text("保留当前内容") }
-                        LiquidButton({ adjust(note.id, note.deletedAtEpochMs != null) }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) {
-                            Text(if (note.deletedAtEpochMs != null) "恢复笔记并重新调整" else "重新调整")
-                        }
-                    }
-                    if (current.undoReview != null && note != null) {
-                        val available = canUndoAcceptedAgentReview(current.undoReview.reviewedAtEpochMs, System.currentTimeMillis())
-                        Text(if (available) "最近接受的改动可在 30 天内撤回。" else "已超过 30 天，不能撤回本次接受。")
-                        LiquidButton({ action { report(store.undoAccepted(note.id)) } }, backdrop, enabled = !busy && available, modifier = Modifier.testTag("agent-review-undo")) { Text("撤回最近接受") }
+    // -- Lifecycle Hooks
+
+    LaunchedEffect(visible, initialNoteId) {
+        if (visible) { selected = initialNoteId; detail = null; notice = null }
+    }
+    LaunchedEffect(visible, selected, reviews, notes, refresh) { detail = if (visible) selected?.let { store.detail(it) } else null }
+    XNoteDrawer(visible, onDismiss, "笔记改动", backdrop, XNoteDrawerPlacement.Bottom,
+        Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("agent-review-drawer")) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            if (selected != null) LiquidButton(::back, backdrop) { Text("返回列表") }
+            else Text("全部笔记", style = MaterialTheme.typography.labelLarge)
+            LiquidButton(onDismiss, backdrop) { Text("关闭") }
+        }
+        androidx.activity.compose.BackHandler(enabled = visible && selected != null) { back() }
+        Column(Modifier.fillMaxWidth().testTag("agent-review-content"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            notice?.let { Text(it, Modifier.testTag("agent-review-notice")) }
+            if (selected == null) {
+                Text("Agent 改动已保存到笔记，可按篇查看并接受或撤回。")
+                if (reviews.isEmpty()) Text("暂无笔记改动")
+                reviews.groupBy { it.noteId }.forEach { (noteId, batches) ->
+                    val pending = batches.any { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
+                    LiquidButton({ selected = noteId; notice = null }, backdrop, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
+                        Text((notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记") + if (pending) " · 待审阅" else " · 已审阅")
                     }
                 }
+            } else if (current == null) Text("正在读取改动…") else {
+                Text(current.current?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记", style = MaterialTheme.typography.titleLarge)
+                Text("来源：Agent · ${current.changes.size} 次累计改动", style = MaterialTheme.typography.bodySmall)
+                current.changes.firstOrNull()?.let { first -> Text("版本 ${first.beforeVersion?.take(12) ?: "新建"} → ${current.changes.last().afterVersion.take(12)}", style = MaterialTheme.typography.bodySmall) }
+                Text("红色删除 · 绿色新增；用户后续编辑保留。", style = MaterialTheme.typography.bodySmall)
+                val rollback = current.rollback
+                val note = current.current
+                val created = current.changes.any { it.kind == AgentChangeKind.Create }
+                val deleted = current.changes.any { it.kind == AgentChangeKind.Trash }
+                if (created) Text("本批包含新建笔记。整篇拒绝会将其移入回收站；存在用户内容时会暂停。")
+                if (deleted && note != null) Text(if (note.deletedAtEpochMs == null) "笔记已恢复，将保留当前恢复状态。"
+                    else if (created) "本批新建的笔记目前在回收站。" else "笔记已移入回收站。拒绝删除可恢复；原笔记本不存在时恢复到未归档。")
+                when {
+                    note == null -> Text("笔记已永久删除，改动无法恢复。")
+                    rollback is AgentContentMerge.Merged -> {
+                        val actual = AgentEditableContent(note.title, decodeNoteDocument(note.documentJson))
+                        if (created) AgentCumulativeDiff(AgentEditableContent("", NoteDocument()), actual)
+                        else if (!deleted || rollback.content != actual) AgentCumulativeDiff(rollback.content, actual)
+                    }
+                    rollback is AgentContentMerge.Conflict -> {
+                        if (notice == null) Text("回退与当前内容冲突：${rollback.location}。全部拒绝不会部分写入。", Modifier.testTag("agent-review-conflict"))
+                        Text("以下为已保存的 Agent 改动记录：")
+                        current.changes.forEach { change ->
+                            val before = change.beforeNoteJson?.let { Json.decodeFromString<NoteEntity>(it) }
+                            val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson)
+                            AgentCumulativeDiff(before?.let { AgentEditableContent(it.title, decodeNoteDocument(it.documentJson)) } ?: AgentEditableContent("", NoteDocument()), AgentEditableContent(after.title, decodeNoteDocument(after.documentJson)))
+                        }
+                    }
+                    current.review.status == AgentReviewStatus.Undone -> Text("最近接受的改动已撤回。")
+                    else -> Text("该批改动已拒绝。")
+                }
+                if (current.review.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) && note != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LiquidButton({ action { store.accept(note.id); notice = "已接受，保留当前内容。" } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
+                        LiquidButton({ action { report(store.reject(note.id)) } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-reject")) { Text("全部拒绝") }
+                    }
+                }
+                if (rollback is AgentContentMerge.Conflict && note != null) {
+                    if (current.review.status == AgentReviewStatus.Accepted) LiquidButton(onDismiss, backdrop, enabled = !busy) { Text("保留当前内容") }
+                    LiquidButton({ adjust(note.id, note.deletedAtEpochMs != null) }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) {
+                        Text(if (note.deletedAtEpochMs != null) "恢复笔记并重新调整" else "重新调整")
+                    }
+                }
+                if (current.undoReview != null && note != null) {
+                    val available = canUndoAcceptedAgentReview(current.undoReview.reviewedAtEpochMs, System.currentTimeMillis())
+                    Text(if (available) "最近接受的改动可在 30 天内撤回。" else "已超过 30 天，不能撤回本次接受。")
+                    LiquidButton({ action { report(store.undoAccepted(note.id)) } }, backdrop, enabled = !busy && available, modifier = Modifier.testTag("agent-review-undo")) { Text("撤回最近接受") }
+                }
             }
-        }, overlay = { XNoteHeader(if (selected == null) "笔记改动" else "单篇改动", backdrop, Modifier.align(Alignment.TopCenter), onBack = ::back) })
+        }
     }
 }
 

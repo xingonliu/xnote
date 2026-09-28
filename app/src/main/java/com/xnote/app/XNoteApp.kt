@@ -151,8 +151,6 @@ fun XNoteApp(
 ) {
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
-    var agentReviewsOpen by rememberSaveable { mutableStateOf(false) }
-    var agentReviewNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
@@ -382,11 +380,6 @@ fun XNoteApp(
         }
     }
 
-    if (agentReviewsOpen && agentTimeline != null) {
-        com.xnote.app.feature.agent.AgentReviewScreen(agentTimeline, noteLibrary, appSettings, agentReviewNoteId, onBack = { agentReviewsOpen = false })
-        return
-    }
-
     profilePage?.let { page ->
         if (page == "模型与服务商" && modelProfiles != null) {
             com.xnote.app.feature.agent.ModelSettingsScreen(modelProfiles, modelClient, onBack = { profilePage = null })
@@ -458,7 +451,8 @@ fun XNoteApp(
             (isTablet && navigationState.isSearchOpen)
         val showsShellHeader = !navigationState.isRecycleBinOpen &&
             !navigationState.isAppearanceOpen &&
-            (navigationState.isSearchOpen || navigationState.showsNotesPrimaryChrome)
+            (navigationState.isSearchOpen ||
+                (navigationState.destination != AppDestination.Agent && navigationState.showsNotesPrimaryChrome))
         val isEditor = navigationState.destination == AppDestination.Notes &&
             navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor
@@ -574,7 +568,7 @@ fun XNoteApp(
                     DestinationContent(
                         agentTimeline = agentTimeline,
                         onAgentOverlayVisible = { agentOverlayVisible = it },
-                        onOpenAgentReviews = { agentReviewNoteId = it; agentReviewsOpen = true },
+                        onOpenAgentModels = { profilePage = "模型与服务商" },
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
                         uiState = uiState,
@@ -773,7 +767,7 @@ fun XNoteApp(
 private fun DestinationContent(
     agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
     onAgentOverlayVisible: (Boolean) -> Unit,
-    onOpenAgentReviews: (String?) -> Unit,
+    onOpenAgentModels: () -> Unit,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
@@ -912,7 +906,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, backdrop, contentPadding, modifier, onAgentOverlayVisible, onOpenAgentReviews) else PlaceholderScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, backdrop, contentPadding, modifier, onAgentOverlayVisible, onOpenAgentModels) else PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

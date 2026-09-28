@@ -82,6 +82,7 @@ class AgentReviewFlowTest {
         assertTrue(timeline.draft.value.startsWith("尚未发送的想法"))
         assertEquals(listOf(noteId), timeline.draftNotes.value)
         compose.onNodeWithTag("agent-input").assertExists()
+        compose.onNodeWithTag("agent-input").assertTextContains(timeline.draft.value)
     }
 
     @Test fun trashedConflictRequiresExplicitRestoreBeforePreparingAdjustment() {
