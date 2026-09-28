@@ -88,9 +88,26 @@ adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#denie
 
 进程用例需依次单独调用 `prepareAndWaitForKill`（`processPhase=prepare`）和 `recoverAndContinueWithoutReplayingCommittedTools`（`processPhase=recover`）。准备阶段写入私有 `files/agent-process-recovery-ready`，内容为 `<PID>:ready`；宿主核对 `pidof com.xnote.app` 后执行 `run-as com.xnote.app kill -9 <PID>`。准备阶段 instrumentation 报进程终止是预期结果；恢复阶段 1 项断言测试通过才算验收成功。测试使用独立 `agent-process-recovery-test.db`，恢复验收结束后清理该测试库和临时凭据。
 
-尚待完成的 S11.4 验收：Android 后台启动限制的端到端验证。读取和写入提交后的实际进程终止、重启继续、授权与写入冲突等待后的运行对象重建已验证；创建/删除的恢复补充证据见下文。S11.4 尚未标记完整验收；S11.6–S11.7 当前进度见下文。
+2026-09-28 后台启动限制端到端验证通过：Debug 专用 `AgentBackgroundRestrictionService` 在普通服务中创建独立测试数据库，退出 Activity 后等待 35 秒，不使用 instrumentation。Android 16 实际拒绝 `AgentRunService.start`，抛出 `ForegroundServiceStartNotAllowedException`；进程重要性为 300，系统日志记录 `mAllowStartForeground false`。原输入持久化，运行进入 `Interrupted/background_unavailable`，页面状态提示回到前台继续，模型请求数为 0。重新打开 Activity 并显式继续后，同一运行完成，模型请求数为 1，原输入没有重复插入。测试数据库清理完成。该用例验证平台限制与运行恢复，使用本地受控模型，不作为真实模型服务联调证据。
 
-平台依据：[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
+复现时先安装 Debug APK，执行以下命令；每次运行应等到 `passed` 后再重新开始。`armed` 后立即回桌面，至少等 35 秒再检查 `restricted`，随后回前台继续并检查 `passed`：
+
+```text
+adb shell am start -n com.xnote.app/.MainActivity
+adb shell am startservice -n com.xnote.app/.debug.AgentBackgroundRestrictionService
+adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
+adb shell input keyevent 3
+adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
+adb shell am start -n com.xnote.app/.MainActivity
+adb shell am startservice -n com.xnote.app/.debug.AgentBackgroundRestrictionService -a com.xnote.app.debug.CONTINUE_BACKGROUND_TEST
+adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
+```
+
+验证入口仅存在于 `src/debug`，导出的服务要求 shell 持有的 `android.permission.DUMP`；`processReleaseMainManifest` 通过，Release 合并清单不包含该服务。本机证据为 `app/build/s11-4-background-restricted.json`、`s11-4-background-continued.json` 和 `s11-4-background-platform.log`。同期 `lintDebug`、Debug/测试 APK 构建、单元测试通过：154 项中 153 项通过、1 项真实服务用例默认跳过。
+
+读取和写入提交后的实际进程终止、重启继续、授权与写入冲突等待后的运行对象重建已验证；创建/删除的恢复补充证据见下文。S11.4 平台专项已补齐，整体完成状态仍以 S11.4–S11.7 最终逐项验收为准。
+
+平台依据：[后台启动限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)、[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
 
 ## S11.5 发送快照、范围与只读工具
 
@@ -113,7 +130,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 最终界面回归 3 项通过，并检查了工具详情截图。Agent 弹层打开期间暂停展示外层标题和导航，防止覆盖弹层或接收其上方点击，关闭后恢复；验收断言同时覆盖这些状态。发送用例明确等待助手完成并滚动到完成状态。最终 Debug/测试 APK 构建和 Lint 通过，Lint 0 错误、18 条现有警告。S11.5 已完成。
 
-后续 S11.6–S11.7 的变更事务、单篇 Diff 和写工具进度见下文。整体仍待编辑器联动及 S11.4 后台启动受限验证。
+后续 S11.6–S11.7 的变更事务、单篇 Diff 和写工具进度见下文。整体仍待编辑器携带笔记、全文与选区润色联动及最终逐项验收。
 
 ## S11.6 编辑合并与单篇审阅（进行中）
 
@@ -147,7 +164,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 实际进程恢复复验通过：显式 `processPhase=prepare` 在读取和写入均提交、部分回复及队列保存后留下就绪标记；宿主机核对运行 PID 为 5936 后发送 SIGKILL，准备端如预期报告进程终止。`processPhase=recover` 在另一个 PID 中通过全部断言，且 1 项恢复测试通过：没有自动模型请求，运行显示中断，原读取与写入事件及单条改动保持不变，用户继续仅发送一次后续请求，队列保持暂停；最后拒绝 Agent 改动仍保留重启后用户补充。测试使用专用数据库及测试凭据，完成后清理。该证据验证本地恢复，不代表真实模型服务写工具联调。
 
-剩余范围：编辑器携带笔记/选区入口；S11.4 真实后台启动限制验收。S11.4–S11.7 整体仍未完成。
+剩余范围：编辑器携带笔记/选区入口及最终逐项验收。S11.4–S11.7 整体仍未完成。
 
 迁移参考：[Room 数据库迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)，通过 Context7 核查导出 schema、自动迁移和迁移验证；当前 schema 为 `app/schemas/com.xnote.app.data.db.XNoteDatabase/9.json`。
 
@@ -163,7 +180,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 实际进程恢复补充通过：磁盘测试库中依次提交读取、写入、创建、读取新笔记和删除新笔记，保存部分回复与队列；宿主核对 PID 8825 与就绪标记一致后发送 SIGKILL。独立进程恢复测试 1 项通过：任务中断且没有自动请求，队列暂停，用户继续仅发出一次后续请求，5 条工具记录、两篇笔记及各自改动记录均不重复。拒绝既有笔记改动保留用户补充；拒绝新建并删除的批次保持回收站状态。专用测试库与凭据在恢复阶段清理，准备阶段的进程终止报告符合预期。
 
-剩余范围：编辑器携带笔记/选区入口，以及真实 Android 后台启动受限验收。S11.4–S11.7 整体仍未完成。
+剩余范围：编辑器携带笔记/选区入口及最终逐项验收。S11.4–S11.7 整体仍未完成。
 
 ## S11.7 编辑器并行保存补充
 
@@ -179,7 +196,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 Android 16 最终专项 111 项全部通过：原有 94 项 Agent 工具、时间线、审阅与笔记库回归，加上 8 项编辑器并行保存、1 项打开编辑器的实时刷新与继续输入、3 项图片持久化和 5 项既有编辑页流程。覆盖同处冲突、独立改动合并、拒绝后保留用户编辑、数据库等待期间继续输入、输入法组合态强制保存、删除后保存未落盘内容、格式回执和撤销/重做、表格及 Markdown。当前数据库仍为版本 9。
 
-剩余范围：编辑器独立“与 Agent 对话”按钮、携带笔记卡片与全文/选区润色入口，以及 S11.4 真实后台启动受限验收；完成后仍需按 S11.4–S11.7 条目逐项核对。整体目标保持进行中。
+剩余范围：编辑器独立“与 Agent 对话”按钮、携带笔记卡片与全文/选区润色入口；完成后仍需按 S11.4–S11.7 条目逐项核对。整体目标保持进行中。
 
 
 ## Agent 页面交互布局（2026-09-28）
