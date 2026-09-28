@@ -80,6 +80,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     var moreMenu by remember { mutableStateOf(false) }
     var queueDrawer by remember { mutableStateOf(false) }
     var reviewsOpen by remember { mutableStateOf(false) }
+    var memoryOpen by remember { mutableStateOf(false) }
     var reviewNoteId by remember { mutableStateOf<String?>(null) }
     var draftPreviewId by remember { mutableStateOf<String?>(null) }
     val attachmentAnchor = rememberXNotePopupAnchor()
@@ -89,7 +90,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     var restored by remember { mutableStateOf(false) }
     // -- Derived Values
 
-    val overlayVisible = attachDialog || permissionDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || attachmentMenu || moreMenu || queueDrawer || reviewsOpen || draftPreviewId != null
+    val overlayVisible = attachDialog || permissionDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || attachmentMenu || moreMenu || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
@@ -117,6 +118,10 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
         if (list.layoutInfo.totalItemsCount > 0) list.animateScrollToItem(list.layoutInfo.totalItemsCount - 1)
     }
 
+    if (memoryOpen) {
+        AgentMemoryScreen(timeline, onBack = { memoryOpen = false })
+        return
+    }
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().imePadding().padding(
             start = contentPadding.calculateStartPadding(direction),
@@ -275,6 +280,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
         XNoteDropdownMenu(moreMenu, { moreMenu = false }, listOf(
             XNoteDropdownMenuItem("任务队列 · ${queue.size}", { keyboard?.hide(); queueDrawer = true }),
             XNoteDropdownMenuItem("模型与服务商", { keyboard?.hide(); onOpenModels() }),
+            XNoteDropdownMenuItem("记忆与画像", { keyboard?.hide(); moreMenu = false; memoryOpen = true }),
             XNoteDropdownMenuItem("开启后台通知", { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }, enabled = !notificationsEnabled),
         ), backdrop, anchor = moreAnchor)
         XNoteDrawer(queueDrawer, { queueDrawer = false }, "任务队列", backdrop, XNoteDrawerPlacement.Bottom,

@@ -100,6 +100,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
     }
 
     suspend fun projectMessage(runId: String, message: AgentMessageEntity): AgentProjectedMessage? = transaction {
+        if (!AgentProfileMemoryStore(database).canUseMessage(message.id)) return@transaction null
         val run = requireNotNull(database.agent().run(runId))
         val sources = Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson)
         if (!canUseSources(run, sources)) return@transaction projectOwnTrash(run, message, sources)
@@ -145,6 +146,14 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         }.toString() }
     }
 
+    private suspend fun remember(run: AgentRunEntity, call: ModelToolCall, arguments: AgentRememberArguments): AgentToolResult {
+        val message = database.agent().messages().lastOrNull { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Complete }
+            ?: return finished(call, buildJsonObject { put("error", "explicit_request_required") })
+        val candidate = AgentFactCandidate(arguments.key, arguments.value, message.id, arguments.quote, sensitive = arguments.sensitive)
+        val result = AgentProfileMemoryStore(database).coordinate(candidate, setOf(message.id), explicit = true)
+        return finished(call, buildJsonObject { put("decision", result.name); put("active", result in setOf(AgentFactDecision.Add, AgentFactDecision.Supersede)) })
+    }
+
     suspend fun executeTool(runId: String, call: ModelToolCall): AgentToolResult = transaction {
         currentCoroutineContext().ensureActive()
         val run = requireNotNull(database.agent().run(runId))
@@ -167,6 +176,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             if (selectedSource(run) != null && call.name in setOf("create", "delete")) {
                 finished(call, buildJsonObject { put("error", "selection_scope") })
             } else when (call.name) {
+                "memory_remember" -> remember(run, call, Json.decodeFromJsonElement<AgentRememberArguments>(call.arguments))
                 "read" -> read(run, call, Json.decodeFromJsonElement<AgentReadArguments>(call.arguments))
                 "note_search" -> search(run, call, Json.decodeFromJsonElement<AgentSearchArguments>(call.arguments))
                 "write" -> write(run, call, Json.decodeFromJsonElement<AgentWriteArguments>(call.arguments))

@@ -411,6 +411,10 @@ fun XNoteApp(
     }
 
     profilePage?.let { page ->
+        if (page == "记忆与画像" && agentTimeline != null) {
+            com.xnote.app.feature.agent.AgentMemoryScreen(agentTimeline, onBack = { profilePage = null })
+            return
+        }
         if (page == "模型与服务商" && modelProfiles != null) {
             com.xnote.app.feature.agent.ModelSettingsScreen(modelProfiles, modelClient, onBack = { profilePage = null })
             return

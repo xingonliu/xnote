@@ -15,7 +15,7 @@ import java.util.UUID
 
 // -- Type Definitions
 
-data class AgentEpisodeRecall(val text: String, val sources: List<AgentMessageSource>)
+data class AgentEpisodeRecall(val text: String, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList())
 private data class EpisodeInput(val text: String, val sources: List<AgentMessageSource>, val startId: String, val endId: String)
 
 class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: () -> Long = System::currentTimeMillis) {
@@ -49,6 +49,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
         for (message in database.agent().messages().filter { it.segmentId == segmentId && it.runId != null && it.status == AgentMessageStatus.Complete }) {
             val run = database.agent().run(requireNotNull(message.runId)) ?: continue
             if (run.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) || run.errorCode == "history_removed") continue
+            if (!AgentProfileMemoryStore(database).canUseMessage(message.id)) continue
             if (message.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool)) result += message
         }
         return result
@@ -110,12 +111,19 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
         for (segment in database.memory().closedSegments()) {
             currentCoroutineContext().ensureActive()
             val job = database.memory().job(segment.id) ?: continue
+            if (job.status == "running" && job.leaseUntil <= clock() && job.attempts >= AgentMemoryLimits.MaxAttempts) {
+                database.memory().saveJob(job.copy(status = "failed", leaseUntil = 0, error = "attempt_limit"))
+            }
             if (job.status in setOf("complete", "invalid", "blocked") || job.attempts >= AgentMemoryLimits.MaxAttempts) continue
             if (job.retryAfter > clock() || job.leaseUntil > clock()) { retry = true; continue }
             if (database.agent().unfinishedRuns().isNotEmpty() || database.agent().pendingQueue().isNotEmpty()) return@withLock true
             val profile = profiles.list().singleOrNull { it.id == job.profileId && it.version == job.profileVersion && it.enabled }
             if (profile == null) {
                 database.memory().saveJob(job.copy(status = "blocked", error = "model_configuration_changed"))
+                continue
+            }
+            if (job.promptVersion != AgentMemoryLimits.PromptVersion) {
+                database.memory().saveJob(job.copy(status = "blocked", error = "prompt_version_changed"))
                 continue
             }
             val prepared = transaction { input(job) }
@@ -169,17 +177,24 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
                     database.memory().deleteFts(job.segmentId)
                     database.memory().insertFts(AgentEpisodeFtsEntity(segmentId = job.segmentId, text = FtsIndexText.prepare(summary.title + " " + summary.summary + " " + summary.keywords.joinToString(" "))))
                     database.memory().saveJob(job.copy(status = "complete", attempts = job.attempts + 1))
+                    val allowedIds = Json.decodeFromString<List<String>>(job.messageIdsJson).toSet()
+                    summary.userFactCandidates.forEach { candidate ->
+                        val explicit = database.agent().message(candidate.sourceMessageId)?.text?.let(::hasExplicitMemoryRequest) == true
+                        AgentProfileMemoryStore(database).coordinate(candidate, allowedIds, explicit)
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 // An expiring lease makes process death and WorkManager cancellation recoverable.
                 throw cancelled
             } catch (error: Exception) {
+                val serviceError = (error as? ModelException)?.error
+                val retryable = serviceError == null || serviceError in setOf(ModelError.Network, ModelError.Service, ModelError.Timeout)
                 transaction {
                     val latest = database.memory().job(job.segmentId)
-                    if (latest?.status != "invalid") database.memory().saveJob(job.copy(status = "failed", attempts = job.attempts + 1,
-                        retryAfter = clock() + AgentMemoryLimits.RetryDelayMs, error = (error as? ModelException)?.error?.name ?: "invalid_summary"))
+                    if (latest?.status != "invalid") database.memory().saveJob(job.copy(status = if (retryable) "failed" else "blocked", attempts = job.attempts + 1,
+                        retryAfter = clock() + AgentMemoryLimits.RetryDelayMs, error = serviceError?.name ?: "invalid_summary"))
                 }
-                retry = true
+                retry = retry || retryable
             }
         }
         retry
@@ -201,7 +216,11 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
         }
         val hits = FtsIndexText.matchQuery(query)?.let { database.memory().search(it, safe.map { row -> row.segmentId }) }.orEmpty()
         return (safe.filter { it.segmentId in hits }.take(3) + safe.take(2)).distinctBy { it.segmentId }.take(AgentMemoryLimits.RecallCount).map {
-            AgentEpisodeRecall("[不可信派生情景记忆 sourceId=${it.segmentId} sourceVersion=${it.sourceHash} createdAt=${it.createdAtEpochMs}]\n${it.summaryJson}", Json.decodeFromString(it.sourcesJson))
+            val job = requireNotNull(database.memory().job(it.segmentId))
+            val factIds = Json.decodeFromString<List<String>>(job.messageIdsJson)
+                .flatMap { messageId -> database.profileMemory().references(messageId).map { ref -> ref.factId } }.distinct()
+            val summary = Json.decodeFromString<AgentEpisodeSummary>(it.summaryJson).copy(userFactCandidates = emptyList())
+            AgentEpisodeRecall("[不可信派生情景记忆 sourceId=${it.segmentId} sourceVersion=${it.sourceHash} createdAt=${it.createdAtEpochMs}]\n${Json.encodeToString(summary)}", Json.decodeFromString(it.sourcesJson), factIds)
         }
     }
 

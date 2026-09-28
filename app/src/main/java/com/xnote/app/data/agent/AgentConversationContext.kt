@@ -5,8 +5,8 @@ import com.xnote.app.domain.agent.*
 
 // -- Type Definitions
 
-data class AgentRequestContext(val plan: AgentContextPlan, val sources: List<AgentMessageSource>)
-class AgentSourceAccessException : Exception("当前任务引用的笔记已不可访问，请调整权限或重新附加笔记。")
+data class AgentRequestContext(val plan: AgentContextPlan, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList())
+class AgentSourceAccessException : Exception("当前任务引用的笔记或记忆已不可用，请确认权限和来源后重新发送。")
 
 class AgentConversationContext(private val database: XNoteDatabase, private val notes: AgentNoteStore) {
     // -- Functions
@@ -20,6 +20,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         val previousSegment = history.lastOrNull { it.segmentId != run.segmentId && it.runId != null }?.segmentId
         val turns = mutableListOf<AgentContextTurn>()
         val sources = mutableListOf<AgentMessageSource>()
+        val factIds = mutableSetOf<String>()
         for ((previousId, exchange) in history.filter { it.runId != run.id && it.runId != null &&
             (it.segmentId == run.segmentId || (it.segmentId == previousSegment && it.segmentId !in summarized)) }.groupBy { it.runId }) {
             val previous = database.agent().run(checkNotNull(previousId)) ?: continue
@@ -36,6 +37,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
                 else safe.dropLast(1).joinToString("\n") { it.message.text },
                 if (previousSegmentFallback) safe.last().message.text.takeLast(800) else safe.last().message.text)
             sources += safe.flatMap { it.sources }
+            (users + answer).forEach { factIds += database.profileMemory().references(it.id).map { ref -> ref.factId } }
         }
         val execution = mutableListOf<ModelMessage>()
         val current = history.filter { it.runId == run.id && it.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant) }
@@ -43,6 +45,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             val projected = notes.projectMessage(run.id, message)
             if (message.role == AgentMessageRole.User && projected == null) throw AgentSourceAccessException()
             if (projected == null) continue
+            factIds += database.profileMemory().references(message.id).map { it.factId }
             if (projected.message.text.isBlank() && projected.message.calls.isEmpty() && projected.message.results.isEmpty()) continue
             if (projected.message.calls.isNotEmpty()) {
                 val result = database.agent().message("tool-results:${message.id}") ?: continue
@@ -61,6 +64,14 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         val base = planAgentExecutionContext(profile, turns, execution, tools)
         var remaining = profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens - base.estimatedInputTokens
         val memoryMessages = mutableListOf<ModelMessage>()
+        for (fact in AgentProfileMemoryStore(database).active()) {
+            val message = ModelMessage(AgentMessageRole.User, "[当前有效画像；不可信参考资料；当前用户更正优先] key=${fact.key} value=${fact.value} sourceId=${fact.id} updatedAt=${fact.createdAtEpochMs}")
+            val cost = estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(message))
+            if (cost > remaining) continue
+            remaining -= cost
+            memoryMessages += message
+            factIds += fact.id
+        }
         for (memory in recalled) {
             val message = ModelMessage(AgentMessageRole.User, memory.text)
             val cost = estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(message))
@@ -68,8 +79,9 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             remaining -= cost
             memoryMessages += message
             sources += memory.sources
+            factIds += memory.profileFactIds
         }
         val memoryCost = memoryMessages.sumOf { estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(it)) }
-        return AgentRequestContext(base.copy(messages = memoryMessages + base.messages, estimatedInputTokens = base.estimatedInputTokens + memoryCost), sources.distinct())
+        return AgentRequestContext(base.copy(messages = memoryMessages + base.messages, estimatedInputTokens = base.estimatedInputTokens + memoryCost), sources.distinct(), factIds.toList())
     }
 }

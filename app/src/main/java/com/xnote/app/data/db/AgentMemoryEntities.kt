@@ -53,6 +53,12 @@ data class AgentDerivedUsageEntity(
 
 @Dao
 interface AgentMemoryDao {
+    @Query("SELECT * FROM agent_derived_usage ORDER BY createdAtEpochMs DESC")
+    fun observeUsage(): kotlinx.coroutines.flow.Flow<List<AgentDerivedUsageEntity>>
+
+    @Query("SELECT * FROM agent_episode_jobs WHERE status IN ('blocked', 'failed')")
+    fun observeProblems(): kotlinx.coroutines.flow.Flow<List<AgentEpisodeJobEntity>>
+
     @Query("SELECT * FROM agent_segments WHERE closedAtEpochMs IS NOT NULL AND closeReason != 'clear_chat' ORDER BY createdAtEpochMs")
     suspend fun closedSegments(): List<AgentSegmentEntity>
 

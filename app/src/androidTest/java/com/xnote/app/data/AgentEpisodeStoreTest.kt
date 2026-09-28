@@ -14,6 +14,66 @@ import org.junit.Test
 // -- Tests
 
 class AgentEpisodeStoreTest {
+    @Test fun recalledProfileProvenanceSurvivesIntoNextReplyAndForgetRevokesIt() = runBlocking {
+        fixture { db, profiles ->
+            seed(db)
+            val memories = AgentProfileMemoryStore(db)
+            memories.coordinate(AgentFactCandidate("user.preference.travel", "高铁", "user", "出行选择高铁"), setOf("user"))
+            val fact = memories.active().single()
+            val store = AgentEpisodeStore(db)
+            store.close(db.agent().segment("segment")!!, "idle")
+            store.process(profiles, client { emit(ModelEvent.Text(summary())); emit(ModelEvent.Finished(ModelFinish.Complete)) })
+            val run = db.agent().run("run")!!.copy(id = "next", segmentId = "next-segment", userMessageId = "next-user", status = AgentRunStatus.Running)
+            db.agent().saveSegment(AgentSegmentEntity(run.segmentId, 10))
+            db.agent().saveRun(run)
+            db.agent().insertMessage(AgentMessageEntity(id = run.userMessageId, segmentId = run.segmentId, runId = run.id,
+                role = AgentMessageRole.User, text = "高铁", status = AgentMessageStatus.Complete, createdAtEpochMs = 10))
+            assertEquals(listOf(fact.id), store.recall(run, "高铁").single().profileFactIds)
+            val prepared = AgentConversationContext(db, AgentNoteStore(db)).prepare(run, profiles.active())
+            assertTrue(fact.id in prepared.profileFactIds)
+            db.agent().insertMessage(AgentMessageEntity(id = "derived", segmentId = run.segmentId, runId = run.id,
+                role = AgentMessageRole.Assistant, text = "你偏好高铁", status = AgentMessageStatus.Complete, createdAtEpochMs = 11))
+            prepared.profileFactIds.forEach { db.profileMemory().saveReference(AgentMessageProfileRefEntity("derived", it)) }
+            memories.forget(fact.key)
+            assertTrue(store.recall(run, "高铁").isEmpty())
+            assertNull(AgentNoteStore(db).projectMessage(run.id, db.agent().message("derived")!!))
+        }
+    }
+
+    @Test fun authenticationFailureIsNotRetriedAndOldPromptDoesNotSilentlyChange() = runBlocking {
+        fixture { db, profiles ->
+            seed(db)
+            val store = AgentEpisodeStore(db)
+            store.close(db.agent().segment("segment")!!, "idle")
+            var calls = 0
+            val denied = client { calls++; throw ModelException(ModelError.Authentication) }
+            assertFalse(store.process(profiles, denied))
+            assertFalse(store.process(profiles, denied))
+            assertEquals(1, calls)
+            assertEquals("blocked", db.memory().job("segment")!!.status)
+            db.memory().saveJob(db.memory().job("segment")!!.copy(status = "pending", promptVersion = 0, retryAfter = 0))
+            store.process(profiles, denied)
+            assertEquals(1, calls)
+            assertEquals("prompt_version_changed", db.memory().job("segment")!!.error)
+        }
+    }
+
+    @Test fun automaticCandidateChecksSwitchAgainAtCommit() = runBlocking {
+        fixture { db, profiles ->
+            seed(db)
+            val store = AgentEpisodeStore(db)
+            store.close(db.agent().segment("segment")!!, "idle")
+            store.process(profiles, client {
+                AgentProfileMemoryStore(db).setAutomatic(false)
+                val result = Json.decodeFromString<AgentEpisodeSummary>(summary()).copy(userFactCandidates = listOf(
+                    AgentFactCandidate("user.preference.travel", "高铁", "user", "出行选择高铁")))
+                emit(ModelEvent.Text(Json.encodeToString(result))); emit(ModelEvent.Finished(ModelFinish.Complete))
+            })
+            assertEquals(1, db.memory().episodes().size)
+            assertTrue(AgentProfileMemoryStore(db).active().isEmpty())
+        }
+    }
+
     @Test fun summaryIsToollessFixedIdempotentSearchableAndInvalidatedBySourceDeletion() = runBlocking {
         fixture { db, profiles ->
             seed(db)

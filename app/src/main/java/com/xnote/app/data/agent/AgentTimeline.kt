@@ -34,6 +34,7 @@ class AgentTimeline(
     val noteStore = AgentNoteStore(database)
     val reviewStore = AgentReviewStore(database)
     val episodeStore = AgentEpisodeStore(database)
+    val profileMemory = AgentProfileMemoryStore(database)
     private val conversation = AgentConversationContext(database, noteStore)
     private var runningJob: Job? = null
     @Volatile private var interruptionReason: String? = null
@@ -437,6 +438,7 @@ class AgentTimeline(
                         sequence = insertMessage(run, AgentMessageRole.Assistant, "", AgentMessageStatus.Streaming)
                         val reply = database.agent().messages().single { it.sequence == sequence }
                         database.agent().updateMessageContext(reply.id, Json.encodeToString(prepared.sources), null)
+                        prepared.profileFactIds.forEach { database.profileMemory().saveReference(AgentMessageProfileRefEntity(reply.id, it)) }
                         prepared
                     }
                     text = ""

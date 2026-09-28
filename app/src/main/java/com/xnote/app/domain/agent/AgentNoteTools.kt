@@ -42,6 +42,15 @@ object AgentNoteLimits {
 }
 
 val AgentNoteTools = listOf(
+    ModelTool("memory_remember", "仅在当前用户明确要求记住时保存长期画像。quote 必须逐字引用当前用户消息，不能引用笔记或助手回复。key 使用 user.response.*、user.preference.*、user.location.*、user.fact.* 或 agent.response.* 稳定英文键。敏感内容或遗忘过的键需在画像页确认；不得声称待确认内容已经生效。", buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            listOf("key", "value", "quote").forEach { field -> putJsonObject(field) { put("type", "string") } }
+            putJsonObject("sensitive") { put("type", "boolean") }
+        }
+        putJsonArray("required") { add("key"); add("value"); add("quote") }
+        put("additionalProperties", false)
+    }),
     ModelTool("create", "三级权限新建笔记并实时保存，进入单篇审阅。仅可新建文字/表格，不添加媒体或设置背景。document_json 与 read/write 格式相同。用户明确指定归属时传 target（notebookId 为笔记本 ID，null 为未归档）；未指定时省略 target，应用会使用唯一可写目标或暂停请用户选择并授权。本次新建不会扩大整个笔记本权限。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
