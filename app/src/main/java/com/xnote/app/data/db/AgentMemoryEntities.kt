@@ -53,6 +53,18 @@ data class AgentDerivedUsageEntity(
 
 @Dao
 interface AgentMemoryDao {
+    @Upsert suspend fun saveSource(value: AgentMemorySourceRefEntity)
+    @Insert suspend fun insertMessageFts(value: AgentMessageFtsEntity)
+
+    @Query("SELECT sourceMessageId FROM agent_memory_source_refs WHERE ownerId = :ownerId")
+    suspend fun sourceIds(ownerId: String): List<String>
+
+    @Query("DELETE FROM agent_message_fts WHERE segmentId = :segmentId")
+    suspend fun deleteMessageFts(segmentId: String)
+
+    @Query("SELECT messageId FROM agent_message_fts WHERE agent_message_fts MATCH :query AND messageId IN (:allowed)")
+    suspend fun searchMessages(query: String, allowed: List<String>): List<String>
+
     @Query("SELECT * FROM agent_derived_usage ORDER BY createdAtEpochMs DESC")
     fun observeUsage(): kotlinx.coroutines.flow.Flow<List<AgentDerivedUsageEntity>>
 

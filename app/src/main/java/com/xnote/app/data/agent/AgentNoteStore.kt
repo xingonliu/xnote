@@ -100,8 +100,8 @@ class AgentNoteStore(private val database: XNoteDatabase) {
     }
 
     suspend fun projectMessage(runId: String, message: AgentMessageEntity): AgentProjectedMessage? = transaction {
-        if (!AgentProfileMemoryStore(database).canUseMessage(message.id)) return@transaction null
         val run = requireNotNull(database.agent().run(runId))
+        if (!AgentMemoryProvenance(database).canUse(message.id, run)) return@transaction null
         val sources = Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson)
         if (!canUseSources(run, sources)) return@transaction projectOwnTrash(run, message, sources)
         val model = message.modelJson?.let { Json.decodeFromString<ModelMessage>(it) } ?: ModelMessage(message.role, message.text)
@@ -162,8 +162,8 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments)) { "工具调用 ID 不能复用为不同操作。" }
         if (old?.status in setOf(AgentToolStatus.Committed, AgentToolStatus.Denied, AgentToolStatus.Failed)) {
             val sources = Json.decodeFromString<List<AgentMessageSource>>(checkNotNull(old).sourcesJson)
-            return@transaction if (canUseSources(run, sources)) AgentToolResult.Finished(
-                ModelToolResult(call.id, call.name, checkNotNull(old.resultJson)), sources,
+            return@transaction if (canUseSources(run, sources) && AgentMemoryProvenance(database).canUse(old.id, run)) AgentToolResult.Finished(
+                ModelToolResult(call.id, call.name, checkNotNull(old.resultJson)), sources, database.memory().sourceIds(old.id),
             ) else unavailable(call)
         }
         val permission = permissions.current()
@@ -176,6 +176,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             if (selectedSource(run) != null && call.name in setOf("create", "delete")) {
                 finished(call, buildJsonObject { put("error", "selection_scope") })
             } else when (call.name) {
+                "memory_search", "memory_read" -> AgentHistoryMemoryStore(database).execute(run, call)
                 "memory_remember" -> remember(run, call, Json.decodeFromJsonElement<AgentRememberArguments>(call.arguments))
                 "read" -> read(run, call, Json.decodeFromJsonElement<AgentReadArguments>(call.arguments))
                 "note_search" -> search(run, call, Json.decodeFromJsonElement<AgentSearchArguments>(call.arguments))
@@ -188,6 +189,7 @@ class AgentNoteStore(private val database: XNoteDatabase) {
             finished(call, buildJsonObject { put("error", "invalid_arguments") })
         }
         if (result is AgentToolResult.Finished) {
+            AgentMemoryProvenance(database).save(event.id, result.sourceMessageIds)
             val error = Json.parseToJsonElement(result.result.content).jsonObject["error"]?.jsonPrimitive?.content
             val reason = when (error) {
                 "invalid_arguments" -> "参数未通过结构或范围校验，未执行操作。"
@@ -390,13 +392,8 @@ class AgentNoteStore(private val database: XNoteDatabase) {
         if (access.permission.level < AgentPermissionLevel.Read && (grant?.level ?: AgentPermissionLevel.None) < AgentPermissionLevel.Read && grant?.createdNoteIds.isNullOrEmpty()) {
             return AgentToolResult.PermissionRequired(call.id)
         }
-        val matches = database.notes().getAll().asSequence().filter {
-            access.canReadCurrent(AgentNoteAccess(it.id, it.notebookId, it.deletedAtEpochMs != null))
-        }.map { it to extractPlainText(it.toDomain().document) }.filter { (note, body) ->
-            note.title.contains(args.query, ignoreCase = true) || body.contains(args.query, ignoreCase = true)
-        }.sortedWith(compareByDescending<Pair<NoteEntity, String>> { it.first.updatedAtEpochMs }.thenBy { it.first.id })
-            .drop(args.offset).take(args.limit + 1).toList()
-        val sources = matches.map { AgentMessageSource(it.first.id) }
+        val matches = AgentNoteMemoryStore(database).search(run, args.query).drop(args.offset).take(args.limit + 1)
+        val sources = matches.take(args.limit).map { AgentMessageSource(it.note.id) }
         return finished(call, buildJsonObject {
             putJsonArray("notes") { matches.take(args.limit).forEach { (note, body) -> add(buildJsonObject {
                 put("note_id", note.id); put("title", note.title); put("version", note.agentVersion())

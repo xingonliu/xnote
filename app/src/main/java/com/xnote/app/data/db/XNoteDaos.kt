@@ -4,6 +4,7 @@ import androidx.room3.Dao
 import androidx.room3.Insert
 import androidx.room3.Query
 import androidx.room3.Upsert
+import androidx.room3.Transaction
 import kotlinx.coroutines.flow.Flow
 
 // -- Type Definitions
@@ -67,13 +68,34 @@ interface NoteDao {
     suspend fun getTrashed(): List<NoteEntity>
 
     @Upsert
-    suspend fun upsert(entity: NoteEntity)
+    suspend fun saveRow(entity: NoteEntity)
 
-    @Upsert
-    suspend fun upsertAll(entities: List<NoteEntity>)
+    @Query("DELETE FROM agent_note_memory WHERE noteId = :id")
+    suspend fun invalidateMemory(id: String)
+
+    @Query("DELETE FROM agent_note_memory_fts WHERE noteId = :id")
+    suspend fun invalidateMemoryFts(id: String)
+
+    @Transaction
+    suspend fun upsert(entity: NoteEntity) {
+        if (get(entity.id) != entity) {
+            invalidateMemory(entity.id)
+            invalidateMemoryFts(entity.id)
+        }
+        saveRow(entity)
+    }
+
+    @Transaction
+    suspend fun upsertAll(entities: List<NoteEntity>) { entities.forEach { upsert(it) } }
 
     @Query("DELETE FROM notes WHERE id IN (:ids)")
-    suspend fun deleteByIds(ids: List<String>)
+    suspend fun deleteRows(ids: List<String>)
+
+    @Transaction
+    suspend fun deleteByIds(ids: List<String>) {
+        ids.forEach { invalidateMemoryFts(it) }
+        deleteRows(ids)
+    }
 
     @Query(
         """

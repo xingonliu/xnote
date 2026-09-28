@@ -22,7 +22,7 @@ data class AgentCreateArguments(val title: String, val document_json: String, va
 data class AgentDeleteArguments(val note_id: String, val base_version: String)
 
 sealed interface AgentToolResult {
-    data class Finished(val result: ModelToolResult, val sources: List<AgentMessageSource>) : AgentToolResult
+    data class Finished(val result: ModelToolResult, val sources: List<AgentMessageSource>, val sourceMessageIds: List<String> = emptyList()) : AgentToolResult
     data class PermissionRequired(val callId: String) : AgentToolResult
     data class Conflict(val callId: String, val location: String) : AgentToolResult
 }

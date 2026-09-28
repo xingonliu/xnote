@@ -34,6 +34,7 @@ class AgentTimeline(
     val noteStore = AgentNoteStore(database)
     val reviewStore = AgentReviewStore(database)
     val episodeStore = AgentEpisodeStore(database)
+    val noteMemory = AgentNoteMemoryStore(database)
     val profileMemory = AgentProfileMemoryStore(database)
     private val conversation = AgentConversationContext(database, noteStore)
     private var runningJob: Job? = null
@@ -439,6 +440,7 @@ class AgentTimeline(
                         val reply = database.agent().messages().single { it.sequence == sequence }
                         database.agent().updateMessageContext(reply.id, Json.encodeToString(prepared.sources), null)
                         prepared.profileFactIds.forEach { database.profileMemory().saveReference(AgentMessageProfileRefEntity(reply.id, it)) }
+                        AgentMemoryProvenance(database).save(reply.id, prepared.sourceMessageIds)
                         prepared
                     }
                     text = ""
@@ -446,7 +448,7 @@ class AgentTimeline(
                     val calls = mutableListOf<ModelToolCall>()
                     var nativeParts: JsonArray? = null
                     try {
-                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools else emptyList())).collect { event ->
+                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools else emptyList())).collect { event ->
                             currentCoroutineContext().ensureActive()
                             when (event) {
                                 is ModelEvent.Text -> {
@@ -532,6 +534,7 @@ class AgentTimeline(
             val model = Json.decodeFromString<ModelMessage>(checkNotNull(reply.modelJson))
             if (model.calls.isEmpty() || database.agent().message("tool-results:${reply.id}") != null) continue
             val results = mutableListOf<ModelToolResult>()
+            val memorySources = mutableSetOf<String>()
             val sources = Json.decodeFromString<List<AgentMessageSource>>(reply.sourcesJson).toMutableList()
             for (call in model.calls) {
                 currentCoroutineContext().ensureActive()
@@ -545,7 +548,7 @@ class AgentTimeline(
                         mutableState.value = mutableState.value.copy(notice = "写入与当前内容冲突：${outcome.location}。正文未改变，队列已暂停。")
                         return false
                     }
-                    is AgentToolResult.Finished -> { results += outcome.result; sources += outcome.sources }
+                    is AgentToolResult.Finished -> { results += outcome.result; sources += outcome.sources; memorySources += outcome.sourceMessageIds }
                 }
             }
             transaction {
@@ -554,6 +557,7 @@ class AgentTimeline(
                 database.agent().insertMessage(AgentMessageEntity(id = "tool-results:${reply.id}", segmentId = run.segmentId, runId = run.id,
                     role = AgentMessageRole.Tool, text = results.joinToString("\n") { it.name + "：" + it.content }, status = AgentMessageStatus.Complete,
                     createdAtEpochMs = now(), sourcesJson = sourcesJson, modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = results))))
+                AgentMemoryProvenance(database).save("tool-results:${reply.id}", memorySources)
             }
         }
         return true

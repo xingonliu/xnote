@@ -360,7 +360,7 @@ class AgentTimelineTest {
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("memory_remember", "create", "delete", "read", "note_search", "write"), requests.first().tools.map { it.name })
+            assertEquals(listOf("memory_remember", "create", "delete", "read", "note_search", "write", "memory_search", "memory_read"), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
             val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()

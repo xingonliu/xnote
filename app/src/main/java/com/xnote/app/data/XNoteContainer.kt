@@ -13,6 +13,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 
 // -- Type Definitions
 
@@ -41,6 +44,13 @@ class XNoteContainer(
         RecycleBinCleanupWorker.enqueue(appContext)
         applicationScope.launch {
             noteLibrary.purgeExpiredTrash()
+        }
+        applicationScope.launch {
+            combine(database.notes().observeActive(), agentTimeline.noteStore.permission) { notes, permission -> notes to permission }
+                .collectLatest {
+                    delay(com.xnote.app.domain.agent.AgentNoteMemoryLimits.StableMs)
+                    com.xnote.app.data.agent.AgentMemoryWorker.enqueue(appContext)
+                }
         }
     }
 }

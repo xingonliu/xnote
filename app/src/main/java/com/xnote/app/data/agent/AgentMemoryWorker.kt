@@ -13,7 +13,9 @@ class AgentMemoryWorker(context: Context, params: WorkerParameters) : CoroutineW
     override suspend fun doWork(): Result {
         val container = (applicationContext as XNoteApplication).container
         container.agentTimeline.awaitReady()
-        return if (container.agentTimeline.episodeStore.process(container.modelProfiles, container.modelClient)) Result.retry() else Result.success()
+        val episodesPending = container.agentTimeline.episodeStore.process(container.modelProfiles, container.modelClient)
+        val notesPending = container.agentTimeline.noteMemory.process(container.modelProfiles, container.modelClient)
+        return if (episodesPending || notesPending) Result.retry() else Result.success()
     }
 
     companion object {

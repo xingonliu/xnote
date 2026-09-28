@@ -26,7 +26,7 @@ import java.util.Date
 // -- Functions
 
 @Composable
-fun ProfileDetailScreen(page: String, notes: List<Note>, notebooks: List<Notebook>, onBack: () -> Unit, onOpenNote: (String) -> Unit) {
+fun ProfileDetailScreen(page: String, notes: List<Note>, notebooks: List<Notebook>, noteMemory: com.xnote.app.data.agent.AgentNoteMemoryStore?, onBack: () -> Unit, onOpenNote: (String) -> Unit) {
     val backdrop = rememberLayerBackdrop()
     val edges = setOf(XNoteScrollEdge.Top)
     BackHandler(onBack = onBack)
@@ -36,7 +36,7 @@ fun ProfileDetailScreen(page: String, notes: List<Note>, notebooks: List<Noteboo
             bottom = insets.calculateBottomPadding() + 24.dp)
         when (page) {
             "统计" -> StatisticsContent(notes, notebooks, padding, onOpenNote)
-            "存储与隐私" -> StorageContent(padding, backdrop)
+            "存储与隐私" -> StorageContent(padding, backdrop, noteMemory)
         }
     }, overlay = {
         XNoteHeader(page, backdrop, onBack = onBack, modifier = Modifier.align(Alignment.TopCenter))
@@ -90,13 +90,15 @@ private fun RecentNotes(title: String, notes: List<Note>, created: Boolean, onOp
 }
 
 @Composable
-private fun StorageContent(padding: PaddingValues, backdrop: com.kyant.backdrop.Backdrop) {
+private fun StorageContent(padding: PaddingValues, backdrop: com.kyant.backdrop.Backdrop, noteMemory: com.xnote.app.data.agent.AgentNoteMemoryStore?) {
     val context = LocalContext.current
     val storage = remember(context) { LocalStorage(context) }
     val scope = rememberCoroutineScope()
     var usage by remember { mutableStateOf<LocalStorageUsage?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    val memories by (noteMemory?.entries ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(emptyList())
+    var clearingMemory by remember { mutableStateOf(false) }
     fun refresh(clear: Boolean) { scope.launch {
         busy = true
         try {
@@ -123,6 +125,16 @@ private fun StorageContent(padding: PaddingValues, backdrop: com.kyant.backdrop.
         item { LiquidButton({ refresh(true) }, backdrop, enabled = !busy && (usage?.clearableBytes ?: 0) > 0) { Text("清理缓存") } }
         item { LiquidButton({ refresh(false) }, backdrop, enabled = !busy) { Text("重新计算") } }
         message?.let { item { Text(it) } }
-        item { Text("笔记与附件存储于本机应用私有目录。模型与 Linux 环境尚未接入，未下载相关内容。", style = MaterialTheme.typography.bodyMedium) }
+        item { Text("笔记记忆索引", style = MaterialTheme.typography.titleMedium) }
+        item { Text("${memories.size} 篇笔记；内容估算 ${Formatter.formatFileSize(context, memories.sumOf { (it.title + it.plainText + it.summaryJson).toByteArray(Charsets.UTF_8).size.toLong() })}（数据库页与全文索引开销包含在数据库占用中）。") }
+        item { Text("${memories.count { it.status in setOf("failed", "blocked") }} 个摘要尚未完成。清除后保留笔记和聊天，后续后台任务按当前权限重建；生成摘要可能产生模型服务费用。") }
+        item { LiquidButton({ clearingMemory = true }, backdrop, enabled = memories.isNotEmpty()) { Text("清除笔记记忆索引") } }
+        item { Text("笔记、聊天与附件存储于本机应用私有目录。发送给模型的资料遵守当前权限。Linux 环境尚未接入。", style = MaterialTheme.typography.bodyMedium) }
     }
+    XNoteDialog(clearingMemory, { clearingMemory = false }, "清除笔记记忆索引？", backdrop,
+        confirmAction = XNoteDialogAction("清除", { scope.launch {
+            try { noteMemory?.clear(); clearingMemory = false; message = "笔记记忆索引已清除" }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { message = "清除失败，请重试" }
+        } }), dismissAction = XNoteDialogAction("取消", { clearingMemory = false })) { Text("保留原笔记；正在生成的旧摘要不会重新写回。") }
 }

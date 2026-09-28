@@ -2,6 +2,7 @@ package com.xnote.app.feature.agent
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -39,6 +40,18 @@ fun AgentMemoryScreen(timeline: AgentTimeline, onBack: () -> Unit) {
     var editing by remember { mutableStateOf<AgentProfileFactEntity?>(null) }
     var value by remember { mutableStateOf("") }
     var clearing by remember { mutableStateOf(false) }
+    val history by timeline.messages.collectAsState(emptyList())
+    var historyQuery by remember { mutableStateOf("") }
+    var historyLimit by remember { mutableIntStateOf(20) }
+    var expandedMessage by remember { mutableStateOf<String?>(null) }
+
+    // -- Derived Values
+
+    val historyMatches = remember(history, historyQuery) {
+        if (historyQuery.isBlank()) emptyList() else history.filter {
+            it.role in setOf(com.xnote.app.domain.agent.AgentMessageRole.User, com.xnote.app.domain.agent.AgentMessageRole.Assistant) && it.text.contains(historyQuery, true)
+        }.asReversed()
+    }
 
     // -- Functions
 
@@ -64,6 +77,21 @@ fun AgentMemoryScreen(timeline: AgentTimeline, onBack: () -> Unit) {
                 Text("关闭后仍可使用已有画像，明确要求记住时仍可保存。重新开启不会补记关闭期间的内容。对话与摘要继续保存。")
             }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+            item {
+                Text("搜索聊天记录", style = MaterialTheme.typography.titleMedium)
+                XNoteTextField(historyQuery, { historyQuery = it; historyLimit = 20 }, placeholder = "搜索全部已保存的聊天文字")
+                if (historyQuery.isNotBlank()) Text("${historyMatches.size} 条结果")
+            }
+            items(historyMatches.take(historyLimit), key = { "history:${it.id}" }) { message ->
+                XNoteGroupCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${if (message.role == com.xnote.app.domain.agent.AgentMessageRole.User) "你" else "Agent"} · ${DateFormat.getDateTimeInstance().format(Date(message.createdAtEpochMs))}")
+                        SelectionContainer { Text(if (expandedMessage == message.id) message.text else message.text.take(240)) }
+                        if (message.text.length > 240) TextButton({ expandedMessage = if (expandedMessage == message.id) null else message.id }) { Text(if (expandedMessage == message.id) "收起" else "展开全文") }
+                    }
+                }
+            }
+            if (historyMatches.size > historyLimit) item { TextButton({ historyLimit += 20 }) { Text("更多搜索结果") } }
             if (facts.isEmpty()) item { Text("还没有长期画像。你可以在对话中明确要求 Agent 记住偏好。") }
             items(facts, key = { it.id }) { fact ->
                 XNoteGroupCard(Modifier.fillMaxWidth()) {

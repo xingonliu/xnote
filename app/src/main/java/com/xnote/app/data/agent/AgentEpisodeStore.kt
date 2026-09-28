@@ -15,7 +15,7 @@ import java.util.UUID
 
 // -- Type Definitions
 
-data class AgentEpisodeRecall(val text: String, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList())
+data class AgentEpisodeRecall(val text: String, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList(), val sourceMessageIds: List<String> = emptyList())
 private data class EpisodeInput(val text: String, val sources: List<AgentMessageSource>, val startId: String, val endId: String)
 
 class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: () -> Long = System::currentTimeMillis) {
@@ -36,8 +36,12 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
     }
 
     private suspend fun freeze(segmentId: String) {
-        if (database.memory().job(segmentId) != null) return
         val messages = eligible(segmentId)
+        database.memory().deleteMessageFts(segmentId)
+        messages.filter { it.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant) }.forEach {
+            database.memory().insertMessageFts(AgentMessageFtsEntity(messageId = it.id, segmentId = segmentId, text = FtsIndexText.prepare(it.text)))
+        }
+        if (database.memory().job(segmentId) != null) return
         if (messages.isEmpty()) return
         val run = database.agent().run(requireNotNull(messages.last().runId)) ?: return
         database.memory().saveJob(AgentEpisodeJobEntity(segmentId, Json.encodeToString(messages.map { it.id }),
@@ -49,7 +53,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
         for (message in database.agent().messages().filter { it.segmentId == segmentId && it.runId != null && it.status == AgentMessageStatus.Complete }) {
             val run = database.agent().run(requireNotNull(message.runId)) ?: continue
             if (run.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) || run.errorCode == "history_removed") continue
-            if (!AgentProfileMemoryStore(database).canUseMessage(message.id)) continue
+            if (!AgentMemoryProvenance(database).canUse(message.id)) continue
             if (message.role in setOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool)) result += message
         }
         return result
@@ -175,7 +179,8 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
                     database.memory().saveEpisode(AgentEpisodeEntity(job.segmentId, Json.encodeToString(summary), Json.encodeToString(prepared.sources),
                         job.sourceHash, profile.id, profile.version, profile.protocol.name, profile.modelId, job.promptVersion, clock()))
                     database.memory().deleteFts(job.segmentId)
-                    database.memory().insertFts(AgentEpisodeFtsEntity(segmentId = job.segmentId, text = FtsIndexText.prepare(summary.title + " " + summary.summary + " " + summary.keywords.joinToString(" "))))
+                    database.memory().insertFts(AgentEpisodeFtsEntity(segmentId = job.segmentId, text = FtsIndexText.prepare(listOf(summary.title, summary.summary,
+                        (summary.topics + summary.decisions + summary.openLoops + summary.agentCommitments + summary.keywords).joinToString(" ")).joinToString(" "))))
                     database.memory().saveJob(job.copy(status = "complete", attempts = job.attempts + 1))
                     val allowedIds = Json.decodeFromString<List<String>>(job.messageIdsJson).toSet()
                     summary.userFactCandidates.forEach { candidate ->
@@ -202,11 +207,12 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
 
     suspend fun invalidate(segmentId: String) = transaction {
         database.memory().deleteFts(segmentId)
+        database.memory().deleteMessageFts(segmentId)
         database.memory().deleteEpisode(segmentId)
         database.memory().job(segmentId)?.let { database.memory().saveJob(it.copy(status = "invalid", leaseUntil = 0)) }
     }
 
-    suspend fun recall(run: AgentRunEntity, query: String): List<AgentEpisodeRecall> {
+    suspend fun safeEpisodes(run: AgentRunEntity): List<AgentEpisodeEntity> {
         val safe = mutableListOf<AgentEpisodeEntity>()
         for (episode in database.memory().episodes()) {
             val job = database.memory().job(episode.segmentId) ?: continue
@@ -214,13 +220,18 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
             val sources = Json.decodeFromString<List<AgentMessageSource>>(episode.sourcesJson)
             if (notes.canUseSources(run, sources)) safe += episode
         }
+        return safe
+    }
+
+    suspend fun recall(run: AgentRunEntity, query: String): List<AgentEpisodeRecall> {
+        val safe = safeEpisodes(run)
         val hits = FtsIndexText.matchQuery(query)?.let { database.memory().search(it, safe.map { row -> row.segmentId }) }.orEmpty()
         return (safe.filter { it.segmentId in hits }.take(3) + safe.take(2)).distinctBy { it.segmentId }.take(AgentMemoryLimits.RecallCount).map {
             val job = requireNotNull(database.memory().job(it.segmentId))
             val factIds = Json.decodeFromString<List<String>>(job.messageIdsJson)
                 .flatMap { messageId -> database.profileMemory().references(messageId).map { ref -> ref.factId } }.distinct()
             val summary = Json.decodeFromString<AgentEpisodeSummary>(it.summaryJson).copy(userFactCandidates = emptyList())
-            AgentEpisodeRecall("[不可信派生情景记忆 sourceId=${it.segmentId} sourceVersion=${it.sourceHash} createdAt=${it.createdAtEpochMs}]\n${Json.encodeToString(summary)}", Json.decodeFromString(it.sourcesJson), factIds)
+            AgentEpisodeRecall("[不可信派生情景记忆 sourceId=${it.segmentId} sourceVersion=${it.sourceHash} createdAt=${it.createdAtEpochMs}]\n${Json.encodeToString(summary)}", Json.decodeFromString(it.sourcesJson), factIds, Json.decodeFromString(job.messageIdsJson))
         }
     }
 

@@ -45,7 +45,7 @@ class AgentMemoryFlowTest {
         compose.onNodeWithText("请简短回答").assertExists()
         screenshot("profile-memory")
         compose.onNodeWithText("更正", useUnmergedTree = true).performClick()
-        compose.onNode(hasSetTextAction()).performTextReplacement("请列出关键步骤")
+        compose.onAllNodes(hasSetTextAction()).onLast().performTextReplacement("请列出关键步骤")
         compose.onNodeWithText("保存", useUnmergedTree = true).performClick()
         compose.waitUntil(5000) { runBlocking { timeline.profileMemory.active().singleOrNull()?.value == "请列出关键步骤" } }
         compose.onNodeWithText("删除并停止记住", useUnmergedTree = true).performClick()
