@@ -40,7 +40,7 @@ class AgentReviewFlowTest {
     @Test fun independentReviewSurvivesClearChatAndRejectPreservesUserContent() {
         val noteId = seed()
         runBlocking {
-            library.saveNoteContent(noteId, "周末计划", document("先整理想法，再写用户总结。"))
+            library.saveNote(requireNotNull(library.getNote(noteId)).copy(title = "周末计划", document = document("先整理想法，再写用户总结。")))
             timeline.clearChat()
             AgentPermissionStore(database).saveFromUser(AgentPermission())
         }
@@ -58,7 +58,7 @@ class AgentReviewFlowTest {
         compose.waitUntil(5000) { runBlocking { database.agent().reviews(noteId).single().status == AgentReviewStatus.Accepted } }
         runBlocking {
             assertEquals("先整理想法，再写总结。", body(noteId))
-            library.saveNoteContent(noteId, "周末计划", document("先整理想法，再写用户总结。"))
+            library.saveNote(requireNotNull(library.getNote(noteId)).copy(title = "周末计划", document = document("先整理想法，再写用户总结。")))
         }
         compose.onNodeWithTag("agent-review-undo").performScrollTo().performClick()
         compose.waitUntil(5000) { runBlocking { database.agent().reviews(noteId).single().status == AgentReviewStatus.Undone } }
@@ -68,7 +68,7 @@ class AgentReviewFlowTest {
     @Test fun conflictPausesWholeRejectionAndAdjustmentPreservesExistingDraft() {
         val noteId = seed()
         runBlocking {
-            library.saveNoteContent(noteId, "周末计划", document("先整理用户自己的内容，再写总结。"))
+            library.saveNote(requireNotNull(library.getNote(noteId)).copy(title = "周末计划", document = document("先整理用户自己的内容，再写总结。")))
             timeline.saveDraft("尚未发送的想法")
         }
         open(noteId)
@@ -87,7 +87,7 @@ class AgentReviewFlowTest {
     @Test fun trashedConflictRequiresExplicitRestoreBeforePreparingAdjustment() {
         val noteId = seed()
         runBlocking {
-            library.saveNoteContent(noteId, "周末计划", document("用户需要保留的内容"))
+            library.saveNote(requireNotNull(library.getNote(noteId)).copy(title = "周末计划", document = document("用户需要保留的内容")))
             library.trashNotes(listOf(noteId))
         }
         open(noteId)
@@ -106,7 +106,7 @@ class AgentReviewFlowTest {
     private fun seed(): String = runBlocking {
         timeline.awaitReady()
         val note = library.createNote(null)
-        library.saveNoteContent(note.id, "周末计划", document("先整理笔记，再写总结。"))
+        library.saveNote(requireNotNull(library.getNote(note.id)).copy(title = "周末计划", document = document("先整理笔记，再写总结。")))
         database.agent().saveRun(AgentRunEntity("review-run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
         AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
         timeline.reviewStore.applyEdit("review-run", "change", database.notes().get(note.id)!!.editBase(), AgentEditableContent("周末计划", document("先整理想法，再写总结。")))

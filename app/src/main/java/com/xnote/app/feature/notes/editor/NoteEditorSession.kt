@@ -5,6 +5,10 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.xnote.app.domain.agent.AgentEditableContent
+import com.xnote.app.domain.agent.mergeUserContent
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteParagraphStyle
 import com.xnote.app.design.XNoteRichTextAction
@@ -120,6 +124,8 @@ class NoteEditorSession(
     private var savedVersion = 0L
     private var imageGesture = 0
     private var closing = false
+    private var composing = false
+    private val saveMutex = Mutex()
 
     // -- Derived Values
 
@@ -131,13 +137,13 @@ class NoteEditorSession(
 
     // -- Functions
 
-    suspend fun load() {
+    suspend fun load() = saveMutex.withLock {
         // The same session can move between phone and tablet panes during a resize.
-        if (note != null || missing) return
+        if (note != null || missing) return@withLock
         val loaded = library.getNote(noteId)
         if (loaded == null || loaded.isTrashed) {
             missing = true
-            return
+            return@withLock
         }
         note = loaded
         title = loaded.title
@@ -152,8 +158,17 @@ class NoteEditorSession(
         savedVersion = 0L
     }
 
-    fun refreshMetadata(saved: Note) {
-        if (note != null && saved.id == noteId) note = saved
+    suspend fun refreshFromStorage() = saveMutex.withLock {
+        if (note == null || composing || closing) return@withLock
+        val latest = library.getNote(noteId) ?: return@withLock
+        if (latest.isTrashed || composing || closing) return@withLock
+        val base = AgentEditableContent(lastSavedTitle, lastSavedDocument)
+        val remote = AgentEditableContent(latest.title, latest.document)
+        rebaseHistory(base, remote)
+        applyContent(mergeUserContent(base, remote, AgentEditableContent(title, document)))
+        lastSavedTitle = latest.title
+        lastSavedDocument = latest.document
+        note = latest
     }
 
     suspend fun moveToNotebook(notebookId: String?) {
@@ -188,11 +203,16 @@ class NoteEditorSession(
         newText: String,
         composing: Boolean,
     ) {
+        val compositionEnded = this.composing && !composing
+        this.composing = composing
         if (oldText == newText) {
+            if (compositionEnded && editVersion != savedVersion) scheduleSave()
+            val selectionChanged = selection != target
             selection = target
-            if (!composing) {
+            if (!composing && selectionChanged) {
                 typingMarks = currentInlines(target)?.marksAt(target.end) ?: InlineMarks()
             }
+            if (compositionEnded) scope.launch { refreshFromStorage() }
             return
         }
         captureHistory(snapshot(), key = "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
@@ -224,6 +244,7 @@ class NoteEditorSession(
             focusBlockId = change.selection.blockId
         }
         scheduleSave()
+        if (compositionEnded) scope.launch { refreshFromStorage() }
     }
 
     fun deleteBackward() {
@@ -481,52 +502,70 @@ class NoteEditorSession(
         }
     }
 
-    private suspend fun persist(clearSavedStatusAfterDelay: Boolean = true) {
-        val current = note ?: return
-        val versionToSave = editVersion
-        val titleToSave = title
-        val documentToSave = document
-        val backgroundToSave = pendingBackground
-        if (versionToSave == savedVersion &&
-            titleToSave == lastSavedTitle &&
-            documentToSave == lastSavedDocument
-        ) {
-            if (saveStatus == EditorSaveStatus.Saving) {
-                saveStatus = EditorSaveStatus.Idle
-            }
-            return
+    private fun rebaseHistory(base: AgentEditableContent, remote: AgentEditableContent) {
+        if (base == remote) return
+        history.rebase { snapshot ->
+            val merged = mergeUserContent(base, remote, AgentEditableContent(snapshot.title, snapshot.document))
+            snapshot.copy(title = merged.title, document = merged.document,
+                selection = rebaseEditorSelection(snapshot.document, merged.document, snapshot.selection))
         }
-        try {
-            if (backgroundToSave != null) library.setNoteBackground(current.id, backgroundToSave)
-            val saved = library.saveNoteContent(current.id, titleToSave, documentToSave)
-            if (pendingBackground == backgroundToSave) pendingBackground = null
-            note = saved
-            title = saved.title
-            lastSavedTitle = saved.title
-            lastSavedDocument = documentToSave
-            savedVersion = versionToSave
-            if (closing && editVersion == savedVersion) library.releaseSessionAttachments(attachmentOwner)
-            if (editVersion == versionToSave) {
-                saveStatus = EditorSaveStatus.Saved
-                if (clearSavedStatusAfterDelay) {
-                    delay(1_200)
-                    if (saveStatus == EditorSaveStatus.Saved && editVersion == versionToSave) {
-                        saveStatus = EditorSaveStatus.Idle
-                    }
-                }
-            } else {
-                saveStatus = EditorSaveStatus.Saving
-            }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            saveStatus = if (editVersion == versionToSave) {
-                EditorSaveStatus.Error
-            } else {
-                EditorSaveStatus.Saving
-            }
+        refreshHistoryState()
+    }
+
+    private fun applyContent(content: AgentEditableContent) {
+        title = content.title
+        if (document != content.document) {
+            val pendingMarks = typingMarks.takeIf { selection.isCollapsed && it != currentInlines(selection)?.marksAt(selection.end) }
+            selection = rebaseEditorSelection(document, content.document, selection)
+            document = content.document
+            library.retainSessionAttachments(attachmentOwner, document.attachmentIds())
+            if (focusBlockId != null && document.block(requireNotNull(focusBlockId)) == null) focusBlockId = selection.blockId
+            typingMarks = pendingMarks ?: currentInlines(selection)?.marksAt(selection.end) ?: InlineMarks()
+            composing = false
+            fieldsEpoch += 1
         }
     }
+
+    private suspend fun persist(clearSavedStatusAfterDelay: Boolean = true) {
+        // Debounced saves wait for IME composition; explicit flush still commits every visible character.
+        if (composing && clearSavedStatusAfterDelay) return
+        var committedVersion: Long? = null
+        saveMutex.withLock {
+            val current = note ?: return@withLock
+            val versionToSave = editVersion
+            val proposed = AgentEditableContent(title, document)
+            val base = AgentEditableContent(lastSavedTitle, lastSavedDocument)
+            val backgroundToSave = pendingBackground
+            if (versionToSave == savedVersion && proposed == base && backgroundToSave == null) return@withLock
+            try {
+                // Once a commit begins, update its baseline even if another keystroke cancels the debounce job.
+                withContext(NonCancellable) {
+                    if (backgroundToSave != null) library.setNoteBackground(current.id, backgroundToSave)
+                    val result = library.saveNoteContent(current.id, base, proposed)
+                    val saved = result.saved
+                    rebaseHistory(base, AgentEditableContent(result.before.title, result.before.document))
+                    applyContent(mergeUserContent(proposed, AgentEditableContent(saved.title, saved.document), AgentEditableContent(title, document)))
+                    if (pendingBackground == backgroundToSave) pendingBackground = null
+                    note = saved
+                    lastSavedTitle = saved.title
+                    lastSavedDocument = saved.document
+                    savedVersion = versionToSave
+                    if (closing && editVersion == savedVersion) library.releaseSessionAttachments(attachmentOwner)
+                    saveStatus = if (editVersion == versionToSave) EditorSaveStatus.Saved else EditorSaveStatus.Saving
+                    committedVersion = versionToSave
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                saveStatus = if (editVersion == versionToSave) EditorSaveStatus.Error else EditorSaveStatus.Saving
+            }
+        }
+        if (clearSavedStatusAfterDelay && committedVersion != null) {
+            delay(1_200)
+            if (saveStatus == EditorSaveStatus.Saved && editVersion == committedVersion) saveStatus = EditorSaveStatus.Idle
+        }
+    }
+
 }
 
 // -- Functions

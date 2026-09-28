@@ -295,7 +295,7 @@ fun XNoteApp(
     }
 
     LaunchedEffect(activeNotes, editorSession) {
-        activeNotes.firstOrNull { it.id == editorNoteId }?.let { editorSession?.refreshMetadata(it) }
+        if (activeNotes.any { it.id == editorNoteId }) editorSession?.refreshFromStorage()
     }
     LaunchedEffect(trashedNotes, editorNoteId) {
         if (editorNoteId != null && trashedNotes.any { it.id == editorNoteId }) {

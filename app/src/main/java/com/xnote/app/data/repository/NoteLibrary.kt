@@ -8,6 +8,8 @@ import com.xnote.app.data.db.referencedAttachmentIds
 import com.xnote.app.data.db.toDomain
 import com.xnote.app.data.db.toEntity
 import com.xnote.app.data.files.AttachmentFileStore
+import com.xnote.app.domain.agent.AgentEditableContent
+import com.xnote.app.domain.agent.mergeUserContent
 import com.xnote.app.domain.document.emptyNoteDocument
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.referencedAttachmentIds
@@ -38,6 +40,8 @@ import kotlinx.coroutines.flow.map
 import java.io.InputStream
 
 // -- Type Definitions
+
+data class EditorContentSave(val before: Note, val saved: Note)
 
 class NoteLibrary(
     private val database: XNoteDatabase,
@@ -225,16 +229,15 @@ class NoteLibrary(
         }
     }
 
-    suspend fun saveNoteContent(noteId: String, title: String, document: NoteDocument): Note {
-        return write {
-            // Preserve metadata changed from another pane in the same database transaction.
-            val existing = notes.get(noteId)?.toDomain() ?: error("Note not found: $noteId")
-            val saved = existing.copy(title = title, document = document, updatedAtEpochMs = clock.nowMs()).withDerivedText()
-            notes.upsert(saved.toEntity())
-            com.xnote.app.data.agent.AgentReviewStore(database, clock::nowMs).recordUserChange(existing.toEntity(), saved.toEntity())
-            if (saved.isTrashed) noteFts.deleteByNoteId(saved.id) else indexForSearch(saved)
-            saved
-        }
+    suspend fun saveNoteContent(noteId: String, base: AgentEditableContent, proposed: AgentEditableContent): EditorContentSave = write {
+        val existing = notes.get(noteId)?.toDomain() ?: error("Note not found: $noteId")
+        val merged = mergeUserContent(base, AgentEditableContent(existing.title, existing.document), proposed)
+        if (merged.title == existing.title && merged.document == existing.document) return@write EditorContentSave(existing, existing)
+        val saved = existing.copy(title = merged.title, document = merged.document, updatedAtEpochMs = clock.nowMs()).withDerivedText()
+        notes.upsert(saved.toEntity())
+        com.xnote.app.data.agent.AgentReviewStore(database, clock::nowMs).recordUserChange(existing.toEntity(), saved.toEntity())
+        if (saved.isTrashed) noteFts.deleteByNoteId(saved.id) else indexForSearch(saved)
+        EditorContentSave(existing, saved)
     }
 
     suspend fun setNoteBackground(noteId: String, backgroundKey: BackgroundKey?): Note {

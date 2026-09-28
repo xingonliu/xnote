@@ -88,7 +88,7 @@ class AgentLifecycleFlowTest {
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
             val created = library.createNote(null)
-            library.saveNoteContent(created.id, "可以恢复的笔记", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("删除后仍保留正文。"))))))
+            library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "可以恢复的笔记", document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("删除后仍保留正文。")))))))
         }
         var requests = 0
         val model = object : ModelClient {

@@ -48,7 +48,7 @@ class AgentWriteFlowTest {
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
             val created = library.createNote(null)
-            library.saveNoteContent(created.id, "周末计划", document("先整理笔记，再写总结。"))
+            library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "周末计划", document = document("先整理笔记，再写总结。")))
         }
         var requests = 0
         val client = object : ModelClient {
@@ -57,7 +57,7 @@ class AgentWriteFlowTest {
                     1, 3 -> emit(ModelEvent.ToolCall(ModelToolCall("read-$requests", "read", buildJsonObject { put("note_id", note.id) })))
                     2, 4 -> {
                         val version = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("version").jsonPrimitive.content
-                        if (requests == 2) library.saveNoteContent(note.id, note.title, document("先整理我的想法，再写总结。"))
+                        if (requests == 2) library.saveNote(requireNotNull(library.getNote(note.id)).copy(title = note.title, document = document("先整理我的想法，再写总结。")))
                         emit(ModelEvent.ToolCall(ModelToolCall("write-$requests", "write", buildJsonObject {
                             put("note_id", note.id); put("base_version", version); put("title", note.title)
                             put("document_json", document(if (requests == 2) "先整理思路，再写总结。" else "先整理我的想法，再写一份总结。").encodeToJson())

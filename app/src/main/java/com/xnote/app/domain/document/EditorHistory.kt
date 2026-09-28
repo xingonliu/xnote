@@ -44,4 +44,10 @@ class EditorHistory(
         coalesceKey = null
         return next
     }
+
+    fun rebase(transform: (EditorSnapshot) -> EditorSnapshot) {
+        for (index in undoStack.indices) undoStack[index] = transform(undoStack[index])
+        for (index in redoStack.indices) redoStack[index] = transform(redoStack[index])
+        coalesceKey = null
+    }
 }

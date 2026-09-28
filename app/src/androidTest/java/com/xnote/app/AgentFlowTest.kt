@@ -94,9 +94,9 @@ class AgentFlowTest {
         val note = runBlocking {
             profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
             val created = library.createNote(null)
-            library.saveNoteContent(created.id, "测试笔记", com.xnote.app.domain.document.NoteDocument(blocks = listOf(
+            library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "测试笔记", document = com.xnote.app.domain.document.NoteDocument(blocks = listOf(
                 com.xnote.app.domain.document.TextBlock("body", inlines = listOf(com.xnote.app.domain.document.InlineRun("发送时正文"))),
-            )))
+            ))))
         }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
         compose.onNodeWithText("Agent").performClick()

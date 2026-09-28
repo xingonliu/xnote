@@ -117,7 +117,7 @@ class AgentLifecycleToolTest {
         val created = store.executeTool("run", create("create")) as AgentToolResult.Finished
         val original = db.notes().get(created.noteId())!!
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 后续正文")))
-        library.saveNoteContent(original.id, original.title, document("Agent 后续正文；用户补充"))
+        library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("Agent 后续正文；用户补充")))
         val before = db.notes().get(original.id)!!
         assertTrue(AgentReviewStore(db).reject(original.id) is AgentReviewResult.Conflict)
         assertEquals(before, db.notes().get(original.id))
@@ -129,7 +129,7 @@ class AgentLifecycleToolTest {
         val original = note("note", null)
         db.notes().upsert(original)
         store.executeTool("run", read("read", original.id))
-        library.saveNoteContent(original.id, original.title, document("用户已经改写"))
+        library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("用户已经改写")))
         val current = db.notes().get(original.id)!!
         assertTrue(store.executeTool("run", delete("stale", original)) is AgentToolResult.Conflict)
         assertEquals(current, db.notes().get(original.id))
@@ -152,7 +152,7 @@ class AgentLifecycleToolTest {
         db.notes().upsert(original)
         store.executeTool("run", read("read", original.id)); store.executeTool("run", delete("delete", original))
         library.restoreNotes(listOf(original.id))
-        library.saveNoteContent(original.id, "用户恢复后的标题", document("用户恢复后的正文"))
+        library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = "用户恢复后的标题", document = document("用户恢复后的正文")))
         val restored = db.notes().get(original.id)!!
         AgentReviewStore(db).reject(original.id)
         assertEquals(restored, db.notes().get(original.id))
@@ -171,7 +171,7 @@ class AgentLifecycleToolTest {
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 正文")))
         val edited = db.notes().get(original.id)!!
         store.executeTool("run", read("read", original.id)); store.executeTool("run", delete("delete", edited))
-        library.saveNoteContent(original.id, original.title, document("用户改写这段"))
+        library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("用户改写这段")))
         val current = db.notes().get(original.id)!!
         assertTrue(AgentReviewStore(db).reject(original.id) is AgentReviewResult.Conflict)
         assertEquals(current, db.notes().get(original.id))
