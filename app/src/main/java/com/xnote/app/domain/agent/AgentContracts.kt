@@ -82,10 +82,14 @@ enum class AgentChangeKind { Create, Edit, Trash }
 enum class AgentReviewStatus { Pending, Accepted, Rejected, Undone, Conflict, Unrecoverable }
 
 @Serializable
-data class AgentMessageSource(val noteId: String, val snapshotId: String? = null)
+data class AgentMessageSource(val noteId: String, val snapshotId: String? = null, val selection: AgentSelection? = null)
 
 @Serializable
-data class AgentSelection(val version: String, val blockId: String, val start: Int, val end: Int)
+data class AgentSelection(val version: String, val blockId: String, val start: Int, val end: Int,
+    val tableRow: Int? = null, val tableColumn: Int? = null)
+
+@Serializable
+data class AgentDraftSelection(val noteId: String, val selection: AgentSelection)
 
 // -- Constants
 

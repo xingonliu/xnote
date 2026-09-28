@@ -61,6 +61,21 @@ class AgentEditPolicyTest {
         assertFalse(canUndoAcceptedAgentReview(100, 100 + AgentAcceptedUndoRetentionMs))
     }
 
+    @Test fun tableSelectionProtectsOtherCellsAndStructure() {
+        val table = TableBlock("table", rows = listOf(TableRow(listOf(TableCell(listOf(InlineRun("前原文后"))), TableCell(listOf(InlineRun("旁边")))))))
+        val base = NoteDocument(blocks = listOf(table, text))
+        val selection = AgentSelection("v", "table", 1, 3, 0, 0)
+        val changed = table.copy(rows = listOf(table.rows.single().copy(cells = listOf(TableCell(listOf(InlineRun("前新内容后"))), table.rows.single().cells[1]))))
+        val proposed = base.copy(blocks = listOf(changed, text))
+        assertEquals(AgentEditValidation.Valid, validateAgentEdit(base, proposed, "v", "v", selection))
+        for (invalid in listOf(
+            changed.copy(rows = listOf(TableRow(listOf(changed.rows[0].cells[0])))),
+            changed.copy(rows = listOf(TableRow(listOf(changed.rows[0].cells[0], TableCell(listOf(InlineRun("篡改"))))))),
+        )) assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(base, base.copy(blocks = listOf(invalid, text)), "v", "v", selection))
+        assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(base, proposed, "v", "v", selection.copy(tableRow = -1)))
+        assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(base, proposed, "v", "v", selection.copy(tableColumn = null)))
+    }
+
     @Test fun restoringNeverOverwritesUserRestoration() {
         assertEquals(AgentRestoreDecision.KeepUserRestoredVersion, agentRestoreDecision(true, false, true))
         assertEquals(AgentRestoreDecision.RestoreOriginalNotebook, agentRestoreDecision(true, true, true))

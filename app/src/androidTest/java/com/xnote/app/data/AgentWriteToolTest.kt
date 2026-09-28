@@ -16,6 +16,62 @@ import org.junit.Test
 // -- Tests
 
 class AgentWriteToolTest {
+    @Test fun applicationSelectionCannotBeOmittedForgedOrEscapedByOtherTools() = runBlocking {
+        fixture { db, store ->
+            val base = db.notes().get("note")!!
+            val selection = AgentSelection(base.agentVersion(), "body", 6, 12)
+            store.capture("user", listOf("note"), AgentDraftSelection("note", selection))
+            val outside = store.executeTool("run", write("outside-selection", base, "changed middle end")) as AgentToolResult.Finished
+            assertTrue(outside.result.content.contains("invalid_arguments"))
+            val forged = write("forged", base, "changed middle end")
+            assertTrue((store.executeTool("run", forged.copy(arguments = JsonObject(forged.arguments +
+                ("selection" to Json.encodeToJsonElement(selection.copy(start = 0, end = 15)))))) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
+            for (name in listOf("create", "delete")) {
+                assertTrue((store.executeTool("run", ModelToolCall(name, name, buildJsonObject {})) as AgentToolResult.Finished).result.content.contains("selection_scope"))
+            }
+            db.notes().upsert(base.copy(id = "other"))
+            assertTrue((store.executeTool("run", write("other", base.copy(id = "other"), "changed")) as AgentToolResult.Finished).result.content.contains("selection_scope"))
+            assertEquals(base, db.notes().get("note"))
+            val valid = write("selected", base, "start 润色内容 end")
+            val first = store.executeTool("run", valid)
+            assertEquals("applied", (first as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
+            assertEquals(first, store.executeTool("run", valid))
+            assertEquals(1, db.agent().noteChanges("note").size)
+            store.executeTool("run", read("read-again"))
+            assertTrue(store.executeTool("run", write("new-version", db.notes().get("note")!!, "start 再改 end")) is AgentToolResult.Conflict)
+            assertTrue(AgentReviewStore(db).reject("note") is AgentReviewResult.Applied)
+            assertEquals(base.documentJson, db.notes().get("note")!!.documentJson)
+        }
+    }
+
+    @Test fun staleSelectionCannotBeCapturedAndNoSnapshotReferenceIsCreated() = runBlocking {
+        fixture { db, store ->
+            val base = db.notes().get("note")!!
+            val selection = AgentDraftSelection("note", AgentSelection(base.agentVersion(), "body", 0, 5))
+            db.notes().upsert(base.copy(title = "用户改过"))
+            try { store.capture("user", listOf("note"), selection); fail("stale selection") } catch (_: IllegalArgumentException) { }
+            assertTrue(db.agent().snapshotRefs("user").isEmpty())
+            assertEquals("[]", db.agent().message("user")!!.sourcesJson)
+        }
+    }
+
+    @Test fun selectedWriteConstraintSurvivesDatabaseReopen() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "agent-selection-${System.nanoTime()}.db"
+        var db = XNoteDatabase.create(context, name)
+        try {
+            seed(db)
+            val base = db.notes().get("note")!!
+            AgentNoteStore(db).capture("user", listOf("note"), AgentDraftSelection("note", AgentSelection(base.agentVersion(), "body", 6, 12)))
+            db.close()
+            db = XNoteDatabase.create(context, name)
+            val store = AgentNoteStore(db)
+            assertTrue((store.executeTool("run", write("outside", base, "changed middle end")) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
+            assertEquals(base, db.notes().get("note"))
+            assertEquals("applied", (store.executeTool("run", write("inside", base, "start 精炼 end")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
+
     @Test fun readBaseIsDurableAndWritePreservesConcurrentUserChanges() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val name = "agent-write-${System.nanoTime()}.db"

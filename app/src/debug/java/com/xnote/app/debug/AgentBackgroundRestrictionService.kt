@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.*
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
 // -- Type Definitions
 
@@ -41,21 +40,19 @@ class AgentBackgroundRestrictionService : Service() {
     private var platformException: String? = null
     private var importance = 0
     private var requests = 0
+    private var recreatedForContinuation = false
 
     // -- Functions
 
-    private suspend fun arm() {
-        check(phase == "idle")
-        deleteDatabase(DatabaseName)
+    private suspend fun initialize(createProfile: Boolean): AgentTimeline {
         val db = XNoteDatabase.create(this, DatabaseName).also { database = it }
-        val secrets = ConcurrentHashMap<String, String>()
         val credentials = object : ModelCredentialStore {
-            override fun read(reference: String) = requireNotNull(secrets[reference])
-            override fun write(reference: String, secret: String) { secrets[reference] = secret }
-            override fun delete(reference: String) { secrets.remove(reference) }
+            override fun read(reference: String) = "local-test-only"
+            override fun write(reference: String, secret: String) = Unit
+            override fun delete(reference: String) = Unit
         }
         val profiles = ModelProfileStore(db, credentials)
-        profiles.save(ModelProfile("background-restriction-test", name = "后台限制测试", protocol = ModelProtocol.OpenAI,
+        if (createProfile) profiles.save(ModelProfile("background-restriction-test", name = "后台限制测试", protocol = ModelProtocol.OpenAI,
             modelId = "test", isDefault = true), "local-test-only")
         val model = object : ModelClient {
             override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
@@ -72,6 +69,14 @@ class AgentBackgroundRestrictionService : Service() {
             }
         }).also { timeline = it }
         execution.awaitReady()
+        return execution
+    }
+
+    private suspend fun arm() {
+        check(phase == "idle")
+        deleteDatabase(DatabaseName)
+        val execution = initialize(createProfile = true)
+        val db = requireNotNull(database)
         report("armed")
         // Allow the host to press Home, then outlive the user-visible transition exemption.
         delay(35_000)
@@ -90,6 +95,20 @@ class AgentBackgroundRestrictionService : Service() {
     }
 
     private suspend fun continueFromForeground() {
+        if (phase == "idle") {
+            // Android may stop this ordinary background service while the persisted run waits.
+            val saved = Json.parseToJsonElement(File(filesDir, ReportName).readText()).jsonObject
+            check(saved.getValue("phase").jsonPrimitive.content == "restricted")
+            check(saved.getValue("platformException").jsonPrimitive.content == ForegroundServiceStartNotAllowedException::class.java.name)
+            check(saved.getValue("modelRequests").jsonPrimitive.int == 0)
+            runId = saved.getValue("runId").jsonPrimitive.content
+            importance = saved.getValue("importanceAtBackgroundAttempt").jsonPrimitive.int
+            initialize(createProfile = false)
+            val run = requireNotNull(database).agent().run(requireNotNull(runId))
+            check(run?.status == AgentRunStatus.Interrupted && run.errorCode == "background_unavailable")
+            recreatedForContinuation = true
+            phase = "restricted"
+        }
         check(phase == "restricted")
         val currentImportance = ActivityManager.RunningAppProcessInfo().also(ActivityManager::getMyMemoryState).importance
         check(currentImportance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) { "请先打开应用：$currentImportance" }
@@ -113,6 +132,7 @@ class AgentBackgroundRestrictionService : Service() {
         val content = buildJsonObject {
             put("phase", value); put("pid", Process.myPid()); put("importanceAtBackgroundAttempt", importance)
             put("platformException", platformException); put("modelRequests", requests)
+            put("recreatedForContinuation", recreatedForContinuation)
             put("runId", runId); put("runStatus", status); put("error", error)
         }.toString().toByteArray()
         val file = AtomicFile(File(filesDir, ReportName))

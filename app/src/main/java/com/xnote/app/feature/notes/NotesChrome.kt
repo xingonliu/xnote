@@ -88,6 +88,7 @@ fun BoxScope.NotesChrome(
     onPop: () -> Unit,
     onOpenReader: () -> Unit,
     onExport: () -> Unit,
+    onOpenAgent: (polish: Boolean, selectedOnly: Boolean) -> Unit,
     onSelectionBarHeightChanged: (Int) -> Unit,
     settings: AppSettingsRepository,
     showBack: Boolean = true,
@@ -141,6 +142,7 @@ fun BoxScope.NotesChrome(
                 session = editorSession,
                 backdrop = backdrop, onBack = if (showBack) onPop else null,
                 onMore = { ui.moreVisible = true }, moreAnchor = moreMenuAnchor,
+                onOpenAgent = { dismissEditorInput(); onOpenAgent(false, false) },
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -312,6 +314,16 @@ fun BoxScope.NotesChrome(
             ),
         )
         is NotesRoute.Editor -> buildList {
+            add(XNoteDropdownMenuItem(
+                label = "润色全文",
+                enabled = editorSession?.note != null && !imageUi.busy,
+                onClick = { dismissEditorInput(); onOpenAgent(true, false) },
+            ))
+            add(XNoteDropdownMenuItem(
+                label = "润色所选文字",
+                enabled = editorSession?.selection?.isCollapsed == false && !imageUi.busy,
+                onClick = { onOpenAgent(true, true); dismissEditorInput() },
+            ))
             add(XNoteDropdownMenuItem(
                 label = stringResource(R.string.export_open),
                 enabled = editorSession?.note != null && !imageUi.busy,

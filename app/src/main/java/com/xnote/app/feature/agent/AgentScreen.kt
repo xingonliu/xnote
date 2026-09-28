@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.AgentTimeline
+import com.xnote.app.data.agent.agentVersion
+import com.xnote.app.domain.document.plainText
 import com.xnote.app.design.*
 import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
@@ -51,6 +53,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     val runs by timeline.runs.collectAsState(emptyList())
     val queue by timeline.queue.collectAsState(emptyList())
     val selectedNotes by timeline.draftNotes.collectAsState()
+    val draftSelection by timeline.draftSelection.collectAsState()
     val availableNotes by timeline.noteStore.availableNotes.collectAsState(emptyList())
     val trashedNotes by timeline.noteStore.trashedNotes.collectAsState(emptyList())
     val notebooks by timeline.noteStore.notebooks.collectAsState(emptyList())
@@ -90,6 +93,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
     val keyboardVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
     // -- Functions
 
     fun action(block: suspend () -> Unit) { scope.launch {
@@ -148,7 +153,16 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                                 Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
                                     val snapshot = snapshots.find { it.id == source.snapshotId }
                                     LiquidButton({ snapshotPreview = snapshot }, backdrop, enabled = snapshot != null) {
-                                        Text(snapshot?.let { "发送快照 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除 · 快照不可用")
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(snapshot?.let { "发送快照 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除 · 快照不可用")
+                                            snapshot?.let { saved ->
+                                                Text(extractPlainText(decodeNoteDocument(saved.documentJson)).ifBlank { "暂无正文" },
+                                                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                                                Text(notebooks.find { it.id == saved.notebookId }?.name ?: if (saved.notebookId == null) "未归档" else "原笔记本已不存在", style = MaterialTheme.typography.labelSmall)
+                                                if (saved.noteUpdatedAtEpochMs > 0) Text("修改于 ${dateFormat.format(java.util.Date(saved.noteUpdatedAtEpochMs))}", style = MaterialTheme.typography.labelSmall)
+                                                if (source.selection != null) Text("仅润色所选文字", style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -192,11 +206,15 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                 }
                 waitingConflict?.let { run ->
                     val conflict = tools.firstOrNull { it.runId == run.id && it.status == AgentToolStatus.Requested }
+                    val selectionConflict = messages.find { it.id == run.userMessageId }?.let {
+                        Json.decodeFromString<List<AgentMessageSource>>(it.sourcesJson).any { source -> source.selection != null }
+                    } == true
                     if (conflict != null) item(key = "conflict") {
                         XNoteGroupCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(state.notice ?: "笔记内容发生变化，任务已暂停。", Modifier.testTag("agent-notice"))
-                                LiquidButton({ action { timeline.replanConflict(run.id, conflict.callId) } }, backdrop,
+                                if (selectionConflict) Text("请结束当前任务，再回到笔记编辑器重新选择文字。原选区不会自动扩大或移动。")
+                                else LiquidButton({ action { timeline.replanConflict(run.id, conflict.callId) } }, backdrop,
                                     enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
                             }
                         }
@@ -235,9 +253,15 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             AgentComposer(
                 input = input, onInputChange = { value -> input = value; action { timeline.saveDraft(value) } },
                 enabled = state.ready && restored, running = state.running,
-                canSend = state.ready && restored && (state.running || (!unresolved && queue.isEmpty())) && input.isNotBlank(),
-                permission = permission, notes = selectedNotes.map { id -> id to
-                    (availableNotes.find { it.id == id }?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用") },
+                canSend = state.ready && restored && ((state.running && draftSelection == null) || (!state.running && !unresolved && queue.isEmpty())) && input.isNotBlank(),
+                permission = permission, notes = selectedNotes.map { id ->
+                    val note = availableNotes.find { it.id == id }
+                    AgentComposerNote(id, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用",
+                        note?.summary?.ifBlank { "暂无正文" } ?: "请移除后重试",
+                        notebooks.find { it.id == note?.notebookId }?.name ?: "未归档",
+                        note?.let { dateFormat.format(java.util.Date(it.updatedAtEpochMs)) }.orEmpty(),
+                        draftSelection?.noteId == id)
+                },
                 onRemoveNote = { id -> action { timeline.selectDraftNotes(selectedNotes - id) } },
                 onPreviewNote = { draftPreviewId = it },
                 attachmentAnchor = attachmentAnchor,
@@ -279,6 +303,14 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             val note = availableNotes.find { it.id == draftPreviewId }
             XNoteDialog(true, { draftPreviewId = null }, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用", backdrop,
                 XNoteDialogAction("关闭", { draftPreviewId = null })) {
+                draftSelection?.takeIf { it.noteId == note?.id }?.let { selected ->
+                    Text("仅润色所选文字；发送前会校验笔记版本。", style = MaterialTheme.typography.labelMedium)
+                    val selectedText = note?.takeIf { it.agentVersion() == selected.selection.version }
+                        ?.let { selectionInlines(decodeNoteDocument(it.documentJson), selected.selection)?.plainText() }
+                        ?.let { text -> if (selected.selection.start >= 0 && selected.selection.end <= text.length)
+                            text.substring(selected.selection.start, selected.selection.end) else null }
+                    Text(selectedText ?: "笔记已变化，请回到编辑器重新选择。", Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState()))
+                }
                 Text(note?.let { extractPlainText(decodeNoteDocument(it.documentJson)) } ?: "该笔记已删除或不再可用，可从输入框移除。",
                     Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()))
             }
@@ -303,7 +335,10 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
         toolPreview?.let { event ->
             val run = runs.find { it.id == event.runId }
             val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
-            AgentToolDialog(event, backdrop, if (canContinue) ({ action { timeline.continueRun(event.runId); toolPreview = null } }) else null) { toolPreview = null }
+            AgentToolDialog(event, backdrop,
+                onContinue = if (canContinue) ({ action { timeline.continueRun(event.runId); toolPreview = null } }) else null,
+                onStop = if (state.running && run?.status == AgentRunStatus.Running) timeline::stop else null,
+                onDismiss = { toolPreview = null })
         }
 
     }

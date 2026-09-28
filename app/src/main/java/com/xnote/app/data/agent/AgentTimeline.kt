@@ -29,6 +29,7 @@ class AgentTimeline(
     private val mutableState = MutableStateFlow(AgentTimelineState())
     private val mutableDraft = MutableStateFlow("")
     private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
+    private val mutableDraftSelection = MutableStateFlow<AgentDraftSelection?>(null)
     val noteStore = AgentNoteStore(database)
     val reviewStore = AgentReviewStore(database)
     private val conversation = AgentConversationContext(database, noteStore)
@@ -48,6 +49,7 @@ class AgentTimeline(
             pauseQueue()
             mutableDraft.value = database.agent().draft()?.text.orEmpty()
             mutableDraftNotes.value = database.agent().draft()?.let { Json.decodeFromString<List<String>>(it.noteIdsJson) }.orEmpty()
+            mutableDraftSelection.value = database.agent().draft()?.selectionJson?.let { Json.decodeFromString<AgentDraftSelection>(it) }
         }
         mutableState.value = AgentTimelineState(ready = true)
     }
@@ -57,6 +59,7 @@ class AgentTimeline(
     val state = mutableState.asStateFlow()
     val draft = mutableDraft.asStateFlow()
     val draftNotes = mutableDraftNotes.asStateFlow()
+    val draftSelection = mutableDraftSelection.asStateFlow()
     val messages = database.agent().observeMessages()
     val runs = database.agent().observeRuns()
     val queue = database.agent().observeQueue()
@@ -74,8 +77,32 @@ class AgentTimeline(
         awaitReady()
         mutex.withLock {
             require(ids.distinct().size <= AgentNoteLimits.MaxAttachedNotes) { "每条消息最多附加 8 篇笔记。" }
-            database.agent().saveDraft(AgentDraftEntity(text = mutableDraft.value, noteIdsJson = Json.encodeToString(ids.distinct())))
+            val selection = mutableDraftSelection.value?.takeIf { it.noteId in ids }
+            database.agent().saveDraft(AgentDraftEntity(text = mutableDraft.value, noteIdsJson = Json.encodeToString(ids.distinct()),
+                selectionJson = selection?.let { Json.encodeToString(it) }))
             mutableDraftNotes.value = ids.distinct()
+            mutableDraftSelection.value = selection
+        }
+    }
+
+    suspend fun carryNote(noteId: String, selection: AgentSelection? = null, polish: Boolean = false) {
+        awaitReady()
+        mutex.withLock {
+            val note = database.notes().get(noteId)
+            require(note != null && note.deletedAtEpochMs == null) { "笔记已删除，无法携带到对话。" }
+            val attached = (mutableDraftNotes.value + noteId).distinct()
+            require(attached.size <= AgentNoteLimits.MaxAttachedNotes) { "每条消息最多附加 8 篇笔记，请先移除部分附加笔记。" }
+            require(mutableDraftSelection.value?.noteId.let { it == null || it == noteId }) { "请先发送或移除已有的选区润色笔记。" }
+            val selected = selection?.let { AgentDraftSelection(noteId, it) }
+            noteStore.validateDraftSelection(selected)
+            val target = "附加笔记「${note.title.ifBlank { "未命名笔记" }}」"
+            val request = if (!polish) "" else if (selection == null) "请润色${target}的全文，保留原意。" else "请仅润色${target}中已选择的文字，保留原意。"
+            val text = listOf(mutableDraft.value, request).filter { it.isNotBlank() }.joinToString("\n\n")
+            database.agent().saveDraft(AgentDraftEntity(text = text, noteIdsJson = Json.encodeToString(attached),
+                selectionJson = selected?.let { Json.encodeToString(it) }))
+            mutableDraft.value = text
+            mutableDraftNotes.value = attached
+            mutableDraftSelection.value = selected
         }
     }
 
@@ -131,13 +158,14 @@ class AgentTimeline(
             if (text.isBlank()) return
             persistDraft(text)
             if (mutableState.value.running) {
+                require(mutableDraftSelection.value == null) { "选区润色须作为独立任务发送，可先加入队列。" }
                 transaction {
                     val run = database.agent().unfinishedRuns().singleOrNull { it.status == AgentRunStatus.Running } ?: throw ModelException(ModelError.Busy)
                     val profile = boundProfile(run.profileId, run.profileVersion)
                     planAgentContext(profile, emptyList(), text)
                     val sequence = insertMessage(run, AgentMessageRole.User, text, AgentMessageStatus.Pending)
                     val message = database.agent().messages().single { it.sequence == sequence }
-                    noteStore.capture(message.id, mutableDraftNotes.value)
+                    noteStore.capture(message.id, mutableDraftNotes.value, mutableDraftSelection.value)
                     conversation.prepare(run, profile)
                     clearDraft()
                 }
@@ -167,7 +195,7 @@ class AgentTimeline(
                 val messageId = id()
                 database.agent().insertMessage(AgentMessageEntity(id = messageId, segmentId = segment.id, runId = null,
                     role = AgentMessageRole.User, text = text, status = AgentMessageStatus.Pending, createdAtEpochMs = now()))
-                noteStore.capture(messageId, mutableDraftNotes.value)
+                noteStore.capture(messageId, mutableDraftNotes.value, mutableDraftSelection.value)
                 noteStore.validateSubmission(messageId, profile)
                 database.agent().saveQueueItem(AgentQueueEntity(id(), messageId, profile.id, profile.version,
                     (queued.maxOfOrNull { it.position } ?: -1) + 1,
@@ -325,7 +353,7 @@ class AgentTimeline(
             database.agent().saveQueueItem(queued.copy(status = AgentQueueStatus.Dispatched))
         }
         database.agent().saveRun(run)
-        if (queued == null) noteStore.capture(userId, mutableDraftNotes.value)
+        if (queued == null) noteStore.capture(userId, mutableDraftNotes.value, mutableDraftSelection.value)
         conversation.prepare(run, profile)
         if (queued == null) clearDraft()
         run
@@ -531,7 +559,8 @@ class AgentTimeline(
         ?: throw ModelException(ModelError.InvalidConfig)
 
     private suspend fun persistDraft(text: String) {
-        database.agent().saveDraft(AgentDraftEntity(text = text, noteIdsJson = Json.encodeToString(mutableDraftNotes.value)))
+        database.agent().saveDraft(AgentDraftEntity(text = text, noteIdsJson = Json.encodeToString(mutableDraftNotes.value),
+            selectionJson = mutableDraftSelection.value?.let { Json.encodeToString(it) }))
         mutableDraft.value = text
     }
 
@@ -539,6 +568,7 @@ class AgentTimeline(
         database.agent().saveDraft(AgentDraftEntity(text = ""))
         mutableDraft.value = ""
         mutableDraftNotes.value = emptyList()
+        mutableDraftSelection.value = null
     }
 
     private suspend fun insertMessage(run: AgentRunEntity, role: AgentMessageRole, text: String, status: AgentMessageStatus = AgentMessageStatus.Complete): Long =

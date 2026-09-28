@@ -59,7 +59,7 @@
 
 扩大到全部端侧用例时，运行 112 项出现 7 项失败，不能视为全套回归通过。对照本次接入前的 `f7424b3` 基线，复现 5 项相同失败：`existingTableAtDocumentEndAllowsTypingAfterItAndSaving`、`tabletPanesKeepDraftAndSelectionAcrossSearchResizeAndRecreation`、`wideWindowKeepsTheNavigationRailWhileSearchExpandsInTheListPane`、`notebookGridAdaptsToThemeWindowAndLargeText`、`edgesFadeIntoBothThemeBackgroundsAndRestoreWhenHidden`。其余 `insertBubbleAndImagePillWorkInEditor`、`existingImageAtDocumentEndAllowsTypingAfterItAndSaving` 在当前版本与基线单独重跑均通过，记录为不稳定用例；本次未改动这些用例或编辑器业务逻辑。完整手机/平板回归仍归入 S11.12。
 
-## S11.4 运行控制、队列与后台恢复（进行中）
+## S11.4 运行控制、队列与后台恢复
 
 实现入口：`data/agent/AgentTimeline.kt`、`AgentRunService.kt`、`domain/agent/AgentRunLimits.kt`、`feature/agent/AgentScreen.kt`。
 
@@ -90,22 +90,23 @@ adb shell am instrument -w -e class com.xnote.app.data.AgentBackgroundTest#denie
 
 2026-09-28 后台启动限制端到端验证通过：Debug 专用 `AgentBackgroundRestrictionService` 在普通服务中创建独立测试数据库，退出 Activity 后等待 35 秒，不使用 instrumentation。Android 16 实际拒绝 `AgentRunService.start`，抛出 `ForegroundServiceStartNotAllowedException`；进程重要性为 300，系统日志记录 `mAllowStartForeground false`。原输入持久化，运行进入 `Interrupted/background_unavailable`，页面状态提示回到前台继续，模型请求数为 0。重新打开 Activity 并显式继续后，同一运行完成，模型请求数为 1，原输入没有重复插入。测试数据库清理完成。该用例验证平台限制与运行恢复，使用本地受控模型，不作为真实模型服务联调证据。
 
-复现时先安装 Debug APK，执行以下命令；每次运行应等到 `passed` 后再重新开始。`armed` 后立即回桌面，至少等 35 秒再检查 `restricted`，随后回前台继续并检查 `passed`：
+复现时先安装 Debug APK，执行以下命令；每次运行应等到 `passed` 后再重新开始。`armed` 后立即回桌面，至少等 35 秒再检查 `restricted`，随后停止辅助服务以验证重建，回前台继续并检查 `passed` 及 `recreatedForContinuation=true`：
 
 ```text
-adb shell am start -n com.xnote.app/.MainActivity
+adb shell am start -W -n com.xnote.app/.MainActivity
 adb shell am startservice -n com.xnote.app/.debug.AgentBackgroundRestrictionService
 adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
 adb shell input keyevent 3
 adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
-adb shell am start -n com.xnote.app/.MainActivity
+adb shell am stopservice -n com.xnote.app/.debug.AgentBackgroundRestrictionService
+adb shell am start -W -n com.xnote.app/.MainActivity
 adb shell am startservice -n com.xnote.app/.debug.AgentBackgroundRestrictionService -a com.xnote.app.debug.CONTINUE_BACKGROUND_TEST
 adb shell run-as com.xnote.app cat files/agent-background-restriction-result.json
 ```
 
 验证入口仅存在于 `src/debug`，导出的服务要求 shell 持有的 `android.permission.DUMP`；`processReleaseMainManifest` 通过，Release 合并清单不包含该服务。本机证据为 `app/build/s11-4-background-restricted.json`、`s11-4-background-continued.json` 和 `s11-4-background-platform.log`。同期 `lintDebug`、Debug/测试 APK 构建、单元测试通过：154 项中 153 项通过、1 项真实服务用例默认跳过。
 
-读取和写入提交后的实际进程终止、重启继续、授权与写入冲突等待后的运行对象重建已验证；创建/删除的恢复补充证据见下文。S11.4 平台专项已补齐，整体完成状态仍以 S11.4–S11.7 最终逐项验收为准。
+读取和写入提交后的实际进程终止、重启继续、授权与写入冲突等待后的运行对象重建已验证；创建/删除的恢复补充证据见下文。S11.4 平台专项及 S11.4–S11.7 最终逐项验收均已完成。
 
 平台依据：[后台启动限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)、[前台服务类型](https://developer.android.com/develop/background-work/services/fgs/service-types)、[服务超时](https://developer.android.com/develop/background-work/services/fgs/timeout)、[通知权限](https://developer.android.com/develop/ui/compose/notifications/notification-permission)、[CoroutineStart.ATOMIC](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/-coroutine-start/-a-t-o-m-i-c/)。Android 与协程 API 均通过 Context7 核查。
 
@@ -130,9 +131,9 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 最终界面回归 3 项通过，并检查了工具详情截图。Agent 弹层打开期间暂停展示外层标题和导航，防止覆盖弹层或接收其上方点击，关闭后恢复；验收断言同时覆盖这些状态。发送用例明确等待助手完成并滚动到完成状态。最终 Debug/测试 APK 构建和 Lint 通过，Lint 0 错误、18 条现有警告。S11.5 已完成。
 
-后续 S11.6–S11.7 的变更事务、单篇 Diff 和写工具进度见下文。整体仍待编辑器携带笔记、全文与选区润色联动及最终逐项验收。
+S11.6–S11.7 的变更事务、单篇 Diff、写工具和编辑器联动验收见下文。
 
-## S11.6 编辑合并与单篇审阅（进行中）
+## S11.6 编辑合并与单篇审阅
 
 实现入口：`AgentContentMerge.kt`、`AgentReviewStore.kt`、`AgentReviewScreen.kt`，以及 `NoteLibrary` 的用户来源和永久删除清理。
 
@@ -147,11 +148,11 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 已验证数据库重开后待审阅状态与正文一致、跨轮累计、局部冲突阻止整批回退、接受不重复保存、30 天边界、用户编辑保留、调用去重、权限撤回后仍可本地审阅，以及清空聊天后独立审阅。已检查 720×1280 手机累计 Diff 与冲突页截图。
 
-剩余联动：编辑器携带笔记与选区入口。生产 `create`/`write`/`delete` 工具、创建与删除的整篇审阅及恢复进度见下文。S11.6 的领域事务与编辑 Diff 已接入，整体验收仍在进行中。
+S11.6 的领域事务、编辑 Diff 与单篇审阅已完成。生产 `create`/`write`/`delete` 工具、创建与删除审阅及编辑器联动验收见下文。
 
 事务参考：[Room 数据访问与写事务](https://developer.android.com/training/data-storage/room/accessing-data)，通过 Context7 核查连接写事务与 Flow 查询；外层异常引发正文和事实记录共同回滚由端侧用例验证。
 
-## S11.7 版本化写工具与冲突恢复（进行中）
+## S11.7 版本化写工具与冲突恢复
 
 - 工具能力验证通过后，模型可调用 `read`、`note_search`、`create`、`write` 和 `delete`。`write` 只接受笔记 ID、读取基线版本、完整标题、结构化正文 JSON 及可选选区；三级权限与当前可写范围在事务内重新检查，一级和二级进入等待授权，不写入正文。创建和删除规则见下节。
 - `read` 将完整读取基线及其媒体引用与工具结果一同提交，并返回可用于后续分页的 `snapshot_id`；分页传回该 ID 可固定版本。Room 9 新增独立的工具读取引用，8→9 自动迁移衔接原迁移链。读取引用不加入主动附加集合，不授予笔记、笔记本或下一话题的权限。清空工具记录、清空聊天和永久删除仍可清理不再使用的基线与附件引用。
@@ -164,9 +165,9 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 实际进程恢复复验通过：显式 `processPhase=prepare` 在读取和写入均提交、部分回复及队列保存后留下就绪标记；宿主机核对运行 PID 为 5936 后发送 SIGKILL，准备端如预期报告进程终止。`processPhase=recover` 在另一个 PID 中通过全部断言，且 1 项恢复测试通过：没有自动模型请求，运行显示中断，原读取与写入事件及单条改动保持不变，用户继续仅发送一次后续请求，队列保持暂停；最后拒绝 Agent 改动仍保留重启后用户补充。测试使用专用数据库及测试凭据，完成后清理。该证据验证本地恢复，不代表真实模型服务写工具联调。
 
-剩余范围：编辑器携带笔记/选区入口及最终逐项验收。S11.4–S11.7 整体仍未完成。
+编辑器携带笔记、全文／选区润色及最终逐项验收见下文；S11.4–S11.7 已完成。
 
-迁移参考：[Room 数据库迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)，通过 Context7 核查导出 schema、自动迁移和迁移验证；当前 schema 为 `app/schemas/com.xnote.app.data.db.XNoteDatabase/9.json`。
+迁移参考：[Room 数据库迁移](https://developer.android.com/training/data-storage/room/migrating-db-versions)，通过 Context7 核查导出 schema、自动迁移和迁移验证；当前 schema 为 `app/schemas/com.xnote.app.data.db.XNoteDatabase/10.json`。
 
 ## S11.7 创建、删除与单篇审阅补充
 
@@ -180,7 +181,7 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 实际进程恢复补充通过：磁盘测试库中依次提交读取、写入、创建、读取新笔记和删除新笔记，保存部分回复与队列；宿主核对 PID 8825 与就绪标记一致后发送 SIGKILL。独立进程恢复测试 1 项通过：任务中断且没有自动请求，队列暂停，用户继续仅发出一次后续请求，5 条工具记录、两篇笔记及各自改动记录均不重复。拒绝既有笔记改动保留用户补充；拒绝新建并删除的批次保持回收站状态。专用测试库与凭据在恢复阶段清理，准备阶段的进程终止报告符合预期。
 
-剩余范围：编辑器携带笔记/选区入口及最终逐项验收。S11.4–S11.7 整体仍未完成。
+编辑器携带笔记、全文／选区润色及最终逐项验收见下文；S11.4–S11.7 已完成。
 
 ## S11.7 编辑器并行保存补充
 
@@ -194,9 +195,9 @@ P12 补充回归：上述端侧专项增至 35 项并全部通过。新增界面
 
 2026-09-28 最终验证：`lintDebug`、`testDebugUnitTest`、Debug 和测试 APK 构建全部通过。154 项单元测试中 153 项通过，1 项真实服务测试默认跳过；Lint 0 错误、19 条现有依赖/公共控件/资源警告。新增单元用例覆盖冲突时用户优先、段落删除与重排、表格、格式和 Unicode 光标，含 500 组随机段落合并。
 
-Android 16 最终专项 111 项全部通过：原有 94 项 Agent 工具、时间线、审阅与笔记库回归，加上 8 项编辑器并行保存、1 项打开编辑器的实时刷新与继续输入、3 项图片持久化和 5 项既有编辑页流程。覆盖同处冲突、独立改动合并、拒绝后保留用户编辑、数据库等待期间继续输入、输入法组合态强制保存、删除后保存未落盘内容、格式回执和撤销/重做、表格及 Markdown。当前数据库仍为版本 9。
+Android 16 最终专项 111 项全部通过：原有 94 项 Agent 工具、时间线、审阅与笔记库回归，加上 8 项编辑器并行保存、1 项打开编辑器的实时刷新与继续输入、3 项图片持久化和 5 项既有编辑页流程。覆盖同处冲突、独立改动合并、拒绝后保留用户编辑、数据库等待期间继续输入、输入法组合态强制保存、删除后保存未落盘内容、格式回执和撤销/重做、表格及 Markdown。该轮验证使用数据库版本 9；当前版本 10 的迁移与最终回归见下文。
 
-剩余范围：编辑器独立“与 Agent 对话”按钮、携带笔记卡片与全文/选区润色入口；完成后仍需按 S11.4–S11.7 条目逐项核对。整体目标保持进行中。
+编辑器独立“与 Agent 对话”按钮、携带笔记卡片与全文／选区润色入口已完成，逐项核对及最终验证见下文。
 
 
 ## Agent 页面交互布局（2026-09-28）
@@ -207,3 +208,49 @@ Android 16 最终专项 111 项全部通过：原有 94 项 Agent 工具、时�
 - 更多菜单集中任务队列、模型配置和后台通知；队列支持加入当前输入、编辑、排序、删除及恢复。执行控制在输入区上方，授权与冲突在对话内。消息用量和删除通过消息选项查看。
 - 验证：154 项 JVM 单元测试通过；11 项 Android 交互回归通过，覆盖发送、新话题、发送快照、权限、工具续执行、写入冲突、创建与删除审阅、接受/拒绝/撤回。另补验队列加入、编辑、删除及审阅返回后的草稿同步。
 - 本机界面截图保存于 `captures/agent-ui/`，覆盖空白页、附件菜单、键盘输入、队列弹层、笔记改动弹层与对话。截图为 Android 16 模拟器结果，尚未覆盖真机及平板视觉验收。
+
+
+## S11.7 携带笔记与全文／选区润色
+
+- 手机和平板编辑页提供独立“与 Agent 对话”按钮；更多菜单提供“润色全文”和“润色所选文字”。离页前 flush 当前编辑内容，保存失败或仍有未落盘输入时留在编辑器并提示。进入对话只准备草稿，不自动发送；原输入和已有附件保留，同篇不重复附加。
+- 附加卡片展示标题、摘要、所属笔记本和修改时间，可预览、移除。发送后展示固定版本的卡片，保存原笔记修改时间；历史快照未记录该时间时不推测。上下文明确标记“用户显式提供的笔记内容”。
+- 选区携带内容版本、块 ID、UTF-16 文字范围，表格选区额外携带行列。草稿、排队消息和实际运行的原始用户消息保存应用生成的定位；发送事务再次校验版本、非空范围及 Unicode 边界。原文改变时要求重新选择，失败保留草稿。
+- 写工具从原始用户消息读取约束，模型省略 selection 也不能绕过；模型伪造范围、修改其他笔记、创建或删除均不执行。选区外的文字、格式、标题、段落属性、其他块和表格单元格／结构保持不变。成功后重复调用复用已提交结果；再次改写须由用户重新选择当前版本。选区任务为独立运行，运行中可加入队列，不作为当前任务补充；普通文字补充继续遵守原任务的选区。
+- 全文与选区润色均走既有版本化 write、改动记录及单篇审阅事务，不另建正文保存或回退路径。用户需要的操作权限仍由现有授权流程确认，携带笔记不会提升编辑权限。
+- 单篇 Diff 展示段落位置，普通文字按词比较，等宽文字按完整行比较；删除为红色删除线，新增为绿色。工具详情在所属任务运行时可直接停止，已提交改动仍保留并可审阅。
+- Room 9→10 自动迁移新增草稿 selectionJson 和快照 noteUpdatedAtEpochMs；现有草稿、附件选择及快照保留。旧快照的未知修改时间默认 0，草稿选区默认 null。导出 schema 位于 `app/schemas/com.xnote.app.data.db.XNoteDatabase/10.json`。
+
+迁移 API 已经 Context7 核查；日期读取使用可观察的系统配置，依据 [Android 配置变化](https://developer.android.com/guide/topics/resources/runtime-changes) 响应语言设置变化。
+
+
+## S11.4–S11.7 逐项验收对照
+
+| 要求 | 实现与核对证据 |
+| --- | --- |
+| S11.4 / D02：串行运行、固定模型、补充与队列恰好一次 | `AgentTimeline` 在互斥锁与事务内提交补充、排队和派发；`AgentTimelineTest` 覆盖补充安全边界、编辑排序、停止暂停、配置锁、授权及冲突等待后重建。 |
+| S11.4 / D08：有限重试、停止、继续、未知提交不重放 | 16 次累计请求、10 分钟执行窗口、50 条队列；仅可重试且未输出的请求退避两次。时间线测试覆盖认证／配额不重试、部分输出保留、继续不重放及取消前提交；实际进程终止证据见后台恢复节。 |
+| S11.4 / D09：离页、锁屏、通知拒绝、后台受限和系统超时 | `AgentBackgroundTest` 验证真实前台服务、锁屏、通知停止、预先拒绝通知及系统 `onTimeout`；Debug shell 验证实际后台启动拒绝，保存中断后由前台显式继续。 |
+| S11.4 / D15：历史事实和运行控制 | `AgentFlowTest` 覆盖导航往返、新话题、抽屉、队列及工具详情停止／继续；复制使用文本选择，删除使整轮后续上下文失效，清除聊天先停止并清空队列。单篇审阅独立保留。 |
+| S11.5 / P11、P19、D03–D04：权限等级、范围与授权 | `AgentPermissionPolicyTest`、`AgentNoteStoreTest`、`AgentLifecycleToolTest` 覆盖等级与范围独立、一次／始终授权、权限版本撤销、授权不扩大其他笔记以及创建目标归属；UI 覆盖权限设置与授权后继续。 |
+| S11.5 / D10：发送快照、读取、检索与删除传播 | 快照按笔记及版本复用、不同版本分别保存；`AgentNoteStoreTest` 覆盖旧快照不替换、先过滤再分页、不泄露无权条目／数量、回收站与永久删除、来源派生历史及独立媒体引用。 |
+| S11.5 / P12：工具详情与审计 | 参数、所属运行、权限与范围依据、状态、结果、开始／结束时间落库；`AgentFlowTest` 验证授权依据、继续及运行中停止入口，已提交工具不重做。 |
+| S11.6 / P04、D05：累计改动与并行编辑 | `AgentReviewStoreTest`、`AgentContentMergeTest`、`EditorAgentSaveTest` 验证跨运行累计、来源、版本、独立修改合并、同处冲突、光标及撤销历史；正文、FTS、统计、改动与审阅在同一事务提交。 |
+| S11.6 / D06：单篇接受、拒绝与撤回 | 接受仅确认已保存改动；整篇拒绝先规划全部逆操作，冲突整次不写入。审阅存储／UI 测试覆盖接受、拒绝、30 天撤回、用户后续编辑、数据库重开及永久删除不可恢复。 |
+| S11.6：可读 Diff | `AgentDisplayDiffTest` 验证词级差异、等宽按行比较、Unicode 及空文本；详情显示段落位置，红色删除、绿色新增，手机及模拟平板宽度截图检查不遮挡审阅按钮。 |
+| S11.7：创建、写入、删除和恢复 | `AgentLifecycleToolTest`、`AgentWriteToolTest`、两类工具 UI 测试覆盖低权限不写、一次创建归属授权、调用幂等、媒体保护、用户并行编辑、删除恢复、创建／删除整篇审阅及事务回滚；实际进程恢复核对五条已提交工具不重复。 |
+| S11.7：编辑器携带、全文／选区润色 | `EditorAgentFlowTest` 覆盖最新输入落盘、保留草稿、卡片、全文／选区发送及审阅拒绝；`AgentEditPolicyTest` 覆盖文字和表格选区边界，写工具测试覆盖省略／伪造范围、其他写工具逃逸和数据库重开，时间线测试覆盖草稿恢复、排队与过期选区保留草稿。 |
+| S11.7：数据升级与既有编辑流程 | Room 2→10 迁移链由 `NotebookMigrationTest` 与 `AgentFoundationTest` 检查；既有正文、文件、权限、工具、审阅与草稿保留，新字段有明确默认值。编辑器保存、格式、图片及返回重开另行回归。 |
+
+S11.8–S11.12 的自动记忆、派生摘要、图片／文件输入输出和完整设备矩阵验收仍按原开发顺序推进，不计入本次四个切片。受控模型用例证明本地运行、工具及事务行为；真实服务覆盖范围以 S11.2–S11.3 的独立联调记录为准。
+
+## S11.4–S11.7 最终验证（2026-09-28）
+
+S11.4–S11.7 已完成。与已合入的 Agent 页面布局衔接，保留公共底部 Drawer、附件菜单和现有执行控制布局。
+
+- `assembleDebug`、`assembleDebugAndroidTest`、`testDebugUnitTest`、`lintDebug` 均通过。158 项 JVM 用例中 157 项通过，1 项真实服务用例未配置凭据而默认跳过；Lint 0 错误、19 条既有警告。Debug 辅助服务恢复补充后再次构建与 Lint 通过。
+- Android 16 模拟器专项 122 项全部通过：Agent 事实源、权限与快照、运行与队列、创建／写入／删除、审阅、迁移、编辑器并行保存与携带、全文／选区润色、手机及模拟平板宽度流程，以及图片、格式、表格、输入法组合态与返回重开。日志：`app/build/s11-final-agent-tests.log`。
+- 原生平台另外验证 4 项：通知停止（含回桌面与熄屏）、启动前已拒绝通知、实际系统 dataSync 超时、实际 SIGKILL 后恢复。进程准备 PID 7891 经核对后终止，恢复阶段通过，五条已提交读取／写入／创建／删除工具记录没有重复执行。日志分别为 `s11-final-background-notification.log`、`s11-final-background-denied.log`、`s11-final-background-timeout.log`、`s11-final-process-recover.log`，均位于 `app/build/`。
+- Debug shell 独立复验后台启动限制：进程重要性 300，收到真实 `ForegroundServiceStartNotAllowedException`，运行 `Interrupted/background_unavailable`、模型请求 0。停止并重建辅助服务后，从独立数据库恢复同一运行；前台显式继续得到 `Complete`、模型请求 1、原输入一条，报告 `recreatedForContinuation=true`。测试库已清理；报告为 `app/build/s11-final-background-restricted.json`、`s11-final-background-continued.json`，平台日志为 `s11-final-background-platform.log`。辅助服务仅属于 Debug，受 DUMP 权限保护；测试不访问真实模型。
+- 系统超时配置已恢复为未设置，通知权限已恢复。已查看手机全文／选区草稿与审阅截图，以及 900dp 模拟平板宽度的选区流程；卡片、选区提示和审阅按钮可见。截图位于 `app/build/s11-editor-agent-screenshots/` 及 `app/build/tablet-selection-polish-*.png`。完整真机、设备尺寸和三家真实模型服务矩阵仍属于 S11.12。
+
+S11.8–S11.12 按实施方案继续推进；本节受控模型测试不替代真实模型服务覆盖证据。

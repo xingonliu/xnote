@@ -15,6 +15,49 @@ import org.junit.Test
 // -- Tests
 
 class AgentTimelineTest {
+    @Test fun editorCarryPreservesDraftSelectionAcrossRestoreAndQueuedSubmission() = runBlocking {
+        withFixture { db, profiles, scope ->
+            val note = NoteEntity("note", null, "标题", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("前原文后"))))).encodeToJson(), null, 0, 0, 0, "摘要", 1, 1, null, null)
+            db.notes().upsert(note)
+            val model = client { emit(ModelEvent.Text("已收到")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+            val timeline = AgentTimeline(db, profiles, model, scope)
+            timeline.saveDraft("已有输入")
+            val selection = AgentSelection(note.agentVersion(), "body", 1, 3)
+            timeline.carryNote("note", selection, polish = true)
+            assertTrue(timeline.draft.value.startsWith("已有输入\n\n"))
+            assertTrue(db.agent().messages().isEmpty())
+            val restored = AgentTimeline(db, profiles, model, scope)
+            restored.awaitReady()
+            assertEquals(timeline.draft.value, restored.draft.value)
+            assertEquals(AgentDraftSelection("note", selection), restored.draftSelection.value)
+            restored.saveDraft("请保留我的语气")
+            restored.enqueue(restored.draft.value)
+            val message = db.agent().messages().single()
+            val source = Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).single()
+            assertEquals(selection, source.selection)
+            assertEquals(note.agentVersion(), db.agent().snapshot(source.snapshotId!!)!!.version)
+            assertEquals(note.updatedAtEpochMs, db.agent().snapshot(source.snapshotId!!)!!.noteUpdatedAtEpochMs)
+            assertNull(restored.draftSelection.value)
+            assertTrue(restored.draftNotes.value.isEmpty())
+            restored.resumeQueue()
+            withTimeout(5000) { restored.state.first { !it.running } }
+            val run = db.agent().observeRuns().first().single()
+            assertEquals(message.id, run.userMessageId)
+            val projected = restored.noteStore.projectMessage(run.id, db.agent().message(message.id)!!)!!
+            assertTrue(projected.message.text.contains("用户显式提供的笔记内容"))
+            assertTrue(projected.message.text.contains("\"selection\""))
+            restored.carryNote("note", selection)
+            val messageCount = db.agent().messages().size
+            db.notes().upsert(note.copy(title = "用户改过标题"))
+            try { restored.send("不应发送过期选区"); fail("stale selection") } catch (_: IllegalArgumentException) { }
+            assertEquals(messageCount, db.agent().messages().size)
+            assertEquals("不应发送过期选区", restored.draft.value)
+            assertEquals(selection, restored.draftSelection.value!!.selection)
+            restored.selectDraftNotes(emptyList())
+            assertNull(restored.draftSelection.value)
+        }
+    }
+
     @Test fun streamingAndFinalFactsArePersistedBeforeDisplayCompletes() = runBlocking {
         withFixture { db, profiles, scope ->
             val release = CompletableDeferred<Unit>()

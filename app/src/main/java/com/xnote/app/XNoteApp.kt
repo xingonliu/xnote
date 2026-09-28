@@ -1,5 +1,8 @@
 package com.xnote.app
 
+import com.xnote.app.data.agent.agentVersion
+import com.xnote.app.data.db.toEntity
+
 import com.xnote.app.design.XNoteCreateNoteButtonSize
 import androidx.compose.material3.LocalContentColor
 import androidx.activity.compose.BackHandler
@@ -301,6 +304,33 @@ fun XNoteApp(
         }
     }
 
+    fun openAgent(polish: Boolean, selectedOnly: Boolean) {
+        val session = editorSession ?: return
+        val selectedRange = if (selectedOnly) session.selection else null
+        val selectedDocument = session.document
+        uiState.moreVisible = false
+        appScope.launch {
+            try {
+                session.flushSave()
+                require(session.saveStatus != EditorSaveStatus.Error) { "笔记尚未保存，请重试。" }
+                val note = requireNotNull(session.note)
+                require(!note.isTrashed && note.document == session.document && note.title == session.title) { "笔记仍在变化，请保存后重试。" }
+                require(selectedRange == null || selectedDocument == session.document) { "选区内容已变化，请重新选择。" }
+                val selection = selectedRange?.let { range ->
+                    com.xnote.app.domain.agent.AgentSelection(
+                        note.toEntity().agentVersion(), range.blockId, range.min, range.max, range.tableRow, range.tableColumn,
+                    )
+                }
+                requireNotNull(agentTimeline).carryNote(note.id, selection, polish)
+                updateNavigationState(navigationState.openDestination(AppDestination.Agent))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                toastHostState.showSnackbar(failure.message ?: "暂时无法携带笔记，请重试。")
+            }
+        }
+    }
+
     fun createNote(notebookId: String?) {
         appScope.launch {
             val note = noteLibrary.createNote(notebookId)
@@ -440,6 +470,7 @@ fun XNoteApp(
                 onReadNotebook = { id -> updateNavigationState(navigationState.openReader(notebookId = id)) },
                 onReadNote = { editorSession?.note?.let { updateNavigationState(navigationState.openReader(noteId = it.id)) } },
                 onExport = { editorSession?.note?.let { updateNavigationState(navigationState.openExport(it.id)) } },
+                onOpenAgent = ::openAgent,
                 navigationRail = { railBackdrop ->
                     XNoteNavigationRail(navigationState.destination, { updateNavigationState(navigationState.openDestination(it)) },
                         railBackdrop, Modifier.align(Alignment.CenterStart))
@@ -698,6 +729,7 @@ fun XNoteApp(
                             onOpenNotebook = ::openNotebook,
                             onCreateNote = ::createNote,
                             onPop = ::popNotes,
+                            onOpenAgent = ::openAgent,
                             onExport = {
                                 uiState.moreVisible = false
                                 appScope.launch {

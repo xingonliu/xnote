@@ -47,13 +47,18 @@ class AgentFoundationTest {
                 connection.execSQL("INSERT INTO agent_runs (id, segmentId, userMessageId, profileId, profileVersion, status, createdAtEpochMs, updatedAtEpochMs) VALUES ('run', 'segment', 'message', 'profile', 1, 'Interrupted', 100, 200)")
                 connection.execSQL("INSERT INTO agent_tool_events (id, runId, callId, name, argumentsJson, resultJson, status, permissionRevision, createdAtEpochMs) VALUES ('event', 'run', 'read', 'read', '{}', '{}', 'Committed', 0, 200)")
                 connection.execSQL("INSERT INTO agent_reviews VALUES ('review', 'note', 'Pending', 200, NULL)")
+                connection.execSQL("INSERT INTO agent_draft (id, text, noteIdsJson) VALUES (1, '保留草稿', '[\"note\"]')")
                 connection.execSQL("PRAGMA user_version = 8")
             }
             XNoteDatabase.create(context, name).withClose { db ->
                 assertEquals(document, db.notes().get("note")!!.documentJson)
+                assertEquals("保留草稿", db.agent().draft()!!.text)
+                assertEquals("[\"note\"]", db.agent().draft()!!.noteIdsJson)
+                assertNull(db.agent().draft()!!.selectionJson)
                 assertEquals(AgentRunStatus.Interrupted, db.agent().run("run")!!.status)
                 assertEquals(AgentReviewStatus.Pending, db.agent().reviews("note").single().status)
                 assertEquals("snapshot", db.agent().snapshotRefs("message").single().snapshotId)
+                assertEquals(0L, db.agent().snapshot("snapshot")!!.noteUpdatedAtEpochMs)
                 assertEquals(AgentToolStatus.Committed, db.agent().toolEvent("run", "read")!!.status)
                 db.agent().insertToolSnapshotRef(AgentToolSnapshotRefEntity("event", "snapshot"))
                 assertEquals(document, db.agent().readSnapshot("segment", "note", "v8")!!.documentJson)

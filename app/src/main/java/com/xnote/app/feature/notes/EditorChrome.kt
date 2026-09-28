@@ -66,6 +66,7 @@ fun EditorHeader(
     backdrop: Backdrop,
     onBack: (() -> Unit)?,
     onMore: () -> Unit,
+    onOpenAgent: () -> Unit,
     moreAnchor: XNotePopupAnchor,
     modifier: Modifier = Modifier,
 ) {
@@ -90,6 +91,14 @@ fun EditorHeader(
             )
         }
         Spacer(Modifier.weight(1f))
+        EditorGlassIconButton(
+            iconRes = R.drawable.ic_keyline_stroke_star,
+            description = "与 Agent 对话",
+            backdrop = backdrop,
+            enabled = session?.note != null,
+            onClick = onOpenAgent,
+            modifier = Modifier.size(XNoteButtonSize).testTag("xnote-editor-agent"),
+        )
         Row(
             horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
             verticalAlignment = Alignment.CenterVertically,

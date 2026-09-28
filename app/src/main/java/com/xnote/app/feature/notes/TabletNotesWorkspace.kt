@@ -66,6 +66,7 @@ fun TabletNotesWorkspace(
     onReadNotebook: (String) -> Unit,
     onReadNote: () -> Unit,
     onExport: () -> Unit,
+    onOpenAgent: (Boolean, Boolean) -> Unit,
     navigationRail: @Composable BoxScope.(Backdrop) -> Unit,
 ) {
     val outerBackdrop = rememberLayerBackdrop()
@@ -135,7 +136,7 @@ fun TabletNotesWorkspace(
                         if (!navigation.isSearchOpen) {
                             NotesChrome(parentRoute, library, ui, notebooks, notebookStatsFrom(notes), listBackdrop, true, editorSession,
                                 background, listAnchor, toast, onOpenNotebook, onCreateNote,
-                                { onOpenCollection(NoteCollection.All) }, { notebookId?.let(onReadNotebook) }, {}, { selectionHeight = it },
+                                { onOpenCollection(NoteCollection.All) }, { notebookId?.let(onReadNotebook) }, {}, onOpenAgent, { selectionHeight = it },
                                 settings = settings, showBack = parentRoute != NotesRoute.Collection(NoteCollection.All) || editor != null)
                         } else {
                             XNoteHeader("搜索", listBackdrop, onBack = { onSearchVisible(false) }, actions = listOf(
@@ -160,7 +161,8 @@ fun TabletNotesWorkspace(
                                 }
                             }, overlay = { contentBackdrop ->
                                 if (editor != null) NotesChrome(editor, library, editorUi, notebooks, notebookStatsFrom(notes), contentBackdrop, true,
-                                    editorSession, background, editorAnchor, toast, onOpenNotebook, onCreateNote, onBack, onReadNote, onExport, {}, settings = settings)
+                                    editorSession, background, editorAnchor, toast, onOpenNotebook, onCreateNote, onBack, onReadNote, onExport,
+                                    { polish, selectedOnly -> editorUi.moreVisible = false; onOpenAgent(polish, selectedOnly) }, {}, settings = settings)
                             })
                     }
                 }

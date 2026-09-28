@@ -102,12 +102,12 @@ fun AgentSnapshotDialog(snapshot: AgentSnapshotEntity, backdrop: Backdrop, onDis
     XNoteDialog(true, onDismiss, "发送时快照", backdrop, XNoteDialogAction("关闭", onDismiss)) {
         Text(snapshot.title.ifBlank { "未命名笔记" }, style = MaterialTheme.typography.titleMedium)
         Text("版本 ${snapshot.version.take(12)} · 此处保留发送时内容", style = MaterialTheme.typography.bodySmall)
-        Text(extractPlainText(decodeNoteDocument(snapshot.documentJson)), Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()))
+        Text(extractPlainText(decodeNoteDocument(snapshot.documentJson)), Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).testTag("agent-snapshot-body"))
     }
 }
 
 @Composable
-fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue: (() -> Unit)?, onDismiss: () -> Unit) {
+fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue: (() -> Unit)?, onStop: (() -> Unit)?, onDismiss: () -> Unit) {
     XNoteDialog(true, onDismiss, "工具调用详情", backdrop, XNoteDialogAction("关闭", onDismiss)) {
         Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("${event.name} · ${event.status.toolStatusLabel()}")
@@ -126,6 +126,7 @@ fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue:
             Text("参数：${event.argumentsJson}")
             Text("结果：${event.resultJson ?: "等待执行或授权"}")
             Text("开始：${java.util.Date(event.createdAtEpochMs)}\n结束：${event.committedAtEpochMs?.let { java.util.Date(it) } ?: "尚未结束"}", style = MaterialTheme.typography.bodySmall)
+            if (onStop != null) LiquidButton(onStop, backdrop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止所属任务") }
             if (onContinue != null) {
                 Text("继续所属任务会保留已提交结果，后续执行重新检查当前权限。", style = MaterialTheme.typography.bodySmall)
                 LiquidButton(onContinue, backdrop, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续此任务") }

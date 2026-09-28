@@ -105,7 +105,7 @@ class AgentFlowTest {
         hideKeyboard()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("发送快照 · 测试笔记"))
         compose.onNodeWithText("发送快照 · 测试笔记").performClick()
-        compose.onNodeWithText("发送时正文").assertExists()
+        compose.onNodeWithTag("agent-snapshot-body").assertTextContains("发送时正文")
         screenshot("agent-snapshot-preview")
         compose.onNodeWithText("关闭").performClick()
         compose.onNodeWithTag("agent-permission-settings").performClick()
@@ -240,6 +240,39 @@ class AgentFlowTest {
     }
 
     // -- Functions
+
+    @Test fun toolDetailsCanStopTheOwningRunWithoutUndoingCommittedRead() {
+        val note = runBlocking {
+            timeline.awaitReady()
+            profiles.save(ModelProfile("stop-tool", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            library.createNote(null)
+        }
+        var requests = 0
+        val model = object : ModelClient {
+            override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
+                if (++requests == 1) {
+                    emit(ModelEvent.ToolCall(ModelToolCall("read", "read", buildJsonObject { put("note_id", note.id) })))
+                    emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                } else awaitCancellation()
+            }
+        }
+        val running = AgentTimeline(database, profiles, model, scope)
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, agentTimeline = running) } }
+        compose.onNodeWithText("Agent").performClick()
+        runBlocking { running.send("读取后继续整理") }
+        compose.waitUntil(5000) { requests == 2 }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
+        compose.onNodeWithText("read · 已完成").performClick()
+        compose.onNodeWithTag("agent-tool-stop").performScrollTo().performClick()
+        compose.waitUntil(5000) { !running.state.value.running }
+        runBlocking {
+            val run = database.agent().run(database.agent().messages().first().runId!!)!!
+            assertEquals(AgentRunStatus.Cancelled, run.status)
+            assertEquals(AgentToolStatus.Committed, database.agent().toolEvents(run.id).single().status)
+        }
+    }
 
     private fun configureWindow() {
         // Match MainActivity's resize policy; the generic Compose host otherwise pans the window.

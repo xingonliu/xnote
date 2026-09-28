@@ -11,4 +11,5 @@ data class AgentDraftEntity(
     @PrimaryKey val id: Int = 1,
     val text: String,
     @ColumnInfo(defaultValue = "'[]'") val noteIdsJson: String = "[]",
+    @ColumnInfo(defaultValue = "NULL") val selectionJson: String? = null,
 )

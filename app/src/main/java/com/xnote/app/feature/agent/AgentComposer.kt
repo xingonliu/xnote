@@ -22,6 +22,11 @@ import com.xnote.app.domain.agent.AgentPermission
 import com.xnote.app.domain.agent.AgentPermissionLevel
 import com.xnote.app.domain.agent.AgentScope
 
+// -- Type Definitions
+
+data class AgentComposerNote(val id: String, val title: String, val summary: String, val notebook: String,
+    val modified: String, val selected: Boolean)
+
 // -- Functions
 
 @Composable
@@ -32,7 +37,7 @@ fun AgentComposer(
     running: Boolean,
     canSend: Boolean,
     permission: AgentPermission,
-    notes: List<Pair<String, String>>,
+    notes: List<AgentComposerNote>,
     onRemoveNote: (String) -> Unit,
     onPreviewNote: (String) -> Unit,
     attachmentAnchor: XNotePopupAnchor,
@@ -57,13 +62,18 @@ fun AgentComposer(
         XNoteSmoothCornerShape(24.dp)).padding(8.dp).testTag("agent-composer")) {
         if (notes.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            notes.forEach { (id, title) ->
+            notes.forEach { note ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton({ onPreviewNote(id) }, Modifier.widthIn(max = 180.dp).testTag("agent-draft-note-$id")) {
-                        Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    TextButton({ onPreviewNote(note.id) }, Modifier.widthIn(max = 232.dp).testTag("agent-draft-note-${note.id}")) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(note.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(note.summary, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                            Text("${note.notebook} · ${note.modified}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
+                            if (note.selected) Text("仅润色所选文字", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
-                    IconButton({ onRemoveNote(id) }, Modifier.testTag("agent-remove-note-$id")) {
-                        Icon(painterResource(R.drawable.ic_keyline_stroke_bin), "移除附加笔记：$title", Modifier.size(18.dp))
+                    IconButton({ onRemoveNote(note.id) }, Modifier.testTag("agent-remove-note-${note.id}")) {
+                        Icon(painterResource(R.drawable.ic_keyline_stroke_bin), "移除附加笔记：${note.title}", Modifier.size(18.dp))
                     }
                 }
             }
@@ -81,7 +91,7 @@ fun AgentComposer(
                 }
             },
         )
-        if (running && input.isNotBlank()) Text("发送后补充当前任务", Modifier.padding(horizontal = 12.dp),
+        if (running && input.isNotBlank()) Text(if (notes.any { it.selected }) "选区润色为独立任务，可从任务队列加入" else "发送后补充当前任务", Modifier.padding(horizontal = 12.dp),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onAdd, Modifier.size(48.dp).xNotePopupAnchor(attachmentAnchor).testTag("agent-add-attachment"), enabled) {

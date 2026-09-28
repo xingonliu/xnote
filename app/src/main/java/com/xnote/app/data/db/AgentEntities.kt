@@ -98,6 +98,7 @@ data class AgentSnapshotEntity(
     val backgroundKey: String?,
     val notebookId: String?,
     val createdAtEpochMs: Long,
+    @ColumnInfo(defaultValue = "0") val noteUpdatedAtEpochMs: Long = 0,
 )
 
 @Entity(

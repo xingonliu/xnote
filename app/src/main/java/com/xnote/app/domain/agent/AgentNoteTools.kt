@@ -101,6 +101,8 @@ val AgentNoteTools = listOf(
                     putJsonObject("blockId") { put("type", "string") }
                     putJsonObject("start") { put("type", "integer"); put("minimum", 0) }
                     putJsonObject("end") { put("type", "integer"); put("minimum", 0) }
+                    putJsonObject("tableRow") { put("type", "integer"); put("minimum", 0) }
+                    putJsonObject("tableColumn") { put("type", "integer"); put("minimum", 0) }
                 }
                 putJsonArray("required") { add("version"); add("blockId"); add("start"); add("end") }
                 put("additionalProperties", false)

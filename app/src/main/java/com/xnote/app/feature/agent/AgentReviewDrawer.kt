@@ -170,7 +170,16 @@ private fun AgentCumulativeDiff(before: AgentEditableContent, after: AgentEditab
     changed.forEach { id ->
         XNoteGroupCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AgentDiffText(blockText(old[id]), blockText(latest[id]))
+                val previousIndex = before.document.blocks.indexOfFirst { it.id == id }
+                val currentIndex = after.document.blocks.indexOfFirst { it.id == id }
+                Text(when {
+                    previousIndex < 0 -> "新增第 ${currentIndex + 1} 段"
+                    currentIndex < 0 -> "删除原第 ${previousIndex + 1} 段"
+                    previousIndex != currentIndex -> "原第 ${previousIndex + 1} 段 → 第 ${currentIndex + 1} 段"
+                    else -> "第 ${currentIndex + 1} 段"
+                }, style = MaterialTheme.typography.labelMedium)
+                val monospace = (old[id] as? TextBlock)?.paragraphStyle == ParagraphStyle.Monospace || (latest[id] as? TextBlock)?.paragraphStyle == ParagraphStyle.Monospace
+                AgentDiffText(blockText(old[id]), blockText(latest[id]), byLine = monospace)
                 if (old[id] is TextBlock || latest[id] is TextBlock) {
                     val prior = old[id] as? TextBlock; val next = latest[id] as? TextBlock
                     if (prior?.copy(inlines = emptyList()) != next?.copy(inlines = emptyList()) || prior?.inlines?.map { it.copy(text = "") } != next?.inlines?.map { it.copy(text = "") }) {
@@ -207,26 +216,22 @@ private fun AgentInlineComparison(before: List<InlineRun>, after: List<InlineRun
 }
 
 @Composable
-private fun AgentDiffText(before: String, after: String) {
+private fun AgentDiffText(before: String, after: String, byLine: Boolean = false) {
     val removed = removedColor()
     val added = addedColor()
-    val text = remember(before, after, removed, added) {
-        val base = before.codePoints().toArray().toList()
-        val next = after.codePoints().toArray().toList()
-        val edits = agentSequenceEdits(base, next) ?: listOf(AgentSequenceEdit(0, base.size, next))
-        fun List<Int>.string() = StringBuilder().also { builder -> forEach { builder.appendCodePoint(it) } }.toString()
+    val text = remember(before, after, byLine, removed, added) {
         buildAnnotatedString {
-            var offset = 0
-            for (edit in edits) {
-                append(base.subList(offset, edit.start).string())
-                withStyle(SpanStyle(color = removed, textDecoration = TextDecoration.LineThrough)) { append(base.subList(edit.start, edit.end).string()) }
-                withStyle(SpanStyle(color = added)) { append(edit.replacement.string()) }
-                offset = edit.end
+            for (part in agentDisplayDiff(before, after, byLine)) when (part.kind) {
+                AgentDiffKind.Equal -> append(part.text)
+                AgentDiffKind.Removed -> withStyle(SpanStyle(color = removed, textDecoration = TextDecoration.LineThrough)) {
+                    append(part.text)
+                    if (byLine && !part.text.endsWith('\n')) append('\n')
+                }
+                AgentDiffKind.Added -> withStyle(SpanStyle(color = added)) { append(part.text) }
             }
-            append(base.subList(offset, base.size).string())
         }
     }
-    Text(text)
+    Text(text, fontFamily = if (byLine) androidx.compose.ui.text.font.FontFamily.Monospace else null)
 }
 
 @Composable private fun removedColor() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFFF8A80) else RemovedColor
