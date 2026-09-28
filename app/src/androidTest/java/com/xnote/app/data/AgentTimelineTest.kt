@@ -137,7 +137,7 @@ class AgentTimelineTest {
         } finally { scope.cancel(); db.close(); context.deleteDatabase(name) }
     }
 
-    @Test fun newTopicPreservesHistoryAndResetsContext() = runBlocking {
+    @Test fun newTopicPreservesHistoryWithMarkedPendingSummaryTail() = runBlocking {
         withFixture { db, profiles, scope ->
             val requests = mutableListOf<ModelRequest>()
             val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("回答")); emit(ModelEvent.Finished(ModelFinish.Complete)) }, scope)
@@ -147,7 +147,10 @@ class AgentTimelineTest {
             timeline.send("新话题")
             withTimeout(5000) { timeline.runs.first { it.size == 2 && it.all { run -> run.status == AgentRunStatus.Complete } } }
             assertTrue(db.agent().messages().any { it.text == "旧话题" })
-            assertEquals(listOf("新话题"), requests.last().messages.map { it.text })
+            assertEquals("新话题", requests.last().messages.last().text)
+            assertTrue(requests.last().messages.first().text.startsWith("[前一片段摘要待生成；原文尾部]"))
+            assertEquals(1, db.memory().closedSegments().size)
+            assertNotNull(db.memory().job(db.memory().closedSegments().single().id))
         }
     }
 

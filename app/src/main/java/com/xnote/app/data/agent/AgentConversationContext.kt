@@ -14,10 +14,14 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
     /** Called inside the request transaction; all current inputs and derived replies are reprojected together. */
     suspend fun prepare(run: AgentRunEntity, profile: ModelProfile): AgentRequestContext {
         val history = database.agent().messages()
-        val boundary = history.lastOrNull { it.role == AgentMessageRole.Event && it.text == "开始新话题" }?.sequence ?: 0
+        val episodes = AgentEpisodeStore(database)
+        val recalled = episodes.recall(run, history.lastOrNull { it.runId == run.id && it.role == AgentMessageRole.User }?.text.orEmpty())
+        val summarized = database.memory().episodes().map { it.segmentId }.toSet()
+        val previousSegment = history.lastOrNull { it.segmentId != run.segmentId && it.runId != null }?.segmentId
         val turns = mutableListOf<AgentContextTurn>()
         val sources = mutableListOf<AgentMessageSource>()
-        for ((previousId, exchange) in history.filter { it.sequence > boundary && it.runId != run.id && it.runId != null }.groupBy { it.runId }) {
+        for ((previousId, exchange) in history.filter { it.runId != run.id && it.runId != null &&
+            (it.segmentId == run.segmentId || (it.segmentId == previousSegment && it.segmentId !in summarized)) }.groupBy { it.runId }) {
             val previous = database.agent().run(checkNotNull(previousId)) ?: continue
             if (previous.status != AgentRunStatus.Complete || previous.errorCode == "history_removed") continue
             val users = exchange.filter { it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Complete }
@@ -26,7 +30,11 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             val projected = (users + answer).map { notes.projectMessage(run.id, it) }
             if (projected.any { it == null }) continue
             val safe = projected.filterNotNull()
-            turns += AgentContextTurn(safe.dropLast(1).joinToString("\n") { it.message.text }, safe.last().message.text)
+            val previousSegmentFallback = exchange.first().segmentId != run.segmentId
+            turns += AgentContextTurn(
+                if (previousSegmentFallback) "[前一片段摘要待生成；原文尾部]\n" + safe.dropLast(1).joinToString("\n") { it.message.text }.takeLast(800)
+                else safe.dropLast(1).joinToString("\n") { it.message.text },
+                if (previousSegmentFallback) safe.last().message.text.takeLast(800) else safe.last().message.text)
             sources += safe.flatMap { it.sources }
         }
         val execution = mutableListOf<ModelMessage>()
@@ -50,6 +58,18 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         require(execution.any { it.role == AgentMessageRole.User })
         if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
         val tools = if (profile.capabilities.tools) AgentNoteTools else emptyList()
-        return AgentRequestContext(planAgentExecutionContext(profile, turns, execution, tools), sources.distinct())
+        val base = planAgentExecutionContext(profile, turns, execution, tools)
+        var remaining = profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens - base.estimatedInputTokens
+        val memoryMessages = mutableListOf<ModelMessage>()
+        for (memory in recalled) {
+            val message = ModelMessage(AgentMessageRole.User, memory.text)
+            val cost = estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(message))
+            if (cost > remaining) continue
+            remaining -= cost
+            memoryMessages += message
+            sources += memory.sources
+        }
+        val memoryCost = memoryMessages.sumOf { estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(it)) }
+        return AgentRequestContext(base.copy(messages = memoryMessages + base.messages, estimatedInputTokens = base.estimatedInputTokens + memoryCost), sources.distinct())
     }
 }

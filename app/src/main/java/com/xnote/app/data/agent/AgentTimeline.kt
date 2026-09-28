@@ -22,6 +22,7 @@ class AgentTimeline(
     private val client: ModelClient,
     private val scope: CoroutineScope,
     private val startBackground: () -> Unit = {},
+    private val scheduleMemory: () -> Unit = {},
 ) {
     // -- State and Variables
 
@@ -32,6 +33,7 @@ class AgentTimeline(
     private val mutableDraftSelection = MutableStateFlow<AgentDraftSelection?>(null)
     val noteStore = AgentNoteStore(database)
     val reviewStore = AgentReviewStore(database)
+    val episodeStore = AgentEpisodeStore(database)
     private val conversation = AgentConversationContext(database, noteStore)
     private var runningJob: Job? = null
     @Volatile private var interruptionReason: String? = null
@@ -52,6 +54,8 @@ class AgentTimeline(
             mutableDraftSelection.value = database.agent().draft()?.selectionJson?.let { Json.decodeFromString<AgentDraftSelection>(it) }
         }
         mutableState.value = AgentTimelineState(ready = true)
+        episodeStore.sweep()
+        scheduleMemory()
     }
 
     // -- Derived Values
@@ -298,6 +302,7 @@ class AgentTimeline(
             val message = database.agent().messages().singleOrNull { it.id == messageId } ?: return@transaction
             // Invalidate the exchange for future context; related replies can contain deleted input.
             message.runId?.let { database.agent().run(it) }?.let { database.agent().saveRun(it.copy(errorCode = "history_removed")) }
+            episodeStore.invalidate(message.segmentId)
             removeMessage(messageId)
         } }
     }
@@ -311,6 +316,7 @@ class AgentTimeline(
                 database.agent().unfinishedRuns().forEach { database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now(), grantJson = null)) }
                 database.agent().pendingQueue().forEach { database.agent().deleteQueueItem(it.id) }
                 database.agent().messages().mapNotNull { it.runId }.distinct().forEach { database.agent().deleteToolEvents(it) }
+                database.agent().messages().map { it.segmentId }.distinct().forEach { episodeStore.invalidate(it) }
                 database.agent().messages().forEach { removeMessage(it.id) }
                 database.agent().openSegment()?.let { database.agent().saveSegment(it.copy(closedAtEpochMs = now(), closeReason = "clear_chat")) }
                 clearDraft()
@@ -323,13 +329,14 @@ class AgentTimeline(
         awaitReady()
         mutex.withLock { transaction {
             if (mutableState.value.running || database.agent().unfinishedRuns().isNotEmpty() || database.agent().pendingQueue().isNotEmpty()) throw ModelException(ModelError.Busy)
-            database.agent().openSegment()?.let { database.agent().saveSegment(it.copy(closedAtEpochMs = now(), closeReason = "new_topic")) }
+            database.agent().openSegment()?.let { episodeStore.close(it, "new_topic") }
             val segment = AgentSegmentEntity(id(), now())
             database.agent().saveSegment(segment)
             database.agent().insertMessage(AgentMessageEntity(id = id(), segmentId = segment.id, runId = null,
                 role = AgentMessageRole.Event, text = "开始新话题", status = AgentMessageStatus.Complete, createdAtEpochMs = now()))
             mutableState.value = AgentTimelineState(true, notice = "新话题已开始，时间线记录保留。")
         } }
+        scheduleMemory()
     }
 
     private suspend fun createRun(text: String, queued: AgentQueueEntity? = null): AgentRunEntity = transaction {
@@ -338,8 +345,12 @@ class AgentTimeline(
         planAgentContext(profile, emptyList(), text)
         var segment = database.agent().openSegment() ?: AgentSegmentEntity(id(), now()).also { database.agent().saveSegment(it) }
         val cost = database.agent().messages().filter { it.segmentId == segment.id }.sumOf { estimatedAgentTokens(it.text).toLong() }
-        if (cost + estimatedAgentTokens(text) > profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens) {
-            database.agent().saveSegment(segment.copy(closedAtEpochMs = now(), closeReason = "capacity"))
+        val lastCompleted = database.agent().messages().filter { it.segmentId == segment.id }.mapNotNull { it.runId }.distinct()
+            .mapNotNull { database.agent().run(it) }.filter { it.status in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }.maxOfOrNull { it.updatedAtEpochMs }
+        val closeReason = agentSegmentCloseReason(lastCompleted, now(), cost + estimatedAgentTokens(text),
+            profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens, database.agent().unfinishedRuns().isNotEmpty())
+        if (closeReason != null) {
+            episodeStore.close(segment, closeReason)
             segment = AgentSegmentEntity(id(), now()).also { database.agent().saveSegment(it) }
         }
         val userId = queued?.messageId ?: id()
@@ -374,7 +385,10 @@ class AgentTimeline(
                     runningJob = null
                     if (stopRequested) transaction { pauseQueue() }
                     else if (database.agent().run(run.id)?.status == AgentRunStatus.Complete) dispatchNext()
-                    if (runningJob == null) mutableState.value = mutableState.value.copy(running = false)
+                    if (runningJob == null) {
+                        mutableState.value = mutableState.value.copy(running = false)
+                        scheduleMemory()
+                    }
                 }
             } }
         }
