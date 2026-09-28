@@ -314,7 +314,7 @@ class AgentTimelineTest {
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("read", "note_search", "write"), requests.first().tools.map { it.name })
+            assertEquals(listOf("create", "delete", "read", "note_search", "write"), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
             val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
@@ -469,6 +469,78 @@ class AgentTimelineTest {
             restored.reviewStore.reject("readable")
             assertTrue(db.notes().get("readable")!!.documentJson.contains("用户重写"))
             assertFalse(db.notes().get("readable")!!.documentJson.contains("补充说明"))
+        }
+    }
+
+    @Test fun createdNoteGrantSurvivesModelUsageAndCompletionWithoutExpandingGlobalPermission() = runBlocking {
+        withFixture { db, profiles, scope ->
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            var requests = 0
+            var createdId = ""
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                when (++requests) {
+                    1 -> {
+                        emit(ModelEvent.ToolCall(ModelToolCall("create", "create", Json.encodeToJsonElement(AgentCreateArguments("新建", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("新正文"))))).encodeToJson())).jsonObject)))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    2 -> {
+                        createdId = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("note_id").jsonPrimitive.content
+                        emit(ModelEvent.ToolCall(ModelToolCall("read", "read", Json.encodeToJsonElement(AgentReadArguments(createdId)).jsonObject)))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    else -> { emit(ModelEvent.Usage(5, 8)); emit(ModelEvent.Text("已创建并读取。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                }
+            }, scope)
+            timeline.send("新建一篇笔记")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val waiting = db.agent().unfinishedRuns().single()
+            assertEquals(AgentRunStatus.WaitingPermission, waiting.status)
+            timeline.answerCreation(waiting.id, "create", AgentCreateTarget(null))
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(3, requests)
+            assertEquals(AgentPermission(), AgentPermissionStore(db).current())
+            val completed = db.agent().run(waiting.id)!!
+            assertEquals(AgentRunStatus.Complete, completed.status)
+            assertEquals(5L, completed.inputTokens)
+            val grant = Json.decodeFromString<AgentRunGrant>(completed.grantJson!!)
+            assertEquals(setOf(createdId), grant.createdNoteIds)
+            assertTrue(grant.noteIds.isEmpty())
+            timeline.reviewStore.reject(createdId)
+            assertNotNull(db.notes().get(createdId)!!.deletedAtEpochMs)
+        }
+    }
+
+    @Test fun deletingAttachedNoteContinuesWithReceiptAndNeverResendsDeletedBodyOrNativeParts() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            val original = db.notes().get("readable")!!
+            val requests = mutableListOf<ModelRequest>()
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                requests += request
+                if (requests.size == 1) {
+                    assertTrue(request.messages.first().text.contains("受保护正文"))
+                    emit(ModelEvent.NativeParts(buildJsonArray { add(buildJsonObject { put("text", "受保护正文的旧原生片段") }) }))
+                    emit(ModelEvent.ToolCall(ModelToolCall("delete", "delete", Json.encodeToJsonElement(AgentDeleteArguments(original.id, original.agentVersion())).jsonObject)))
+                    emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                } else {
+                    val wire = Json.encodeToString(request.messages)
+                    assertFalse(wire.contains("受保护正文"))
+                    assertFalse(wire.contains("旧原生片段"))
+                    assertTrue(wire.contains("trashed"))
+                    emit(ModelEvent.Text("笔记已移入回收站，可以单篇审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                }
+            }, scope)
+            timeline.selectDraftNotes(listOf(original.id))
+            timeline.send("删除这篇附加笔记")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(2, requests.size)
+            val runId = db.agent().messages().first().runId!!
+            assertEquals(AgentRunStatus.Complete, db.agent().run(runId)!!.status)
+            assertNotNull(db.notes().get(original.id)!!.deletedAtEpochMs)
+            timeline.reviewStore.reject(original.id)
+            assertNull(db.notes().get(original.id)!!.deletedAtEpochMs)
         }
     }
 

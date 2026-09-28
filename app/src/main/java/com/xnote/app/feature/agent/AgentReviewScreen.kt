@@ -43,14 +43,14 @@ private val RemovedColor = Color(0xFFC0392B)
 // -- Functions
 
 @Composable
-fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: AppSettings, onBack: () -> Unit) {
+fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: AppSettings, initialNoteId: String? = null, onBack: () -> Unit) {
     val store = timeline.reviewStore
     val reviews by store.reviews.collectAsState(emptyList())
     val active by library.observeActiveNotes().collectAsState(emptyList())
     val trash by library.observeTrashedNotes().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     val backdrop = rememberLayerBackdrop()
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    var selected by rememberSaveable(initialNoteId) { mutableStateOf(initialNoteId) }
     var detail by remember { mutableStateOf<AgentReviewDetail?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -71,7 +71,8 @@ fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: A
         AgentReviewResult.Unrecoverable -> "笔记已永久删除，无法恢复。"
         else -> "改动已撤回，用户编辑已保留。"
     } }
-    fun adjust(noteId: String) { action {
+    fun adjust(noteId: String, restore: Boolean) { action {
+        if (restore) library.restoreNotes(listOf(noteId))
         timeline.selectDraftNotes((timeline.draftNotes.value + noteId).distinct())
         timeline.saveDraft(listOf(timeline.draft.value, "请重新读取附加笔记的当前版本，保留我的编辑，并调整尚未审阅的改动。").filter { it.isNotBlank() }.joinToString("\n\n"))
         onBack()
@@ -99,20 +100,29 @@ fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: A
                 } else if (current == null) Text("正在读取改动…") else {
                     Text(current.current?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记", style = MaterialTheme.typography.titleLarge)
                     Text("来源：Agent · ${current.changes.size} 次累计改动", style = MaterialTheme.typography.bodySmall)
-                    current.changes.firstOrNull()?.let { first -> Text("版本 ${first.beforeVersion?.take(12)} → ${current.changes.last().afterVersion.take(12)}", style = MaterialTheme.typography.bodySmall) }
+                    current.changes.firstOrNull()?.let { first -> Text("版本 ${first.beforeVersion?.take(12) ?: "新建"} → ${current.changes.last().afterVersion.take(12)}", style = MaterialTheme.typography.bodySmall) }
                     Text("红色删除 · 绿色新增；用户后续编辑保留。", style = MaterialTheme.typography.bodySmall)
                     val rollback = current.rollback
                     val note = current.current
+                    val created = current.changes.any { it.kind == AgentChangeKind.Create }
+                    val deleted = current.changes.any { it.kind == AgentChangeKind.Trash }
+                    if (created) Text("本批包含新建笔记。整篇拒绝会将其移入回收站；存在用户内容时会暂停。")
+                    if (deleted && note != null) Text(if (note.deletedAtEpochMs == null) "笔记已恢复，将保留当前恢复状态。"
+                        else if (created) "本批新建的笔记目前在回收站。" else "笔记已移入回收站。拒绝删除可恢复；原笔记本不存在时恢复到未归档。")
                     when {
                         note == null -> Text("笔记已永久删除，改动无法恢复。")
-                        rollback is AgentContentMerge.Merged -> AgentCumulativeDiff(rollback.content, AgentEditableContent(note.title, decodeNoteDocument(note.documentJson)))
+                        rollback is AgentContentMerge.Merged -> {
+                            val actual = AgentEditableContent(note.title, decodeNoteDocument(note.documentJson))
+                            if (created) AgentCumulativeDiff(AgentEditableContent("", NoteDocument()), actual)
+                            else if (!deleted || rollback.content != actual) AgentCumulativeDiff(rollback.content, actual)
+                        }
                         rollback is AgentContentMerge.Conflict -> {
                             if (notice == null) Text("回退与当前内容冲突：${rollback.location}。全部拒绝不会部分写入。", Modifier.testTag("agent-review-conflict"))
                             Text("以下为已保存的 Agent 改动记录：")
                             current.changes.forEach { change ->
-                                val before = Json.decodeFromString<NoteEntity>(requireNotNull(change.beforeNoteJson))
+                                val before = change.beforeNoteJson?.let { Json.decodeFromString<NoteEntity>(it) }
                                 val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson)
-                                AgentCumulativeDiff(AgentEditableContent(before.title, decodeNoteDocument(before.documentJson)), AgentEditableContent(after.title, decodeNoteDocument(after.documentJson)))
+                                AgentCumulativeDiff(before?.let { AgentEditableContent(it.title, decodeNoteDocument(it.documentJson)) } ?: AgentEditableContent("", NoteDocument()), AgentEditableContent(after.title, decodeNoteDocument(after.documentJson)))
                             }
                         }
                         current.review.status == AgentReviewStatus.Undone -> Text("最近接受的改动已撤回。")
@@ -126,7 +136,9 @@ fun AgentReviewScreen(timeline: AgentTimeline, library: NoteLibrary, settings: A
                     }
                     if (rollback is AgentContentMerge.Conflict && note != null) {
                         if (current.review.status == AgentReviewStatus.Accepted) LiquidButton(onBack, backdrop, enabled = !busy) { Text("保留当前内容") }
-                        LiquidButton({ adjust(note.id) }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) { Text("重新调整") }
+                        LiquidButton({ adjust(note.id, note.deletedAtEpochMs != null) }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) {
+                            Text(if (note.deletedAtEpochMs != null) "恢复笔记并重新调整" else "重新调整")
+                        }
                     }
                     if (current.undoReview != null && note != null) {
                         val available = canUndoAcceptedAgentReview(current.undoReview.reviewedAtEpochMs, System.currentTimeMillis())

@@ -11,4 +11,5 @@ data class AgentToolDecision(
     val grant: AgentRunGrant?,
     val attachedNoteIds: Set<String>,
     val reason: String,
+    val createTarget: AgentCreateTarget? = null,
 )

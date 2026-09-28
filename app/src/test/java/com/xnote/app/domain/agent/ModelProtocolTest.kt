@@ -36,6 +36,17 @@ class ModelProtocolTest {
         }
     }
 
+    @Test fun geminiUsesJsonSchemaForNullableCreationTargets() {
+        val payload = modelRequestJson(profile(ModelProtocol.Gemini), request.copy(tools = AgentNoteTools))
+        val declaration = payload.getValue("tools").jsonArray.single().jsonObject.getValue("functionDeclarations").jsonArray
+            .map { it.jsonObject }.single { it.getValue("name").jsonPrimitive.content == "create" }
+        assertFalse(declaration.containsKey("parameters"))
+        val schema = declaration.getValue("parametersJsonSchema").jsonObject
+        assertEquals(JsonPrimitive(false), schema.getValue("additionalProperties"))
+        val target = schema.getValue("properties").jsonObject.getValue("target").jsonObject
+        assertEquals(listOf("string", "null"), target.getValue("properties").jsonObject.getValue("notebookId").jsonObject.getValue("type").jsonArray.map { it.jsonPrimitive.content })
+    }
+
     @Test fun providerErrorPayloadNeverAppearsInException() {
         for (protocol in ModelProtocol.entries) {
             val error = assertThrows(ModelException::class.java) { ModelStreamDecoder(protocol).accept("""{"error":{"message":"secret-key-value"}}""") }

@@ -84,6 +84,23 @@ class AgentReviewFlowTest {
         compose.onNodeWithTag("agent-input").assertExists()
     }
 
+    @Test fun trashedConflictRequiresExplicitRestoreBeforePreparingAdjustment() {
+        val noteId = seed()
+        runBlocking {
+            library.saveNoteContent(noteId, "周末计划", document("用户需要保留的内容"))
+            library.trashNotes(listOf(noteId))
+        }
+        open(noteId)
+        compose.onNodeWithTag("agent-review-adjust").assertTextContains("恢复笔记并重新调整")
+        compose.onNodeWithTag("agent-review-adjust").performScrollTo().performClick()
+        compose.waitUntil(5000) { timeline.draftNotes.value == listOf(noteId) }
+        runBlocking {
+            assertNull(database.notes().get(noteId)!!.deletedAtEpochMs)
+            assertEquals("用户需要保留的内容", body(noteId))
+            assertEquals(AgentReviewStatus.Pending, database.agent().reviews(noteId).single().status)
+        }
+    }
+
     // -- Functions
 
     private fun seed(): String = runBlocking {

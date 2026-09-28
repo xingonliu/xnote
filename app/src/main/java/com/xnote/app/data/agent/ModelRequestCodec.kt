@@ -79,7 +79,7 @@ fun modelRequestJson(profile: ModelProfile, request: ModelRequest): JsonObject =
             if (request.tools.isNotEmpty()) {
                 putJsonArray("tools") { add(buildJsonObject { putJsonArray("functionDeclarations") {
                     request.tools.forEach { tool -> add(buildJsonObject {
-                        put("name", tool.name); put("description", tool.description); put("parameters", tool.parameters)
+                        put("name", tool.name); put("description", tool.description); put("parametersJsonSchema", tool.parameters)
                     }) }
                 } }) }
                 if (request.forceTool) putJsonObject("toolConfig") { putJsonObject("functionCallingConfig") { put("mode", "ANY") } }

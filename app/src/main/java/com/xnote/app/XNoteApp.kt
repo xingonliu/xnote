@@ -152,6 +152,7 @@ fun XNoteApp(
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
     var agentReviewsOpen by rememberSaveable { mutableStateOf(false) }
+    var agentReviewNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
@@ -382,7 +383,7 @@ fun XNoteApp(
     }
 
     if (agentReviewsOpen && agentTimeline != null) {
-        com.xnote.app.feature.agent.AgentReviewScreen(agentTimeline, noteLibrary, appSettings, onBack = { agentReviewsOpen = false })
+        com.xnote.app.feature.agent.AgentReviewScreen(agentTimeline, noteLibrary, appSettings, agentReviewNoteId, onBack = { agentReviewsOpen = false })
         return
     }
 
@@ -573,7 +574,7 @@ fun XNoteApp(
                     DestinationContent(
                         agentTimeline = agentTimeline,
                         onAgentOverlayVisible = { agentOverlayVisible = it },
-                        onOpenAgentReviews = { agentReviewsOpen = true },
+                        onOpenAgentReviews = { agentReviewNoteId = it; agentReviewsOpen = true },
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
                         uiState = uiState,
@@ -772,7 +773,7 @@ fun XNoteApp(
 private fun DestinationContent(
     agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
     onAgentOverlayVisible: (Boolean) -> Unit,
-    onOpenAgentReviews: () -> Unit,
+    onOpenAgentReviews: (String?) -> Unit,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,

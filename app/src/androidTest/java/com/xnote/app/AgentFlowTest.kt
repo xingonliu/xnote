@@ -75,7 +75,7 @@ class AgentFlowTest {
         }
         compose.onNodeWithTag("agent-input").assert(SemanticsMatcher.expectValue(
             androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        hideKeyboard()
         compose.waitUntil(5000) { compose.onAllNodesWithText("我的").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("已完成", substring = true))
         compose.onNodeWithText("已完成", useUnmergedTree = true).assertExists()
@@ -108,7 +108,7 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-input").performTextInput("总结这篇笔记")
         compose.onNodeWithTag("agent-send").performClick()
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Assistant && it.status == AgentMessageStatus.Complete } } }
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        hideKeyboard()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("发送快照 · 测试笔记"))
         compose.onNodeWithText("发送快照 · 测试笔记").performClick()
         compose.onNodeWithText("发送时正文").assertExists()
@@ -148,7 +148,7 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-input").performTextInput("读取并整理")
         compose.onNodeWithTag("agent-send").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        hideKeyboard()
         compose.onNodeWithTag("agent-authorize").performClick()
         compose.onNodeWithTag("agent-scope-Unfiled").performScrollTo().performClick()
         compose.onNodeWithText("允许并继续").performClick()
@@ -171,6 +171,15 @@ class AgentFlowTest {
     }
 
     // -- Functions
+
+    private fun hideKeyboard() {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).forEach {
+                    it.window.insetsController?.hide(android.view.WindowInsets.Type.ime())
+                }
+        }
+    }
 
     private fun screenshot(name: String) {
         val directory = File(context.getExternalFilesDir(null), "s11-screenshots").apply { mkdirs() }

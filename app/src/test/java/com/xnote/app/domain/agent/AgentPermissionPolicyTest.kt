@@ -75,11 +75,14 @@ class AgentPermissionPolicyTest {
     }
 
     @Test fun perRunCreationDoesNotAuthorizeWholeNotebook() {
-        val granted = context.copy(grant = AgentRunGrant("run", 0, AgentPermissionLevel.Edit, createTargets = setOf(AgentCreateTarget("book"))))
-        val afterCreation = granted.copy(grant = granted.grantCreatedNote("new", AgentCreateTarget("book"), setOf("book")))
+        val granted = context.copy(grant = AgentRunGrant("run", 0, AgentPermissionLevel.Read, noteIds = setOf("read-only")))
+        val afterCreation = granted.copy(grant = granted.grantCreatedNote("new"))
         assertTrue(afterCreation.canEdit(bookNote.copy(noteId = "new")))
         assertFalse(afterCreation.canReadCurrent(bookNote))
         assertFalse(afterCreation.copy(runId = "next").canEdit(bookNote.copy(noteId = "new")))
+        assertTrue(afterCreation.canReadCurrent(bookNote.copy(noteId = "read-only")))
+        assertFalse(afterCreation.canEdit(bookNote.copy(noteId = "read-only")))
+        assertEquals(AgentCreateDecision.RequiresAuthorization, afterCreation.createDecision(setOf("book")))
         assertEquals(AgentScope.Attached, afterCreation.permission.scope)
     }
 }

@@ -24,7 +24,7 @@ data class AgentRunGrant(
     val permissionRevision: Long,
     val level: AgentPermissionLevel,
     val noteIds: Set<String> = emptySet(),
-    val createTargets: Set<AgentCreateTarget> = emptySet(),
+    val createdNoteIds: Set<String> = emptySet(),
 )
 
 @Serializable

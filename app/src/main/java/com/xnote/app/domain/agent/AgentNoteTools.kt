@@ -15,6 +15,12 @@ data class AgentSearchArguments(val query: String, val offset: Int = 0, val limi
 data class AgentWriteArguments(val note_id: String, val base_version: String, val title: String, val document_json: String,
     val selection: AgentSelection? = null)
 
+@Serializable
+data class AgentCreateArguments(val title: String, val document_json: String, val target: AgentCreateTarget? = null)
+
+@Serializable
+data class AgentDeleteArguments(val note_id: String, val base_version: String)
+
 sealed interface AgentToolResult {
     data class Finished(val result: ModelToolResult, val sources: List<AgentMessageSource>) : AgentToolResult
     data class PermissionRequired(val callId: String) : AgentToolResult
@@ -36,6 +42,30 @@ object AgentNoteLimits {
 }
 
 val AgentNoteTools = listOf(
+    ModelTool("create", "三级权限新建笔记并实时保存，进入单篇审阅。仅可新建文字/表格，不添加媒体或设置背景。document_json 与 read/write 格式相同。用户明确指定归属时传 target（notebookId 为笔记本 ID，null 为未归档）；未指定时省略 target，应用会使用唯一可写目标或暂停请用户选择并授权。本次新建不会扩大整个笔记本权限。", buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("title") { put("type", "string") }
+            putJsonObject("document_json") { put("type", "string"); put("maxLength", AgentNoteLimits.MaxWriteArgumentCharacters) }
+            putJsonObject("target") {
+                put("type", "object")
+                putJsonObject("properties") { putJsonObject("notebookId") { putJsonArray("type") { add("string"); add("null") } } }
+                putJsonArray("required") { add("notebookId") }
+                put("additionalProperties", false)
+            }
+        }
+        putJsonArray("required") { add("title"); add("document_json") }
+        put("additionalProperties", false)
+    }),
+    ModelTool("delete", "三级权限将笔记移入回收站，可从单篇审阅拒绝并恢复。先 read 或使用已附加快照的版本作为 base_version；正文或设置已变化时暂停，不删除用户的新内容。不会永久删除。", buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("note_id") { put("type", "string") }
+            putJsonObject("base_version") { put("type", "string") }
+        }
+        putJsonArray("required") { add("note_id"); add("base_version") }
+        put("additionalProperties", false)
+    }),
     ModelTool("read", "读取已授权笔记。省略 snapshot_id 时读取当前版本，返回可固定该版本的 snapshot_id；分页继续时传回它，避免混合不同版本。也可指定发送快照 ID。正文为可拼接的 document_json，offset/next_offset 使用 UTF-16 字符位置。快照不是当前版本，也不会增加权限。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {

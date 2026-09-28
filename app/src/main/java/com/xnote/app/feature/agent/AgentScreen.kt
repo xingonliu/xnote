@@ -28,6 +28,8 @@ import com.xnote.app.domain.agent.*
 import com.xnote.app.data.db.AgentSnapshotEntity
 import com.xnote.app.data.db.AgentToolEventEntity
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -35,12 +37,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: PaddingValues, modifier: Modifier = Modifier,
-    onOverlayVisible: (Boolean) -> Unit = {}, onOpenReviews: () -> Unit) {
+    onOverlayVisible: (Boolean) -> Unit = {}, onOpenReviews: (String?) -> Unit) {
     val messages by timeline.messages.collectAsState(emptyList())
     val runs by timeline.runs.collectAsState(emptyList())
     val queue by timeline.queue.collectAsState(emptyList())
     val selectedNotes by timeline.draftNotes.collectAsState()
     val availableNotes by timeline.noteStore.availableNotes.collectAsState(emptyList())
+    val trashedNotes by timeline.noteStore.trashedNotes.collectAsState(emptyList())
     val notebooks by timeline.noteStore.notebooks.collectAsState(emptyList())
     val permission by timeline.noteStore.permission.collectAsState(AgentPermission())
     val snapshots by timeline.noteStore.snapshots.collectAsState(emptyList())
@@ -84,7 +87,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
             if (!state.running) LiquidButton({ action { timeline.newTopic() } }, backdrop, enabled = state.ready && !state.running && !unresolved && queue.isEmpty(), modifier = Modifier.testTag("agent-new-topic")) { Text("开始新话题") }
             LiquidButton({ confirmClear = true }, backdrop, enabled = state.ready, modifier = Modifier.testTag("agent-clear")) { Text("清空聊天") }
             LiquidButton({ permissionDialog = true }, backdrop, modifier = Modifier.testTag("agent-permission-settings")) { Text("权限与范围") }
-            LiquidButton(onOpenReviews, backdrop, modifier = Modifier.testTag("agent-reviews")) { Text("笔记改动") }
+            LiquidButton({ onOpenReviews(null) }, backdrop, modifier = Modifier.testTag("agent-reviews")) { Text("笔记改动") }
             if (state.running) LiquidButton(timeline::stop, backdrop, modifier = Modifier.testTag("agent-stop")) { Text("停止") }
             if (!state.running && unresolved) {
                 val recoverable = runs.lastOrNull { it.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.PausedBudget) }
@@ -107,7 +110,7 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
             val request = tools.firstOrNull { it.status == AgentToolStatus.Requested && runs.any { run -> run.id == it.runId && run.status == AgentRunStatus.WaitingPermission } }
             if (request != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LiquidButton({ toolPreview = request }, backdrop) { Text("查看工具请求") }
-                LiquidButton({ permissionRequest = request }, backdrop, enabled = !state.running, modifier = Modifier.testTag("agent-authorize")) { Text("${request.name} 需要授权") }
+                LiquidButton({ permissionRequest = request }, backdrop, enabled = !state.running, modifier = Modifier.testTag("agent-authorize")) { Text(if (request.name == "create") "选择归属并授权创建" else "${request.name} 需要授权") }
                 LiquidButton({ action { timeline.answerPermission(request.runId, request.callId, null) } }, backdrop, enabled = !state.running) { Text("拒绝") }
             }
         }
@@ -146,6 +149,17 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
                         if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("将在下一执行边界补充", style = MaterialTheme.typography.bodySmall)
                         if (!state.running && !unresolved && message.role != AgentMessageRole.Event) LiquidButton({ action { timeline.deleteMessage(message.id) } }, backdrop) { Text("删除消息") }
                         if (message.role == AgentMessageRole.Tool) tools.filter { tool -> tool.runId == message.runId && message.modelJson?.let { Json.decodeFromString<ModelMessage>(it).results.any { result -> result.id == tool.callId } } == true }.forEach { tool ->
+                            if (tool.name in setOf("create", "delete") && tool.status == AgentToolStatus.Committed) {
+                                val noteId = tool.resultJson?.let { Json.parseToJsonElement(it).jsonObject["note_id"]?.jsonPrimitive?.content }
+                                if (noteId != null) {
+                                    val note = (availableNotes + trashedNotes).find { it.id == noteId }
+                                    Text(when { note == null -> "笔记已永久删除 · 无法恢复"
+                                        tool.name == "create" -> "已新建 · ${note.title.ifBlank { "未命名笔记" }}"
+                                        note.deletedAtEpochMs != null -> "已移入回收站 · ${note.title.ifBlank { "未命名笔记" }}"
+                                        else -> "笔记已恢复 · ${note.title.ifBlank { "未命名笔记" }}" }, Modifier.testTag("agent-note-receipt-$noteId"))
+                                    LiquidButton({ onOpenReviews(noteId) }, backdrop, modifier = Modifier.testTag("agent-review-receipt-$noteId")) { Text("查看单篇改动") }
+                                }
+                            }
                             LiquidButton({ toolPreview = tool }, backdrop) { Text("${tool.name} · ${tool.status.toolStatusLabel()}") }
                         }
                         if (message.role == AgentMessageRole.Assistant) {
@@ -183,8 +197,12 @@ fun AgentScreen(timeline: AgentTimeline, backdrop: Backdrop, contentPadding: Pad
     if (attachDialog) AgentAttachNotesDialog(availableNotes, selectedNotes, backdrop, { attachDialog = false }) { ids ->
         action { timeline.selectDraftNotes(ids); attachDialog = false }
     }
-    if (permissionDialog || permissionRequest != null) AgentPermissionDialog(permission, notebooks, backdrop, permissionRequest != null,
-        requiredLevel = if (permissionRequest?.name == "write") AgentPermissionLevel.Edit else AgentPermissionLevel.Read,
+    if (permissionRequest?.name == "create") AgentCreationDialog(notebooks, backdrop, onDismiss = { permissionRequest = null }) { target ->
+        val request = requireNotNull(permissionRequest)
+        action { timeline.answerCreation(request.runId, request.callId, target); permissionRequest = null }
+    }
+    if (permissionDialog || (permissionRequest != null && permissionRequest?.name != "create")) AgentPermissionDialog(permission, notebooks, backdrop, permissionRequest != null,
+        requiredLevel = if (permissionRequest?.name in setOf("write", "delete")) AgentPermissionLevel.Edit else AgentPermissionLevel.Read,
         onDismiss = { permissionDialog = false; permissionRequest = null }) { choice, always ->
         val request = permissionRequest
         action {

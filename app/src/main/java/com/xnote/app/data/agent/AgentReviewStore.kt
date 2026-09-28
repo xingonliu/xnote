@@ -24,6 +24,11 @@ sealed interface AgentReviewResult {
 data class AgentReviewDetail(val review: AgentReviewEntity, val current: NoteEntity?, val rollback: AgentContentMerge?,
     val changes: List<AgentChangeEntity>, val undoReview: AgentReviewEntity?)
 
+private sealed interface AgentRollbackPlan {
+    data class Ready(val note: NoteEntity) : AgentRollbackPlan
+    data class Conflict(val location: String) : AgentRollbackPlan
+}
+
 /** Body, search index, provenance and review state always share the caller's Room writer transaction. */
 class AgentReviewStore(private val database: XNoteDatabase, private val now: () -> Long = System::currentTimeMillis) {
     // -- Derived Values
@@ -55,14 +60,36 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
         if (content == current.content()) return@transaction AgentReviewResult.Unchanged(current)
         require(validateAgentEdit(current.content().document, content.document, current.agentVersion(), current.agentVersion()) == AgentEditValidation.Valid)
         val saved = saveContent(current, content)
-        val review = database.agent().reviews(current.id).lastOrNull { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
-            ?: AgentReviewEntity(id(), current.id, AgentReviewStatus.Pending, now())
-        database.agent().saveReview(review.copy(status = AgentReviewStatus.Pending))
-        val change = AgentChangeEntity(id(), current.id, runId, callId, review.id, AgentChangeOrigin.Agent, AgentChangeKind.Edit,
-            current.agentVersion(), saved.agentVersion(), Json.encodeToString(current), Json.encodeToString(saved), now())
-        database.agent().insertChange(change)
-        retainChangeMedia(change, current, saved)
-        AgentReviewResult.Applied(saved, review.id)
+        recordChange(runId, callId, current, saved, AgentChangeKind.Edit)
+    }
+
+    suspend fun applyCreate(runId: String, callId: String, target: AgentCreateTarget, content: AgentEditableContent): AgentReviewResult = transaction {
+        currentCoroutineContext().ensureActive()
+        val run = requireNotNull(database.agent().run(runId))
+        require(run.status == AgentRunStatus.Running)
+        val notes = AgentNoteStore(database)
+        if (notes.creationDecision(run, callId, target) != AgentCreateDecision.Allowed(target)) return@transaction AgentReviewResult.PermissionRequired
+        database.agent().committedChange(runId, callId)?.let { return@transaction AgentReviewResult.Applied(Json.decodeFromString(it.afterNoteJson), requireNotNull(it.reviewId)) }
+        require(validateAgentEdit(NoteDocument(), content.document, "new", "new") == AgentEditValidation.Valid) { "新建内容包含非法结构或媒体。" }
+        val timestamp = now()
+        val saved = saveContent(NoteEntity(id(), target.notebookId, content.title, content.document.encodeToJson(), null,
+            timestamp, 0, 0, "", timestamp, timestamp, null, null), content)
+        val grant = notes.access(run).grantCreatedNote(saved.id)
+        database.agent().saveRun(run.copy(grantJson = Json.encodeToString(grant), updatedAtEpochMs = timestamp))
+        recordChange(runId, callId, null, saved, AgentChangeKind.Create)
+    }
+
+    suspend fun applyTrash(runId: String, callId: String, noteId: String, version: String): AgentReviewResult = transaction {
+        currentCoroutineContext().ensureActive()
+        val run = requireNotNull(database.agent().run(runId))
+        require(run.status == AgentRunStatus.Running)
+        val current = database.notes().get(noteId) ?: return@transaction AgentReviewResult.Unrecoverable
+        if (!AgentNoteStore(database).access(run).canEdit(AgentNoteAccess(current.id, current.notebookId, current.deletedAtEpochMs != null)))
+            return@transaction AgentReviewResult.PermissionRequired
+        database.agent().committedChange(runId, callId)?.let { return@transaction AgentReviewResult.Applied(Json.decodeFromString(it.afterNoteJson), requireNotNull(it.reviewId)) }
+        if (current.agentVersion() != version) return@transaction AgentReviewResult.Conflict("笔记已变化，重新读取后才能删除")
+        val saved = saveContent(current.copy(deletedAtEpochMs = now()), current.content())
+        recordChange(runId, callId, current, saved, AgentChangeKind.Trash)
     }
 
     suspend fun detail(noteId: String): AgentReviewDetail? = transaction {
@@ -74,7 +101,11 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
         val actionable = review.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict, AgentReviewStatus.Accepted)
         val undoReview = reviews.lastOrNull { it.status in setOf(AgentReviewStatus.Accepted, AgentReviewStatus.Undone) }
             ?.takeIf { it.status == AgentReviewStatus.Accepted }
-        AgentReviewDetail(review, current, current?.takeIf { actionable }?.let { rollbackContent(it, changes) }, changes, undoReview)
+        val rollback = current?.takeIf { actionable }?.let { when (val plan = planRollback(it, changes)) {
+            is AgentRollbackPlan.Ready -> AgentContentMerge.Merged(plan.note.content())
+            is AgentRollbackPlan.Conflict -> AgentContentMerge.Conflict(plan.location)
+        } }
+        AgentReviewDetail(review, current, rollback, changes, undoReview)
     }
 
     suspend fun accept(noteId: String) = transaction {
@@ -110,30 +141,58 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
             return AgentReviewResult.Unrecoverable
         }
         val changes = database.agent().reviewChanges(review.id)
-        val result = rollbackContent(current, changes)
-        if (result is AgentContentMerge.Conflict) {
+        val result = planRollback(current, changes)
+        if (result is AgentRollbackPlan.Conflict) {
             // An accepted batch keeps its acceptance timestamp and its remaining undo window.
             if (!accepted) database.agent().saveReview(review.copy(status = AgentReviewStatus.Conflict))
             return AgentReviewResult.Conflict(result.location)
         }
-        val saved = saveContent(current, (result as AgentContentMerge.Merged).content)
+        val planned = (result as AgentRollbackPlan.Ready).note
+        val saved = if (planned == current) current else saveContent(planned, planned.content())
         database.agent().saveReview(review.copy(status = if (accepted) AgentReviewStatus.Undone else AgentReviewStatus.Rejected, reviewedAtEpochMs = now()))
         database.agent().pruneReviewedAttachments(now() - AgentAcceptedUndoRetentionMs)
         return AgentReviewResult.Applied(saved, review.id)
     }
 
-    private fun rollbackContent(current: NoteEntity, changes: List<AgentChangeEntity>): AgentContentMerge {
-        var content = current.content()
+    private suspend fun planRollback(current: NoteEntity, changes: List<AgentChangeEntity>): AgentRollbackPlan {
+        var planned = current
         for (change in changes.asReversed()) {
-            check(change.kind == AgentChangeKind.Edit) { "此类改动尚未开放审阅。" }
-            val before = Json.decodeFromString<NoteEntity>(requireNotNull(change.beforeNoteJson)).content()
-            val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson).content()
-            when (val inverse = mergeAgentContent(after, content, before)) {
-                is AgentContentMerge.Conflict -> return inverse
-                is AgentContentMerge.Merged -> content = inverse.content
+            val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson)
+            when (change.kind) {
+                AgentChangeKind.Create -> {
+                    if (planned.content() != after.content() || planned.backgroundKey != after.backgroundKey || planned.notebookId != after.notebookId)
+                        return AgentRollbackPlan.Conflict("新建笔记包含用户内容或设置，不能整篇移除")
+                    planned = planned.copy(deletedAtEpochMs = planned.deletedAtEpochMs ?: current.deletedAtEpochMs ?: now())
+                }
+                AgentChangeKind.Trash -> {
+                    if (planned.deletedAtEpochMs != null) {
+                        if (planned.deletedAtEpochMs != after.deletedAtEpochMs) return AgentRollbackPlan.Conflict("删除状态已被再次改变")
+                        val before = Json.decodeFromString<NoteEntity>(requireNotNull(change.beforeNoteJson))
+                        val notebook = before.notebookId?.takeIf { database.notebooks().get(it) != null }
+                        planned = planned.copy(notebookId = notebook, deletedAtEpochMs = null, originalNotebookName = null)
+                    }
+                }
+                AgentChangeKind.Edit -> {
+                    val before = Json.decodeFromString<NoteEntity>(requireNotNull(change.beforeNoteJson))
+                    when (val inverse = mergeAgentContent(after.content(), planned.content(), before.content())) {
+                        is AgentContentMerge.Conflict -> return AgentRollbackPlan.Conflict(inverse.location)
+                        is AgentContentMerge.Merged -> planned = planned.copy(title = inverse.content.title, documentJson = inverse.content.document.encodeToJson())
+                    }
+                }
             }
         }
-        return AgentContentMerge.Merged(content)
+        return AgentRollbackPlan.Ready(planned)
+    }
+
+    private suspend fun recordChange(runId: String, callId: String, before: NoteEntity?, after: NoteEntity, kind: AgentChangeKind): AgentReviewResult.Applied {
+        val review = database.agent().reviews(after.id).lastOrNull { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
+            ?: AgentReviewEntity(id(), after.id, AgentReviewStatus.Pending, now())
+        database.agent().saveReview(review.copy(status = AgentReviewStatus.Pending))
+        val change = AgentChangeEntity(id(), after.id, runId, callId, review.id, AgentChangeOrigin.Agent, kind,
+            before?.agentVersion(), after.agentVersion(), before?.let { Json.encodeToString(it) }, Json.encodeToString(after), now())
+        database.agent().insertChange(change)
+        retainChangeMedia(change, before, after)
+        return AgentReviewResult.Applied(after, review.id)
     }
 
     private suspend fun saveContent(current: NoteEntity, content: AgentEditableContent): NoteEntity {
@@ -147,8 +206,8 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
         return saved
     }
 
-    private suspend fun retainChangeMedia(change: AgentChangeEntity, before: NoteEntity, after: NoteEntity) {
-        (before.toDomain().referencedAttachmentIds() + after.toDomain().referencedAttachmentIds()).forEach {
+    private suspend fun retainChangeMedia(change: AgentChangeEntity, before: NoteEntity?, after: NoteEntity) {
+        (before?.toDomain()?.referencedAttachmentIds().orEmpty() + after.toDomain().referencedAttachmentIds()).forEach {
             database.agent().insertAttachmentRef(AgentAttachmentRefEntity("change", change.id, it))
         }
     }

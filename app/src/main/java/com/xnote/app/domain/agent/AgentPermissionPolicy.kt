@@ -15,12 +15,12 @@ private fun AgentAccessContext.inScope(note: AgentNoteAccess): Boolean = when (p
 
 fun AgentAccessContext.canReadCurrent(note: AgentNoteAccess): Boolean = !note.deleted && (
     (permission.level >= AgentPermissionLevel.Read && inScope(note)) ||
-        (validGrant()?.let { it.level >= AgentPermissionLevel.Read && note.noteId in it.noteIds } == true)
+        (validGrant()?.let { (it.level >= AgentPermissionLevel.Read && note.noteId in it.noteIds) || note.noteId in it.createdNoteIds } == true)
     )
 
 fun AgentAccessContext.canEdit(note: AgentNoteAccess): Boolean = !note.deleted && (
     (permission.level == AgentPermissionLevel.Edit && inScope(note)) ||
-        (validGrant()?.let { it.level == AgentPermissionLevel.Edit && note.noteId in it.noteIds } == true)
+        (validGrant()?.let { (it.level == AgentPermissionLevel.Edit && note.noteId in it.noteIds) || note.noteId in it.createdNoteIds } == true)
     )
 
 fun AgentAccessContext.canReadSnapshot(snapshot: AgentSnapshotAccess, current: AgentNoteAccess?): Boolean {
@@ -47,8 +47,6 @@ fun AgentAccessContext.createDecision(
             }
         }
     }
-    validGrant()?.takeIf { it.level == AgentPermissionLevel.Edit }?.createTargets
-        ?.filter { it.notebookId == null || it.notebookId in existingNotebookIds }?.let(targets::addAll)
     return when {
         requested != null -> if (requested in targets) AgentCreateDecision.Allowed(requested)
             else AgentCreateDecision.RequiresAuthorization
@@ -58,11 +56,9 @@ fun AgentAccessContext.createDecision(
     }
 }
 
-/** Call only after the authorized creation transaction has committed. */
-fun AgentAccessContext.grantCreatedNote(noteId: String, target: AgentCreateTarget, existingNotebookIds: Set<String>): AgentRunGrant {
-    require(createDecision(existingNotebookIds, target) is AgentCreateDecision.Allowed)
+/** Use inside the authorized creation transaction; it grants no other note or creation target. */
+fun AgentAccessContext.grantCreatedNote(noteId: String): AgentRunGrant {
     val previous = validGrant()
-    return AgentRunGrant(runId, permission.revision, AgentPermissionLevel.Edit,
-        previous?.takeIf { it.level == AgentPermissionLevel.Edit }?.noteIds.orEmpty() + noteId,
-        previous?.createTargets.orEmpty())
+    return (previous ?: AgentRunGrant(runId, permission.revision, AgentPermissionLevel.None))
+        .copy(createdNoteIds = previous?.createdNoteIds.orEmpty() + noteId)
 }

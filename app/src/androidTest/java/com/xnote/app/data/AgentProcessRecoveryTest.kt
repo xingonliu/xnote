@@ -45,6 +45,7 @@ class AgentProcessRecoveryTest {
             db.notes().upsert(NoteEntity("process-note", null, "进程测试", document, null, 0, 0, 0, "终止前正文", 1, 1, null, null))
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
             var requests = 0
+            var createdNoteId = ""
             val model = object : ModelClient {
                 override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
                     if (++requests == 1) {
@@ -56,6 +57,18 @@ class AgentProcessRecoveryTest {
                             put("note_id", "process-note"); put("base_version", version); put("title", "进程测试")
                             put("document_json", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("Agent 整理：终止前正文"))))).encodeToJson())
                         })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    } else if (requests == 3) {
+                        emit(ModelEvent.ToolCall(ModelToolCall("durable-create", "create", Json.encodeToJsonElement(AgentCreateArguments(
+                            "恢复测试新建", NoteDocument(blocks = listOf(TextBlock("created-body", inlines = listOf(InlineRun("新建后移入回收站"))))).encodeToJson())).jsonObject)))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    } else if (requests == 4) {
+                        createdNoteId = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("note_id").jsonPrimitive.content
+                        emit(ModelEvent.ToolCall(ModelToolCall("created-read", "read", Json.encodeToJsonElement(AgentReadArguments(createdNoteId)).jsonObject)))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    } else if (requests == 5) {
+                        val version = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject.getValue("version").jsonPrimitive.content
+                        emit(ModelEvent.ToolCall(ModelToolCall("durable-delete", "delete", Json.encodeToJsonElement(AgentDeleteArguments(createdNoteId, version)).jsonObject)))
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     } else {
                         emit(ModelEvent.Text("终止前已保存的部分回复"))
@@ -106,13 +119,18 @@ class AgentProcessRecoveryTest {
             assertEquals("process_interrupted", run.errorCode)
             assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
             val committed = db.agent().toolEvents(run.id)
-            assertEquals(2, committed.size)
+            assertEquals(5, committed.size)
             assertTrue(committed.all { it.status == AgentToolStatus.Committed })
             val note = db.notes().get("process-note")!!
             assertTrue(note.documentJson.contains("Agent 整理：终止前正文"))
             val changes = db.agent().noteChanges(note.id)
             assertEquals(1, changes.size)
             assertEquals(AgentReviewStatus.Pending, timeline.reviewStore.detail(note.id)!!.review.status)
+            val created = db.notes().getAll().single { it.id != note.id }
+            assertNotNull(created.deletedAtEpochMs)
+            val creationChanges = db.agent().noteChanges(created.id)
+            assertEquals(listOf(AgentChangeKind.Create, AgentChangeKind.Trash), creationChanges.map { it.kind })
+            assertEquals(AgentReviewStatus.Pending, timeline.reviewStore.detail(created.id)!!.review.status)
             val user = note.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("Agent 整理：终止前正文；用户补充"))))).encodeToJson())
             db.notes().upsert(user)
             timeline.continueRun(run.id)
@@ -122,9 +140,14 @@ class AgentProcessRecoveryTest {
             assertEquals(committed, db.agent().toolEvents(run.id))
             assertEquals(changes, db.agent().noteChanges(note.id))
             assertEquals(user, db.notes().get(note.id))
+            assertEquals(2, db.notes().getAll().size)
+            assertEquals(created, db.notes().get(created.id))
+            assertEquals(creationChanges, db.agent().noteChanges(created.id))
             assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
             timeline.reviewStore.reject(note.id)
             assertEquals("终止前正文；用户补充", decodeNoteDocument(db.notes().get(note.id)!!.documentJson).blocks.filterIsInstance<TextBlock>().single().inlines.plainText())
+            timeline.reviewStore.reject(created.id)
+            assertNotNull(db.notes().get(created.id)!!.deletedAtEpochMs)
         } finally {
             timeline.clearChat()
             scope.coroutineContext[Job]?.cancelAndJoin()

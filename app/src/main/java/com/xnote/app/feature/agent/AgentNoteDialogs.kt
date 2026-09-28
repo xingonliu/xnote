@@ -24,6 +24,24 @@ import kotlinx.serialization.json.Json
 // -- Functions
 
 @Composable
+fun AgentCreationDialog(notebooks: List<NotebookEntity>, backdrop: Backdrop, onDismiss: () -> Unit, onCreate: (AgentCreateTarget) -> Unit) {
+    var selected by remember { mutableStateOf<AgentCreateTarget?>(null) }
+    XNoteDialog(true, onDismiss, "选择新笔记归属", backdrop,
+        confirmAction = XNoteDialogAction("授权本次创建", { selected?.let(onCreate) }, selected?.let { it.notebookId == null || notebooks.any { book -> book.id == it.notebookId } } == true),
+        dismissAction = XNoteDialogAction("取消", onDismiss)) {
+        Text("仅授权这一次创建。新笔记在本次任务内可继续编辑；笔记本里的其他内容仍遵守原有权限。")
+        LazyColumn(Modifier.heightIn(max = 300.dp)) {
+            item { LiquidButton({ selected = AgentCreateTarget(null) }, backdrop, modifier = Modifier.testTag("agent-create-unfiled")) { Text((if (selected == AgentCreateTarget(null)) "✓ " else "") + "未归档") } }
+            items(notebooks, key = { it.id }) { book ->
+                LiquidButton({ selected = AgentCreateTarget(book.id) }, backdrop, modifier = Modifier.testTag("agent-create-${book.id}")) {
+                    Text((if (selected?.notebookId == book.id) "✓ " else "") + book.name)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, backdrop: Backdrop, onDismiss: () -> Unit, onConfirm: (List<String>) -> Unit) {
     var selection by remember { mutableStateOf(selected.toSet()) }
     var query by remember { mutableStateOf("") }
@@ -102,6 +120,8 @@ fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue:
                 if (decision.permission.scope == AgentScope.Notebooks) Text("笔记本：${decision.permission.notebookIds.joinToString().ifEmpty { "未选择" }}")
                 Text("当时主动附加：${decision.attachedNoteIds.size} 篇")
                 decision.grant?.let { Text("本次运行授权：${it.level.permissionLabel()} · ${it.noteIds.size} 篇；仅在当时权限版本内有效。") }
+                decision.grant?.takeIf { it.createdNoteIds.isNotEmpty() }?.let { Text("本次新建并可继续编辑：${it.createdNoteIds.size} 篇。") }
+                decision.createTarget?.let { Text("本次创建归属：${it.notebookId ?: "未归档"}；此选择只绑定当前调用。") }
             }
             Text("参数：${event.argumentsJson}")
             Text("结果：${event.resultJson ?: "等待执行或授权"}")

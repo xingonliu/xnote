@@ -112,6 +112,19 @@ class AgentTimeline(
         }
     }
 
+    suspend fun answerCreation(runId: String, callId: String, target: AgentCreateTarget) {
+        awaitReady()
+        mutex.withLock {
+            if (mutableState.value.running) throw ModelException(ModelError.Busy)
+            val resumed = transaction {
+                noteStore.authorizeCreationFromUser(runId, callId, target)
+                requireNotNull(database.agent().run(runId)).copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
+                    .also { database.agent().saveRun(it) }
+            }
+            launchRun(resumed)
+        }
+    }
+
     suspend fun send(text: String) {
         awaitReady()
         mutex.withLock {
@@ -442,7 +455,7 @@ class AgentTimeline(
                         database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Complete)
                         val pending = database.agent().messages().any { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }
                         if (!pending) {
-                            run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now())
+                            run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now(), grantJson = database.agent().run(run.id)?.grantJson)
                             database.agent().saveRun(run)
                         }
                         pending
@@ -505,7 +518,7 @@ class AgentTimeline(
     private suspend fun persistStopped(run: AgentRunEntity, sequence: Long?, text: String, status: AgentMessageStatus) {
         transaction {
             sequence?.let { database.agent().updateMessage(it, text, status) }
-            database.agent().saveRun(run.copy(updatedAtEpochMs = now(), grantJson = if (run.status == AgentRunStatus.Cancelled) null else run.grantJson))
+            database.agent().saveRun(run.copy(updatedAtEpochMs = now(), grantJson = if (run.status == AgentRunStatus.Cancelled) null else database.agent().run(run.id)?.grantJson))
             pauseQueue()
         }
     }
