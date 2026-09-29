@@ -117,7 +117,8 @@ class AgentReviewFlowTest {
     private fun open(noteId: String) {
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
         compose.onNodeWithText("Agent").performClick()
-        compose.onNodeWithTag("agent-reviews").performClick()
+        compose.onNodeWithContentDescription("更多").performClick()
+        compose.onNodeWithText("全部笔记改动").performClick()
         compose.onNodeWithTag("agent-review-$noteId").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-review-reject").fetchSemanticsNodes().isNotEmpty() }
     }

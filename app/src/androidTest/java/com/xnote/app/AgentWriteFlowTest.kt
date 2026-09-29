@@ -79,7 +79,8 @@ class AgentWriteFlowTest {
         compose.onNodeWithTag("agent-replan-conflict").performClick()
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().isEmpty() } }
         assertEquals(5, requests)
-        compose.onNodeWithTag("agent-reviews").performClick()
+        compose.onNodeWithContentDescription("更多").performClick()
+        compose.onNodeWithText("全部笔记改动").performClick()
         compose.onNodeWithTag("agent-review-${note.id}").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-review-reject").fetchSemanticsNodes().isNotEmpty() }
         screenshot("write-review")

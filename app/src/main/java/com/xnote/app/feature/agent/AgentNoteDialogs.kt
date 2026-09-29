@@ -47,24 +47,6 @@ fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, back
 }
 
 @Composable
-fun AgentPermissionDialog(permission: AgentPermission, backdrop: Backdrop, onDismiss: () -> Unit, onSave: (AgentPermission) -> Unit) {
-    var choice by remember { mutableStateOf(permission) }
-    XNoteDialog(true, onDismiss, "Agent 权限", backdrop,
-        confirmAction = XNoteDialogAction("保存", { onSave(choice) }), dismissAction = XNoteDialogAction("取消", onDismiss)) {
-        AgentPermissionMode.entries.forEach { mode ->
-            XNoteButton({ choice = choice.copy(mode = mode) }, modifier = Modifier.testTag("agent-permission-${mode.name}")) {
-                Text((if (choice.mode == mode) "✓ " else "") + mode.permissionLabel())
-            }
-        }
-        Text(when (choice.mode) {
-            AgentPermissionMode.Private -> "禁用全部工具与自动记忆读取。你主动发送的文字和文件仍会发送给模型服务。"
-            AgentPermissionMode.RequestApproval -> "默认模式。每次工具调用须先批准，批准仅对本次调用及其固定参数有效。"
-            AgentPermissionMode.FullAccess -> "工具可自动读取和修改应用数据，无需逐次批准。"
-        }, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
 fun AgentApprovalDialog(event: AgentToolEventEntity, backdrop: Backdrop, onDismiss: () -> Unit, onAnswer: (Boolean) -> Unit) {
     XNoteDialog(true, onDismiss, "批准工具调用", backdrop,
         confirmAction = XNoteDialogAction("批准本次", { onAnswer(true) }),

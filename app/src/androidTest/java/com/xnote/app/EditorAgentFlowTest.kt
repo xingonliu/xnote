@@ -121,7 +121,8 @@ class EditorAgentFlowTest {
         compose.onNodeWithTag("agent-send").performClick()
         compose.waitUntil(8000) { requests == 2 && !timeline.state.value.running }
         assertEquals(document(if (selected) "前润色内容后" else "全文润色内容"), runBlocking { library.getNote(note.id)!!.document })
-        compose.onNodeWithTag("agent-reviews").performClick()
+        compose.onNodeWithContentDescription("更多").performClick()
+        compose.onNodeWithText("全部笔记改动").performClick()
         compose.onNodeWithTag("agent-review-${note.id}").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-review-reject").fetchSemanticsNodes().isNotEmpty() }
         screenshot(if (tablet) "tablet-selection-polish-review" else if (selected) "selection-polish-review" else "full-polish-review")

@@ -12,6 +12,17 @@ class XNotePopupPositionTest {
     private val noInsets = XNotePopupSafeInsets(0, 0, 0, 0)
 
     @Test
+    fun composerMenuStaysAboveReservedTabBarEvenWhenBelowWouldFitTheWindow() {
+        val offset = calculatePopupOffset(
+            hostWidth = 400, hostHeight = 800, popupWidth = 220, popupHeight = 120,
+            anchorBoundsInRoot = Rect(16f, 600f, 56f, 640f), hostOriginInRoot = Offset.Zero,
+            placement = XNotePopupPlacement.BelowStart,
+            safeInsets = XNotePopupSafeInsets(0, 24, 0, 104), popupGap = 8, edgePadding = 8,
+        )
+        assertEquals(IntOffset(16, 472), offset)
+    }
+
+    @Test
     fun animationOriginFollowsFlippedAndClampedPopup() {
         val anchor = Rect(350f, 580f, 390f, 620f)
         val above = calculatePopupTransformOrigin(anchor, IntOffset(136, 332), 240, 240, XNotePopupPlacement.BelowEnd)

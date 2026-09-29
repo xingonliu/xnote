@@ -468,7 +468,7 @@ class AgentTimeline(
                             when (event) {
                                 is ModelEvent.Text -> {
                                     text += event.value
-                                    database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Streaming)
+                                    database.agent().updateMessage(checkNotNull(sequence), agentReplyPlainText(text), AgentMessageStatus.Streaming)
                                 }
                                 is ModelEvent.Usage -> run = run.copy(inputTokens = addUsage(run.inputTokens, event.inputTokens), outputTokens = addUsage(run.outputTokens, event.outputTokens))
                                 is ModelEvent.Finished -> finish = event.reason
@@ -482,7 +482,7 @@ class AgentTimeline(
                     } catch (failure: ModelException) {
                         if (text.isEmpty() && calls.isEmpty() && failure.error in setOf(ModelError.Network, ModelError.Service, ModelError.Timeout) && retry < AgentRunLimits.MaxNetworkRetries) {
                             transaction {
-                                database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Failed)
+                                database.agent().updateMessage(checkNotNull(sequence), agentReplyPlainText(text), AgentMessageStatus.Failed)
                                 insertMessage(run, AgentMessageRole.Event, "网络重试 ${retry + 1}/${AgentRunLimits.MaxNetworkRetries}")
                             }
                             delay(AgentRunLimits.RetryDelayMs * (1L shl retry++))
@@ -493,7 +493,7 @@ class AgentTimeline(
                     if (finish == ModelFinish.ToolCalls && calls.isNotEmpty()) {
                         transaction {
                             val reply = database.agent().messages().single { it.sequence == sequence }
-                            database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Complete)
+                            database.agent().updateMessage(checkNotNull(sequence), agentReplyPlainText(text), AgentMessageStatus.Complete)
                             database.agent().updateMessageContext(reply.id, reply.sourcesJson,
                                 Json.encodeToString(ModelMessage(AgentMessageRole.Assistant, text, calls = calls, nativeParts = nativeParts)))
                         }
@@ -503,10 +503,10 @@ class AgentTimeline(
                     if (calls.isNotEmpty()) throw ModelException(ModelError.Protocol)
                     if (finish == ModelFinish.OutputLimit) throw AgentBudgetException()
                     if (finish == ModelFinish.Filtered) throw ModelException(ModelError.InvalidRequest)
-                    if (finish != ModelFinish.Complete || text.isBlank()) throw ModelException(ModelError.Interrupted)
+                    if (finish != ModelFinish.Complete || agentReplyPlainText(text).isBlank()) throw ModelException(ModelError.Interrupted)
                     // Sharing the submission mutex makes the final boundary atomic with supplements.
                     val hasSupplement = mutex.withLock { transaction {
-                        database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Complete)
+                        database.agent().updateMessage(checkNotNull(sequence), agentReplyPlainText(text), AgentMessageStatus.Complete)
                         val pending = database.agent().messages().any { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }
                         if (!pending) {
                             run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now())
@@ -574,7 +574,7 @@ class AgentTimeline(
 
     private suspend fun persistStopped(run: AgentRunEntity, sequence: Long?, text: String, status: AgentMessageStatus) {
         transaction {
-            sequence?.let { database.agent().updateMessage(it, text, status) }
+            sequence?.let { database.agent().updateMessage(it, agentReplyPlainText(text), status) }
             if (run.status == AgentRunStatus.Cancelled) noteStore.cancelPendingFromUser(run.id)
             database.agent().saveRun(run.copy(updatedAtEpochMs = now()))
             pauseQueue()

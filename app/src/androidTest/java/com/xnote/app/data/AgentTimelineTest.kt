@@ -96,6 +96,28 @@ class AgentTimelineTest {
         }
     }
 
+    @Test fun assistantProseIsStoredAsPlainTextDuringStreamingAndAfterCompletion() = runBlocking {
+        withFixture { db, profiles, scope ->
+            val streamed = CompletableDeferred<Unit>()
+            val finish = CompletableDeferred<Unit>()
+            val timeline = AgentTimeline(db, profiles, client {
+                emit(ModelEvent.Text("# 总结\n**重要**"))
+                streamed.complete(Unit)
+                finish.await()
+                emit(ModelEvent.Text("\n- 已完成"))
+                emit(ModelEvent.Finished(ModelFinish.Complete))
+            }, scope)
+            timeline.send("整理一下")
+            withTimeout(5000) { streamed.await() }
+            assertEquals("总结\n重要", db.agent().messages().last { it.role == AgentMessageRole.Assistant }.text)
+            finish.complete(Unit)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val saved = db.agent().messages().last { it.role == AgentMessageRole.Assistant }
+            assertEquals("总结\n重要\n• 已完成", saved.text)
+            assertEquals(AgentMessageStatus.Complete, saved.status)
+        }
+    }
+
     @Test fun streamingAndFinalFactsArePersistedBeforeDisplayCompletes() = runBlocking {
         withFixture { db, profiles, scope ->
             val release = CompletableDeferred<Unit>()

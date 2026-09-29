@@ -78,8 +78,16 @@ class AgentFlowTest {
         compose.onNodeWithText("Agent").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
+        compose.onNodeWithText("帮我整理今天的想法").performTouchInput { longClick() }
+        compose.onNodeWithTag("agent-message-menu").assertIsDisplayed()
+        compose.onNodeWithTag("xnote-bottom-navigation").assertIsDisplayed()
+        compose.onNodeWithTag("agent-copy-message").performClick()
+        compose.runOnIdle {
+            val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+            assertEquals("帮我整理今天的想法", clipboard.primaryClip!!.getItemAt(0).text.toString())
+        }
         screenshot("agent-timeline")
-        compose.onNodeWithTag("agent-new-topic").performClick()
+        compose.onNodeWithContentDescription("开始新话题").performClick()
         compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Event && it.text == "开始新话题" } } }
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
@@ -97,6 +105,10 @@ class AgentFlowTest {
         compose.onNodeWithText("Agent").performClick()
         compose.waitUntil(5000) { timeline.state.value.ready }
         compose.onNodeWithTag("agent-add-attachment").performClick()
+        compose.onNodeWithTag("xnote-bottom-navigation").assertIsDisplayed()
+        val attachmentBounds = compose.onNodeWithTag("agent-attachment-menu").fetchSemanticsNode().boundsInRoot
+        val tabsBounds = compose.onNodeWithTag("xnote-bottom-navigation").fetchSemanticsNode().boundsInRoot
+        assertTrue(attachmentBounds.bottom <= tabsBounds.top)
         compose.onNodeWithText("笔记").performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
         compose.onNodeWithText("确认 1 篇").performClick()
@@ -111,11 +123,14 @@ class AgentFlowTest {
         screenshot("agent-snapshot-preview")
         compose.onNodeWithText("关闭").performClick()
         compose.onNodeWithTag("agent-permission-settings").performClick()
-        compose.onNodeWithTag("agent-permission-Private").assertExists()
-        compose.onNodeWithTag("agent-permission-RequestApproval").assertExists()
+        compose.onNodeWithTag("xnote-bottom-navigation").assertIsDisplayed()
+        val menuBounds = compose.onNodeWithTag("agent-permission-menu").fetchSemanticsNode().boundsInRoot
+        val tabBounds = compose.onNodeWithTag("xnote-bottom-navigation").fetchSemanticsNode().boundsInRoot
+        assertTrue(menuBounds.bottom <= tabBounds.top)
+        compose.onNodeWithText("完全隐私").assertExists()
+        compose.onAllNodesWithText("请求批准").onLast().assertExists()
         screenshot("agent-permission-modes")
-        compose.onNodeWithTag("agent-permission-FullAccess").performClick()
-        compose.onNodeWithText("保存").performClick()
+        compose.onNodeWithText("完全访问").performClick()
         compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.mode == AgentPermissionMode.FullAccess } } }
     }
 
@@ -135,11 +150,12 @@ class AgentFlowTest {
         compose.onAllNodesWithText("Agent").assertCountEquals(1)
         compose.onNodeWithTag("agent-send").assertIsNotEnabled()
         val header = compose.onNodeWithTag("agent-header").fetchSemanticsNode().boundsInRoot
-        val reviews = compose.onNodeWithTag("agent-reviews").fetchSemanticsNode().boundsInRoot
-        val topic = compose.onNodeWithTag("agent-new-topic").fetchSemanticsNode().boundsInRoot
-        val more = compose.onNodeWithTag("agent-more").fetchSemanticsNode().boundsInRoot
-        assertTrue(reviews.right <= topic.left && topic.right <= more.left)
-        assertTrue(header.contains(reviews.center) && header.contains(more.center))
+        val topic = compose.onNodeWithContentDescription("开始新话题").fetchSemanticsNode().boundsInRoot
+        val more = compose.onNodeWithContentDescription("更多").fetchSemanticsNode().boundsInRoot
+        assertTrue(topic.right <= more.left)
+        compose.onNodeWithContentDescription("开始新话题").assertWidthIsEqualTo(com.xnote.app.design.XNoteButtonSize)
+        compose.onNodeWithContentDescription("更多").assertHeightIsEqualTo(com.xnote.app.design.XNoteButtonSize)
+        assertTrue(header.contains(topic.center) && header.contains(more.center))
         val composer = compose.onNodeWithTag("agent-composer").fetchSemanticsNode().boundsInRoot
         val add = compose.onNodeWithTag("agent-add-attachment").fetchSemanticsNode().boundsInRoot
         val permission = compose.onNodeWithTag("agent-permission-settings").fetchSemanticsNode().boundsInRoot
@@ -165,7 +181,8 @@ class AgentFlowTest {
         compose.onNodeWithText("笔记").performClick()
         compose.onNodeWithText("取消").performClick()
         hideKeyboard()
-        compose.onNodeWithTag("agent-reviews").performClick()
+        compose.onNodeWithContentDescription("更多").performClick()
+        compose.onNodeWithText("全部笔记改动").performClick()
         compose.onNodeWithText("暂无笔记改动").assertIsDisplayed()
         compose.onNodeWithText("我的").assertDoesNotExist()
         screenshot("agent-review-popup")
@@ -174,7 +191,7 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-draft-note-${note.id}").assertIsDisplayed()
         compose.onNodeWithTag("agent-remove-note-${note.id}").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value.isEmpty() }
-        compose.onNodeWithTag("agent-more").performClick()
+        compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("任务队列 · 0").assertIsDisplayed()
         compose.onNodeWithText("模型与服务商").assertIsDisplayed()
         compose.onNodeWithText("清空聊天").assertDoesNotExist()

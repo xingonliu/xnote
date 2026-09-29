@@ -83,6 +83,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -340,6 +341,7 @@ fun BoxScope.XNotePopup(
     anchor: XNotePopupAnchor? = null,
     placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
     shape: Shape = XNoteSmoothCornerShape(XNotePopupRadius),
+    bottomInset: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BackHandler(enabled = visible, onBack = onDismissRequest)
@@ -351,7 +353,7 @@ fun BoxScope.XNotePopup(
         left = safeDrawing.getLeft(density, layoutDirection),
         top = safeDrawing.getTop(density),
         right = safeDrawing.getRight(density, layoutDirection),
-        bottom = safeDrawing.getBottom(density),
+        bottom = maxOf(safeDrawing.getBottom(density), with(density) { bottomInset.roundToPx() }),
     )
     val popupGap = with(density) { XNoteSpacingSmall.roundToPx() }
     val edgePadding = with(density) { XNoteSpacingSmall.roundToPx() }
@@ -464,6 +466,7 @@ fun BoxScope.XNoteDropdownMenu(
     placement: XNotePopupPlacement = XNotePopupPlacement.BelowEnd,
     shape: Shape = XNoteSmoothCornerShape(XNotePopupRadius),
     header: (@Composable () -> Unit)? = null,
+    bottomInset: Dp = 0.dp,
 ) {
     val scrollState = rememberScrollState()
     val scrollBackdrop = rememberLayerBackdrop()
@@ -475,6 +478,7 @@ fun BoxScope.XNoteDropdownMenu(
         anchor = anchor,
         placement = placement,
         shape = shape,
+        bottomInset = bottomInset,
     ) {
         header?.invoke()
         Box {

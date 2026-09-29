@@ -450,7 +450,8 @@ fun XNoteApp(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        var agentOverlayVisible by remember { mutableStateOf(false) }
+        var agentModalVisible by remember { mutableStateOf(false) }
+        var bottomNavigationHeight by remember { mutableStateOf(0.dp) }
         val density = androidx.compose.ui.platform.LocalDensity.current
         var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
         val isTablet = maxWidth >= TabletBreakpoint
@@ -602,7 +603,9 @@ fun XNoteApp(
                 content = {
                     DestinationContent(
                         agentTimeline = agentTimeline,
-                        onAgentOverlayVisible = { agentOverlayVisible = it },
+                        onAgentModalVisible = { agentModalVisible = it },
+                        agentBottomInset = if (showsBottomNavigation) bottomNavigationHeight.takeIf { it > 0.dp }
+                            ?: (navigationBarHeight + 72.dp) else navigationBarHeight,
                         onOpenAgentModels = { profilePage = "模型与服务商" },
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
@@ -644,7 +647,7 @@ fun XNoteApp(
                 },
                 overlay = overlay@ { contentBackdrop ->
                     // Agent dialogs cover the page; shell controls must not overlap or receive input above them.
-                    if (agentOverlayVisible) return@overlay
+                    if (agentModalVisible) return@overlay
                     if (showsShellHeader) {
                         XNoteHeader(
                             title = if (navigationState.isSearchOpen) {
@@ -704,7 +707,9 @@ fun XNoteApp(
                                 },
                                 onDestinationReselected = ::resetDestination,
                                 backdrop = contentBackdrop,
-                                modifier = Modifier.align(Alignment.BottomCenter),
+                                modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged {
+                                    bottomNavigationHeight = with(density) { it.height.toDp() }
+                                },
                             )
                         }
                     }
@@ -802,7 +807,8 @@ fun XNoteApp(
 @Composable
 private fun DestinationContent(
     agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
-    onAgentOverlayVisible: (Boolean) -> Unit,
+    onAgentModalVisible: (Boolean) -> Unit,
+    agentBottomInset: androidx.compose.ui.unit.Dp,
     onOpenAgentModels: () -> Unit,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
@@ -942,7 +948,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, backdrop, contentPadding, modifier, onAgentOverlayVisible, onOpenAgentModels) else PlaceholderScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, modifier, onAgentModalVisible, onOpenAgentModels) else PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

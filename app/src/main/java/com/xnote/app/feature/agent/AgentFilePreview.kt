@@ -31,6 +31,7 @@ import kotlinx.coroutines.*
 
 @Composable
 fun AgentFilesStrip(files: List<AgentFileCard>, onPreview: (AgentFileCard) -> Unit, onRemove: ((String) -> Unit)? = null) {
+    if (files.isEmpty()) return
     val context = LocalContext.current
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         files.forEach { card ->
