@@ -10,6 +10,8 @@
 
 - Read-only, explanatory, or diagnostic tasks that produce no file changes do not require an empty commit or push, but the initial Git and remote-state checks are still required.
 
+- Do not launch an emulator unless the user explicitly requests visual testing with an emulator.
+
 - Follow only the user’s current, explicitly stated objective. Treat rejected or withdrawn directions as superseded and remove their effects from all project artifacts and responses; deliver only the intended final state, without correction history, exclusionary labels, or repetitive explanations.
 
 - Prefer direct, readable code sufficient for current requirements. Keep functions simple and practical, and introduce defensive logic or abstractions only when justified by concrete requirements or existing usage.
