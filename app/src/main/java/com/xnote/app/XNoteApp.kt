@@ -492,8 +492,7 @@ fun XNoteApp(
         val isEditor = navigationState.destination == AppDestination.Notes &&
             navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor
-        val agentKeyboardVisible = navigationState.destination == AppDestination.Agent && WindowInsets.ime.getBottom(density) > 0
-        val showsBottomNavigation = !isTablet && showsPrimaryChrome && !agentKeyboardVisible
+        val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val showsRecycleSelection = navigationState.isRecycleBinOpen &&
             recycleBinUiState.selectionMode
         val isSecondaryPage = navigationState.isSearchOpen ||
@@ -948,7 +947,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, modifier, onAgentModalVisible, onOpenAgentModels) else PlaceholderScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, onAgentModalVisible, onOpenAgentModels) else PlaceholderScreen(
             titleRes = R.string.agent_placeholder_title,
             descriptionRes = R.string.agent_placeholder_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

@@ -89,6 +89,8 @@ class AgentFlowTest {
         screenshot("agent-timeline")
         compose.onNodeWithContentDescription("开始新话题").performClick()
         compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Event && it.text == "开始新话题" } } }
+        compose.onNodeWithText("新话题已开始，时间线记录保留。").assertIsDisplayed()
+        compose.onNodeWithTag("agent-notice").assertDoesNotExist()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
     }
@@ -109,7 +111,7 @@ class AgentFlowTest {
         val attachmentBounds = compose.onNodeWithTag("agent-attachment-menu").fetchSemanticsNode().boundsInRoot
         val tabsBounds = compose.onNodeWithTag("xnote-bottom-navigation").fetchSemanticsNode().boundsInRoot
         assertTrue(attachmentBounds.bottom <= tabsBounds.top)
-        compose.onNodeWithText("笔记").performClick()
+        compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
         compose.onNodeWithText("确认 1 篇").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
@@ -162,23 +164,31 @@ class AgentFlowTest {
         val send = compose.onNodeWithTag("agent-send").fetchSemanticsNode().boundsInRoot
         assertTrue(composer.contains(add.center) && composer.contains(permission.center) && composer.contains(send.center))
         assertTrue(add.right <= permission.left && permission.right <= send.left)
+        assertTrue(permission.width < composer.width / 2)
+        val tabsBeforeKeyboard = compose.onNodeWithTag("xnote-bottom-navigation").fetchSemanticsNode().boundsInRoot
         screenshot("agent-empty-layout")
         compose.onNodeWithTag("agent-add-attachment").performClick()
-        compose.onNodeWithText("笔记").assertIsDisplayed()
+        compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).assertIsDisplayed()
         compose.onNodeWithText("图片").assertExists()
         screenshot("agent-attachment-menu")
-        compose.onNodeWithText("笔记").performClick()
+        compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
         compose.onNodeWithText("确认 1 篇").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
         compose.onNodeWithTag("agent-draft-note-${note.id}").performClick()
         compose.onNodeWithText("关闭").performClick()
-        compose.onNodeWithTag("agent-input").performTextInput("保留这段草稿")
+        compose.onNodeWithTag("agent-input").performClick().performTextInput("保留这段草稿")
         compose.waitUntil(5000) { timeline.draft.value == "保留这段草稿" }
+        compose.waitUntil(5000) {
+            compose.onNodeWithTag("agent-composer").fetchSemanticsNode().boundsInRoot.bottom < tabsBeforeKeyboard.top - 100f
+        }
+        val tabsWithKeyboard = compose.onNodeWithTag("xnote-bottom-navigation").fetchSemanticsNode().boundsInRoot
+        assertEquals(tabsBeforeKeyboard.bottom, tabsWithKeyboard.bottom, 1f)
+        assertTrue(compose.onNodeWithTag("agent-composer").fetchSemanticsNode().boundsInRoot.bottom < tabsWithKeyboard.top)
         compose.onNodeWithTag("agent-add-attachment").performClick()
-        compose.onNodeWithText("笔记").assertIsDisplayed()
+        compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).assertIsDisplayed()
         screenshot("agent-keyboard-attachment-menu")
-        compose.onNodeWithText("笔记").performClick()
+        compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).performClick()
         compose.onNodeWithText("取消").performClick()
         hideKeyboard()
         compose.onNodeWithContentDescription("更多").performClick()

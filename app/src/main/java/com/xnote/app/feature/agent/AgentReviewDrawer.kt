@@ -35,7 +35,7 @@ private val RemovedColor = Color(0xFFC0392B)
 // -- Functions
 
 @Composable
-fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdrop, initialNoteId: String? = null, onDismiss: () -> Unit) {
+fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdrop, onNotice: (String) -> Unit, initialNoteId: String? = null, onDismiss: () -> Unit) {
     // -- State
 
     val store = timeline.reviewStore
@@ -45,7 +45,6 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable(initialNoteId) { mutableStateOf(initialNoteId) }
     var detail by remember { mutableStateOf<AgentReviewDetail?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     // -- Derived Values
@@ -54,19 +53,19 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
     val current = detail
     // -- Functions
 
-    fun back() { if (selected != null) { selected = null; detail = null; notice = null } else onDismiss() }
+    fun back() { if (selected != null) { selected = null; detail = null } else onDismiss() }
     fun action(block: suspend () -> Unit) { scope.launch {
         busy = true
         try { block(); refresh++ }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) { notice = if (error is IllegalStateException || error is IllegalArgumentException) error.message else "操作失败，正文与改动记录已保留。" }
+        catch (error: Exception) { onNotice(if (error is IllegalStateException || error is IllegalArgumentException) error.message ?: "操作未完成。" else "操作失败，正文与改动记录已保留。") }
         finally { busy = false }
     } }
-    fun report(result: AgentReviewResult) { notice = when (result) {
+    fun report(result: AgentReviewResult) { onNotice(when (result) {
         is AgentReviewResult.Conflict -> "整篇回退已暂停：${result.location}。当前内容未改变。"
         AgentReviewResult.Unrecoverable -> "笔记已永久删除，无法恢复。"
         else -> "改动已撤回，用户编辑已保留。"
-    } }
+    }) }
     fun adjust(noteId: String, restore: Boolean) { action {
         if (restore) library.restoreNotes(listOf(noteId))
         timeline.selectDraftNotes((timeline.draftNotes.value + noteId).distinct())
@@ -76,9 +75,14 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
     // -- Lifecycle Hooks
 
     LaunchedEffect(visible, initialNoteId) {
-        if (visible) { selected = initialNoteId; detail = null; notice = null }
+        if (visible) { selected = initialNoteId; detail = null }
     }
     LaunchedEffect(visible, selected, reviews, notes, refresh) { detail = if (visible) selected?.let { store.detail(it) } else null }
+    LaunchedEffect(visible, selected, (current?.rollback as? AgentContentMerge.Conflict)?.location) {
+        if (visible) (current?.rollback as? AgentContentMerge.Conflict)?.let {
+            onNotice("回退与当前内容冲突：${it.location}。全部拒绝不会部分写入。")
+        }
+    }
     XNoteDrawer(visible, onDismiss, "笔记改动", backdrop, XNoteDrawerPlacement.Bottom,
         Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("agent-review-drawer")) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -88,13 +92,12 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
         }
         androidx.activity.compose.BackHandler(enabled = visible && selected != null) { back() }
         Column(Modifier.fillMaxWidth().testTag("agent-review-content"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            notice?.let { Text(it, Modifier.testTag("agent-review-notice")) }
             if (selected == null) {
                 Text("Agent 改动已保存到笔记，可按篇查看并接受或撤回。")
                 if (reviews.isEmpty()) Text("暂无笔记改动")
                 reviews.groupBy { it.noteId }.forEach { (noteId, batches) ->
                     val pending = batches.any { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
-                    XNoteButton({ selected = noteId; notice = null }, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
+                    XNoteButton({ selected = noteId }, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
                         Text((notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记") + if (pending) " · 待审阅" else " · 已审阅")
                     }
                 }
@@ -118,7 +121,6 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                         else if (!deleted || rollback.content != actual) AgentCumulativeDiff(rollback.content, actual)
                     }
                     rollback is AgentContentMerge.Conflict -> {
-                        if (notice == null) Text("回退与当前内容冲突：${rollback.location}。全部拒绝不会部分写入。", Modifier.testTag("agent-review-conflict"))
                         Text("以下为已保存的 Agent 改动记录：")
                         current.changes.forEach { change ->
                             val before = change.beforeNoteJson?.let { Json.decodeFromString<NoteEntity>(it) }
@@ -131,7 +133,7 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                 }
                 if (current.review.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) && note != null) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        XNoteButton({ action { store.accept(note.id); notice = "已接受，保留当前内容。" } }, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
+                        XNoteButton({ action { store.accept(note.id); onNotice("已接受，保留当前内容。") } }, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
                         XNoteButton({ action { report(store.reject(note.id)) } }, enabled = !busy, modifier = Modifier.testTag("agent-review-reject")) { Text("全部拒绝") }
                     }
                 }

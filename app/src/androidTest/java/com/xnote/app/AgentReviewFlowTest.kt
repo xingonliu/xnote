@@ -72,7 +72,7 @@ class AgentReviewFlowTest {
             timeline.saveDraft("尚未发送的想法")
         }
         open(noteId)
-        compose.onNodeWithTag("agent-review-conflict").assertExists()
+        compose.onNodeWithText("回退与当前内容冲突：", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("agent-review-reject").performScrollTo().performClick()
         compose.waitUntil(5000) { runBlocking { database.agent().reviews(noteId).single().status == AgentReviewStatus.Conflict } }
         runBlocking { assertEquals("先整理用户自己的内容，再写总结。", body(noteId)) }

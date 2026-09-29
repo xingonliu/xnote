@@ -48,7 +48,7 @@ import kotlinx.coroutines.flow.first
 // -- Functions
 
 @Composable
-fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, modifier: Modifier = Modifier,
+fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, toastHostState: androidx.compose.material3.SnackbarHostState, modifier: Modifier = Modifier,
     onModalVisible: (Boolean) -> Unit = {}, onOpenModels: () -> Unit) {
     // -- State
 
@@ -85,7 +85,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var input by rememberSaveable { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
     var attachmentMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
     var queueDrawer by remember { mutableStateOf(false) }
@@ -106,6 +105,11 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
+    val selectionConflict = waitingConflict?.let { run ->
+        messages.find { it.id == run.userMessageId }?.let {
+            Json.decodeFromString<List<AgentMessageSource>>(it.sourcesJson).any { source -> source.selection != null }
+        }
+    } == true
     val keyboardInset = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val keyboardVisible = keyboardInset > 0.dp
     val composerBottom = maxOf(bottomInset, keyboardInset) + 8.dp
@@ -117,10 +121,17 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
     // -- Functions
 
+    fun showNotice(message: String) { scope.launch {
+        toastHostState.currentSnackbarData?.dismiss()
+        toastHostState.showSnackbar(message)
+    } }
     fun action(block: suspend () -> Unit) { scope.launch {
-        try { block(); error = null }
+        try { block() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { error = when (failure) { is AgentBudgetException, is IllegalArgumentException -> failure.message; else -> safeModelError(failure) } }
+        catch (failure: Exception) { showNotice(when (failure) {
+            is AgentBudgetException, is IllegalArgumentException -> failure.message ?: "操作未完成，请重试。"
+            else -> safeModelError(failure)
+        }) }
     } }
     fun openReviews(noteId: String?) {
         keyboard?.hide()
@@ -130,6 +141,15 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
 
     // -- Lifecycle Hooks
 
+    LaunchedEffect(state.notice) { state.notice?.let(::showNotice) }
+    LaunchedEffect(waitingConflict?.id, selectionConflict) {
+        if (selectionConflict) showNotice("请结束当前任务，再回到笔记编辑器重新选择文字。")
+    }
+    LaunchedEffect(importingFile) { if (importingFile) showNotice("正在导入文件…") }
+    LaunchedEffect(state.running && input.isNotBlank(), draftSelection) {
+        if (state.running && input.isNotBlank()) showNotice(
+            if (draftSelection != null) "选区润色为独立任务，可从任务队列加入" else "发送后补充当前任务")
+    }
     SideEffect { onModalVisible(modalVisible) }
     DisposableEffect(Unit) { onDispose { onModalVisible(false) } }
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
@@ -222,20 +242,12 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                     }
                 }
                 if (!state.ready) item(key = "restoring") { Text("正在恢复对话…") }
-                (error ?: state.notice.takeIf { waitingConflict == null })?.let { notice ->
-                    item(key = "notice") { Text(notice, Modifier.testTag("agent-notice"), style = MaterialTheme.typography.bodySmall) }
-                }
                 waitingConflict?.let { run ->
                     val conflict = tools.firstOrNull { it.runId == run.id && it.status == AgentToolStatus.Requested }
-                    val selectionConflict = messages.find { it.id == run.userMessageId }?.let {
-                        Json.decodeFromString<List<AgentMessageSource>>(it.sourcesJson).any { source -> source.selection != null }
-                    } == true
-                    if (conflict != null) item(key = "conflict") {
+                    if (conflict != null && !selectionConflict) item(key = "conflict") {
                         XNoteGroupCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(state.notice ?: "笔记内容发生变化，任务已暂停。", Modifier.testTag("agent-notice"))
-                                if (selectionConflict) Text("请结束当前任务，再回到笔记编辑器重新选择文字。原选区不会自动扩大或移动。")
-                                else XNoteButton({ action { timeline.replanConflict(run.id, conflict.callId) } },
+                                XNoteButton({ action { timeline.replanConflict(run.id, conflict.callId) } },
                                     enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
                             }
                         }
@@ -270,9 +282,10 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             horizontalPadding = contentPadding.calculateEndPadding(direction),
             modifier = Modifier.align(Alignment.TopCenter).testTag("agent-header"),
         )
-        Column(Modifier.align(Alignment.BottomCenter).padding(
+        Column(Modifier.align(Alignment.BottomCenter)
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets(bottom = bottomInset))).padding(
             start = contentPadding.calculateStartPadding(direction), end = contentPadding.calculateEndPadding(direction),
-            bottom = composerBottom,
+            bottom = 8.dp,
         ).onSizeChanged { composerHeight = with(density) { it.height.toDp() } },
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (state.running || unresolved || queue.isNotEmpty()) {
@@ -289,7 +302,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                     }
                 }
             }
-            if (importingFile) Text("正在导入文件…", style = MaterialTheme.typography.bodySmall)
             if (draftFiles.isNotEmpty()) AgentFilesStrip(draftFiles, { filePreview = it }, { id -> action { timeline.removeDraftFile(id) } })
             AgentComposer(
                 input = input, onInputChange = { value -> input = value; action { timeline.saveDraft(value) } },
@@ -350,11 +362,11 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             }
             TextButton({ queueDrawer = false }) { Text("关闭") }
         }
-        AgentReviewDrawer(reviewsOpen, timeline, library, backdrop, reviewNoteId) {
+        AgentReviewDrawer(reviewsOpen, timeline, library, backdrop, ::showNotice, reviewNoteId) {
             input = timeline.draft.value
             reviewsOpen = false
         }
-        filePreview?.let { card -> timeline.fileStore?.let { AgentFilePreview(card, it, backdrop) { filePreview = null } } }
+        filePreview?.let { card -> timeline.fileStore?.let { AgentFilePreview(card, it, backdrop, ::showNotice) { filePreview = null } } }
         if (draftPreviewId != null) {
             val note = availableNotes.find { it.id == draftPreviewId }
             XNoteDialog(true, { draftPreviewId = null }, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用", backdrop,

@@ -83,23 +83,22 @@ fun AgentComposer(
                     }
                 },
             )
-            if (running && input.isNotBlank()) Text(if (notes.any { it.selected }) "选区润色为独立任务，可从任务队列加入" else "发送后补充当前任务", Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onAdd, Modifier.size(XNoteButtonSize).xNotePopupAnchor(attachmentAnchor).testTag("agent-add-attachment"), enabled) {
                     Icon(painterResource(R.drawable.ic_keyline_stroke_plus), "添加附件", Modifier.size(XNoteIconSizeMedium))
                 }
-                TextButton(onPermission, Modifier.weight(1f).xNotePopupAnchor(permissionAnchor).testTag("agent-permission-settings")
+                TextButton(onPermission, Modifier.xNotePopupAnchor(permissionAnchor).testTag("agent-permission-settings")
                     .semantics { contentDescription = "Agent 权限" }) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(permissionSummary,
-                            Modifier.weight(1f, fill = false), style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(painterResource(R.drawable.ic_keyline_stroke_chevron_down), null, Modifier.size(16.dp))
                     }
                 }
+                Spacer(Modifier.weight(1f))
                 LiquidButton(onClick = onSend, backdrop = backdrop, modifier = Modifier.size(XNoteButtonSize).testTag("agent-send"), enabled = canSend) {
-                    Icon(painterResource(R.drawable.ic_keyline_stroke_arrow_up), if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
+                    Icon(painterResource(R.drawable.ic_keyline_fill_send), if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
                 }
             }
         }

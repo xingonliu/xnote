@@ -49,12 +49,11 @@ fun AgentFilesStrip(files: List<AgentFileCard>, onPreview: (AgentFileCard) -> Un
 }
 
 @Composable
-fun AgentFilePreview(card: AgentFileCard, store: AgentFileStore, backdrop: Backdrop, onDismiss: () -> Unit) {
+fun AgentFilePreview(card: AgentFileCard, store: AgentFileStore, backdrop: Backdrop, onNotice: (String) -> Unit, onDismiss: () -> Unit) {
     // -- State and Variables
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var notice by remember(card.id) { mutableStateOf<String?>(null) }
     var bitmap by remember(card.id) { mutableStateOf<Bitmap?>(null) }
     var busy by remember { mutableStateOf(false) }
 
@@ -64,13 +63,13 @@ fun AgentFilePreview(card: AgentFileCard, store: AgentFileStore, backdrop: Backd
         busy = true
         try { block() }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { notice = "文件无法读取或操作未完成，请重试。" }
+        catch (_: Exception) { onNotice("文件无法读取或操作未完成，请重试。") }
         finally { busy = false }
     } }
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(card.mimeType)) { uri ->
         if (uri != null) action {
             saveAgentFile(context, store, card, uri)
-            notice = "文件已保存"
+            onNotice("文件已保存")
         }
     }
 
@@ -79,7 +78,7 @@ fun AgentFilePreview(card: AgentFileCard, store: AgentFileStore, backdrop: Backd
     LaunchedEffect(card.id) {
         if (card.mimeType.startsWith("image/")) try { bitmap = decodeNoteImage(store.file(card.id)) }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { notice = "无法预览图片" }
+        catch (_: Exception) { onNotice("无法预览图片") }
     }
     XNoteDialog(true, onDismiss, card.name, backdrop, confirmAction = XNoteDialogAction("关闭", onDismiss)) {
         Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -92,7 +91,6 @@ fun AgentFilePreview(card: AgentFileCard, store: AgentFileStore, backdrop: Backd
                     context.startActivity(Intent.createChooser(agentFileShareIntent(context, store, card), "分享文件"))
                 } }, enabled = !busy) { Text("分享文件") }
             }
-            notice?.let { Text(it) }
         }
     }
 }

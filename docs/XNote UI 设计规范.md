@@ -213,6 +213,7 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 | XNote 资源 | Keyline 名称与样式 | 用途 |
 | ---------- | ------------------ | ---- |
 | `ic_keyline_fill_file_text` | `file-text` / Rounded Fill | 手机笔记 Tab |
+| `ic_keyline_fill_send` | `send` / Rounded Fill | Agent 发送按钮（官方提交 `73d757b13d2ef78f85cdd8fdcb5c58555cb3940d`） |
 | `ic_keyline_fill_star` | `star` / Rounded Fill | 手机 Agent Tab |
 | `ic_keyline_fill_user` | `user` / Rounded Fill | 手机个人中心 Tab |
 | `ic_keyline_stroke_square_pen` | `square-pen` / Rounded Stroke | 笔记功能、空状态、平板笔记导航 |
@@ -541,7 +542,10 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 - 手机与平板均复用公共页面、玻璃控件和状态组件。
 - 对话气泡参考 iOS 27 iMessage：发送侧蓝色、接收侧随主题使用浅灰或深灰；17 sp 字号、22 sp 行高，正文内边距横向 12 dp／纵向 8 dp，尾部 6 dp，圆角半径不超过 18 dp。宽度随文本收缩，上限为可用宽度 80% 且不超过 360 dp。同话题同角色相邻消息在 60 秒内成组，间距 3 dp，仅组末保留尾部，其他条目间距 12 dp。
 - 气泡只放消息正文，长按横向菜单显示复制和时间。工具调用、文件、笔记快照与执行状态独立显示在气泡外；工具记录按调用顺序从数据库恢复。
-- 输入容器共用编辑页操作菜单的 `XNoteLiquidGlassPanel`，发送按钮使用 `LiquidButton`；Header、输入容器、发送按钮和菜单共用包含聊天正文的采样层，浮动控件位于捕获层外。
+- 输入容器共用编辑页操作菜单的 `XNoteLiquidGlassPanel`，发送按钮使用 `LiquidButton` 和 Keyline Rounded Fill `send` 图标；Header、输入容器、发送按钮和菜单共用包含聊天正文的采样层，浮动控件位于捕获层外。
+- 输入区权限按钮按文字与箭头宽度排列，右侧独立弹性留白将发送按钮推到行尾。
+- Agent 页的操作成功、失败和临时说明统一使用公共 Toast，消息与工具执行状态保留在聊天记录中。
+- 键盘展开时 tabbar 持续保留在窗口底部并被键盘遮挡，输入区使用布局阶段的 IME 与底栏联合避让，收起键盘时不移除底栏占位。
 - 输入区与 tabbar 实测上沿间距为 8 dp，输入区高度计入消息列表底部留白。加号、权限、更多与长按菜单不触发底栏隐藏；菜单避开 tabbar 与键盘，自适应翻转和限制高度。
 
 ## 14. 技术参考
