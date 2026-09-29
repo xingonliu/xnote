@@ -11,6 +11,20 @@ class AgentEditPolicyTest {
     private val media = ImageBlock("image", "attachment")
     private val document = NoteDocument(blocks = listOf(text, media, ImageBlock("second", "other")))
 
+    @Test fun crossParagraphSelectionPolishProtectsBothOutsideBoundaries() {
+        val before = NoteDocument(blocks = listOf(TextBlock("a", inlines = listOf(InlineRun("前原"))),
+            TextBlock("b", inlines = listOf(InlineRun("文后")))))
+        val range = AgentSelection("v", "a", 1, 1, endBlockId = "b")
+        val changed = NoteDocument(blocks = listOf(TextBlock("a", inlines = listOf(InlineRun("前新"))),
+            TextBlock("b", inlines = listOf(InlineRun("句后")))))
+        assertEquals("原\n文", selectedAgentText(before, range))
+        assertEquals(AgentEditValidation.Valid, validateAgentEdit(before, changed, "v", "v", range))
+        val invalid = changed.replaceBlock(TextBlock("b", inlines = listOf(InlineRun("句尾"))))
+        assertEquals(AgentEditValidation.InvalidSelection, validateAgentEdit(before, invalid, "v", "v", range))
+        assertEquals(AgentEditValidation.InvalidSelection,
+            validateAgentEdit(before, changed.copy(blocks = changed.blocks.reversed()), "v", "v", range))
+    }
+
     @Test fun textChangesKeepMediaAndRequireLatestVersion() {
         val proposed = document.copy(blocks = listOf(text.copy(inlines = listOf(InlineRun("新内容")))) + document.blocks.drop(1))
         assertEquals(AgentEditValidation.Valid, validateAgentEdit(document, proposed, "v1", "v1"))

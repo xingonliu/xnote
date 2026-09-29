@@ -338,7 +338,8 @@ private fun XNoteAppContent(
                 require(selectedRange == null || selectedDocument == session.document) { "选区内容已变化，请重新选择。" }
                 val selection = selectedRange?.let { range ->
                     com.xnote.app.domain.agent.AgentSelection(
-                        note.toEntity().agentVersion(), range.blockId, range.min, range.max, range.tableRow, range.tableColumn,
+                        note.toEntity().agentVersion(), range.blockId, range.start, range.end, range.tableRow, range.tableColumn,
+                        range.endBlockId, range.endTableRow, range.endTableColumn,
                     )
                 }
                 requireNotNull(agentTimeline).carryNote(note.id, selection, polish)

@@ -64,7 +64,8 @@ data class AgentMessageSource(val noteId: String, val snapshotId: String? = null
 
 @Serializable
 data class AgentSelection(val version: String, val blockId: String, val start: Int, val end: Int,
-    val tableRow: Int? = null, val tableColumn: Int? = null)
+    val tableRow: Int? = null, val tableColumn: Int? = null,
+    val endBlockId: String? = null, val endTableRow: Int? = null, val endTableColumn: Int? = null)
 
 @Serializable
 data class AgentDraftSelection(val noteId: String, val selection: AgentSelection)

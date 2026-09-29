@@ -29,6 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateMapOf
@@ -121,10 +125,13 @@ fun NoteEditorScreen(
         return
     }
 
+    val selectionController = rememberDocumentSelection(session)
     val layoutDirection = LocalLayoutDirection.current
     Column(
         // Keep toolbar clearance inside the scrollable content so its viewport reaches the edge fade.
         modifier = modifier.fillMaxSize().imePadding()
+            .onGloballyPositioned { selectionController.viewport = it.boundsInRoot() }
+            .onPreviewKeyEvent(selectionController::key)
             .verticalScroll(scrollState).navigationBarsPadding().padding(
                 start = contentPadding.calculateStartPadding(layoutDirection),
                 top = contentPadding.calculateTopPadding(),
@@ -133,12 +140,14 @@ fun NoteEditorScreen(
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        NotePaper(session)
+        CompositionLocalProvider(LocalDocumentSelection provides selectionController) {
+            NotePaper(session, selectionController, scrollState)
+        }
     }
 }
 
 @Composable
-private fun NotePaper(session: NoteEditorSession) {
+private fun NotePaper(session: NoteEditorSession, selectionController: DocumentSelectionController, scrollState: ScrollState) {
     val imageOrigins = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val imageBottoms = remember(session.noteId) { mutableStateMapOf<String, Float>() }
     val density = LocalDensity.current.density
@@ -148,8 +157,9 @@ private fun NotePaper(session: NoteEditorSession) {
     val images = blocks.filterIsInstance<PlacedMediaBlock>()
     val paperBottom = images.maxOfOrNull { imageBottoms[it.id] ?: 0f } ?: 0f
     Box(Modifier.widthIn(max = XNoteMaximumContentWidth).fillMaxWidth()
-        .heightIn(min = maxOf(600f, paperBottom).dp)) {
-        Box(Modifier.matchParentSize().clickable {
+        .heightIn(min = maxOf(600f, paperBottom).dp)
+        .onGloballyPositioned { selectionController.paper = it }) {
+        Box(Modifier.matchParentSize().clickable(interactionSource = null, indication = null) {
             val tail = session.document.blocks.lastOrNull()
             if (tail is TextBlock) {
                 val end = tail.inlines.plainText().length
@@ -196,13 +206,14 @@ private fun NotePaper(session: NoteEditorSession) {
                                     is TableBlock -> "xnote-editor-continue-after-table"
                                     is ImageBlock -> "xnote-editor-continue-after-image"
                                     else -> "xnote-editor-continue-after-${block.id}"
-                                }).clickable { session.continueAfterBlock(block.id) })
+                                }).clickable(interactionSource = null, indication = null) { session.continueAfterBlock(block.id) })
                         }
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
         }
+        DocumentSelectionOverlay(selectionController, scrollState)
     }
 }
 
@@ -301,7 +312,7 @@ private fun TextBlockEditor(
             Box(
                 modifier = Modifier
                     .size(width = XNoteMinimumTouchTarget, height = markerHeight)
-                    .clickable {
+                    .clickable(interactionSource = null, indication = null) {
                         session.select(EditorSelection(block.id))
                         session.applyAction(com.xnote.app.design.XNoteRichTextAction.ToggleHeadingCollapse)
                     }
@@ -337,7 +348,7 @@ private fun TextBlockEditor(
                 Box(
                     modifier = Modifier
                         .size(width = XNoteMinimumTouchTarget, height = markerHeight)
-                        .clickable {
+                        .clickable(interactionSource = null, indication = null) {
                             session.select(EditorSelection(block.id))
                             session.toggleChecked()
                         },
@@ -360,6 +371,7 @@ private fun TextBlockEditor(
         }
         RichTextField(
             inlines = block.inlines,
+            address = TextAddress(block.id),
             nativeFlow = nativeFlow,
             exclusionWidth = (exclusionWidth - with(LocalDensity.current) { (block.indent * 20 + if (block.quoted) 16 else 0).dp.toPx() }).coerceAtLeast(0f),
             exclusionHeight = exclusionHeight,
@@ -368,7 +380,7 @@ private fun TextBlockEditor(
             textAlign = alignment,
             focused = session.focusBlockId == block.id,
             onFocused = {
-                if (session.selection.blockId != block.id || session.selection.isTable) {
+                if (!session.selection.isCrossField && (session.selection.blockId != block.id || session.selection.isTable)) {
                     session.select(EditorSelection(blockId = block.id))
                 }
                 session.focusBlockId = block.id
@@ -402,6 +414,8 @@ private fun TableBlockEditor(
     session: NoteEditorSession,
 ) {
     val selected = session.selection.blockId == block.id
+    val inputSelection = if (session.selection.isCrossField) session.document.selectionParts(session.selection).firstOrNull()
+        ?: session.selection else session.selection
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -425,9 +439,9 @@ private fun TableBlockEditor(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 row.cells.forEachIndexed { columnIndex, cell ->
-                    val cellSelected = selected &&
-                        session.selection.tableRow == rowIndex &&
-                        session.selection.tableColumn == columnIndex
+                    val cellSelected = inputSelection.blockId == block.id &&
+                        inputSelection.tableRow == rowIndex &&
+                        inputSelection.tableColumn == columnIndex
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -446,13 +460,14 @@ private fun TableBlockEditor(
                     ) {
                         RichTextField(
                             inlines = cell.inlines,
+                            address = TextAddress(block.id, rowIndex, columnIndex),
                             fieldsEpoch = session.fieldsEpoch,
                             textStyle = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Start,
                             placeholder = stringResource(R.string.editor_cell_placeholder),
                             focused = cellSelected && session.focusBlockId == block.id,
                             onFocused = {
-                                session.select(
+                                if (!session.selection.isCrossField) session.select(
                                     EditorSelection(
                                         blockId = block.id,
                                         tableRow = rowIndex,
@@ -534,7 +549,7 @@ private fun DrawingBlockPreview(block: DrawingBlock, session: NoteEditorSession)
         catch (_: Exception) { image = null }
     }
     Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().aspectRatio(block.width / block.height).clickable { session.drawingBlockId = block.id }
+        Box(Modifier.fillMaxWidth().aspectRatio(block.width / block.height).clickable(interactionSource = null, indication = null) { session.drawingBlockId = block.id }
             .testTag("xnote-drawing-${block.id}")) {
             image?.let { Image(it, "画笔内容，点击编辑", Modifier.fillMaxSize()) } ?: Text("画笔内容无法读取，点击重新编辑")
         }

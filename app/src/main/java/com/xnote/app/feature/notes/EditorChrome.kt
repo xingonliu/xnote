@@ -139,7 +139,7 @@ fun EditorToolbarBar(
     val reduceMotion = LocalXNoteInteractionSettings.current.reduceMotion
     val density = LocalDensity.current.density
     val state = session.toolbarState
-    val inTable = session.selection.isTable && session.focusBlockId == session.selection.blockId
+    val inTable = !session.selection.isCrossField && session.selection.isTable && session.focusBlockId == session.selection.blockId
     val action: (XNoteRichTextAction) -> Unit = { selected ->
         if (selected == XNoteRichTextAction.Link) {
             onOpenModal()

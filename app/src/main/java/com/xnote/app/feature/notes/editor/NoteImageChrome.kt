@@ -1,5 +1,6 @@
 package com.xnote.app.feature.notes.editor
 
+import com.xnote.app.domain.document.selectionParts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,8 +110,9 @@ fun BoxScope.NoteImageChrome(
         keyboard?.hide()
         session.focusBlockId = null
         replaceId = replacement
-        targetBlock = session.selection.blockId
-        targetStart = session.selection.min
+        val insertion = session.document.selectionParts(session.selection).firstOrNull() ?: session.selection
+        targetBlock = insertion.blockId
+        targetStart = insertion.min
         sourceVisible = true
     }
     val sources = listOf(

@@ -7,6 +7,15 @@ import org.junit.Test
 // -- Tests
 
 class EditorContentRebaseTest {
+    @Test fun crossParagraphEndpointsRebaseIndependently() {
+        val before = NoteDocument(blocks = listOf(TextBlock("a", inlines = listOf(InlineRun("甲乙"))),
+            TextBlock("b", inlines = listOf(InlineRun("丙丁")))))
+        val after = NoteDocument(blocks = listOf(TextBlock("a", inlines = listOf(InlineRun("😀甲乙"))),
+            TextBlock("b", inlines = listOf(InlineRun("新丙丁")))))
+        val range = EditorSelection("a", 1, 1, endBlockId = "b")
+        assertEquals(range.copy(start = 3, end = 2), rebaseEditorSelection(before, after, range))
+    }
+
     @Test fun selectionTracksUnicodeInsertionWithoutSplittingSurrogates() {
         val before = document("甲乙丙")
         val after = document("😀甲乙丙")

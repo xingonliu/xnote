@@ -378,9 +378,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 draftSelection?.takeIf { it.noteId == note?.id }?.let { selected ->
                     Text("仅润色所选文字；发送前会校验笔记版本。", style = MaterialTheme.typography.labelMedium)
                     val selectedText = note?.takeIf { it.agentVersion() == selected.selection.version }
-                        ?.let { selectionInlines(decodeNoteDocument(it.documentJson), selected.selection)?.plainText() }
-                        ?.let { text -> if (selected.selection.start >= 0 && selected.selection.end <= text.length)
-                            text.substring(selected.selection.start, selected.selection.end) else null }
+                        ?.let { selectedAgentText(decodeNoteDocument(it.documentJson), selected.selection) }
                     Text(selectedText ?: "笔记已变化，请回到编辑器重新选择。", Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState()))
                 }
                 Text(note?.let { extractPlainText(decodeNoteDocument(it.documentJson)) } ?: "该笔记已删除或不再可用，可从输入框移除。",

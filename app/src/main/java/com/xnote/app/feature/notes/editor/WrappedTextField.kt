@@ -28,6 +28,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import com.xnote.app.domain.document.InlineRun
 import com.xnote.app.domain.document.plainText
+import com.xnote.app.domain.document.TextAddress
+import com.xnote.app.domain.document.focus
+import com.xnote.app.domain.document.inlinesAt
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.geometry.Rect
+import android.view.ActionMode
+import android.view.Menu
+import android.view.MenuItem
 import kotlin.math.ceil
 
 // -- Type Definitions
@@ -46,8 +56,24 @@ private class WrapEditText(context: Context) : EditText(context) {
     var changed: (() -> Unit)? = null
     var appliedEpoch = -1
     var deleteAtStart: (() -> Unit)? = null
+    var documentSelection: DocumentSelectionController? = null
+    var currentInputConnection: InputConnection? = null
 
     // -- Functions
+
+    override fun onTextContextMenuItem(id: Int): Boolean {
+        if (id == android.R.id.selectAll && documentSelection != null) {
+            documentSelection?.selectAll()
+            return true
+        }
+        val controller = documentSelection
+        if (controller?.active == true) when (id) {
+            android.R.id.copy -> { controller.copy(); return true }
+            android.R.id.cut -> { controller.copy(true); return true }
+            android.R.id.paste -> { controller.paste(); return true }
+        }
+        return super.onTextContextMenuItem(id)
+    }
 
     override fun onSelectionChanged(selStart: Int, selEnd: Int) {
         super.onSelectionChanged(selStart, selEnd)
@@ -56,12 +82,14 @@ private class WrapEditText(context: Context) : EditText(context) {
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         val connection = super.onCreateInputConnection(outAttrs) ?: return null
-        return object : InputConnectionWrapper(connection, false) {
+        currentInputConnection = connection
+        val localConnection = object : InputConnectionWrapper(connection, false) {
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 if (beforeLength > 0 && selectionStart == 0 && selectionEnd == 0) { deleteAtStart?.invoke(); return true }
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
         }
+        return documentSelection?.let { DocumentSelectionInputConnection(localConnection, it) } ?: localConnection
     }
 }
 
@@ -74,7 +102,14 @@ fun WrappedTextField(
     onFocused: () -> Unit, onTextChange: (String, String, TextRange, Boolean) -> Unit,
     onDeleteBackwardAtStart: () -> Unit,
     modifier: Modifier,
+    address: TextAddress? = null,
 ) {
+    val controller = LocalDocumentSelection.current.takeIf { address != null }
+    val selected = address?.let { controller?.range(it) }
+    var viewReference by remember { mutableStateOf<WrapEditText?>(null) }
+    DisposableEffect(controller, address) {
+        onDispose { if (address != null) controller?.fields?.remove(address) }
+    }
     val density = LocalDensity.current
     val foreground = MaterialTheme.colorScheme.onBackground.toArgb()
     val primary = MaterialTheme.colorScheme.primary.toArgb()
@@ -84,8 +119,32 @@ fun WrappedTextField(
     val currentOnText by rememberUpdatedState(onTextChange)
     val currentOnFocus by rememberUpdatedState(onFocused)
     val currentOnDelete by rememberUpdatedState(onDeleteBackwardAtStart)
-    AndroidView(modifier = modifier, factory = { context ->
+    AndroidView(modifier = modifier.onGloballyPositioned { coordinates ->
+        val view = viewReference
+        val layout = view?.layout
+        if (controller != null && address != null && layout != null) {
+            controller.fields[address] = SelectionGeometry(Rect(coordinates.positionInRoot(), coordinates.size.toSize()),
+                { point -> layout.getOffsetForHorizontal(layout.getLineForVertical(point.y.toInt()), point.x) },
+                { offset ->
+                    val at = offset.coerceIn(0, view.text.length)
+                    val line = layout.getLineForOffset(at)
+                    val x = layout.getPrimaryHorizontal(at)
+                    Rect(x, layout.getLineTop(line).toFloat(), x + 1, layout.getLineBottom(line).toFloat())
+                })
+        }
+    }, factory = { context ->
         WrapEditText(context).apply {
+            viewReference = this
+            documentSelection = controller
+            customSelectionActionModeCallback = object : ActionMode.Callback {
+                override fun onCreateActionMode(mode: ActionMode, menu: Menu) = controller?.active != true
+                override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
+                    if (controller?.active == true) mode.finish()
+                    return false
+                }
+                override fun onActionItemClicked(mode: ActionMode, item: MenuItem) = false
+                override fun onDestroyActionMode(mode: ActionMode) = Unit
+            }
             background = null
             setPadding(0, 0, 0, 0)
             includeFontPadding = false
@@ -95,7 +154,13 @@ fun WrappedTextField(
             setSelectAllOnFocus(false)
             deleteAtStart = { currentOnDelete() }
             setOnKeyListener { _, keyCode, event ->
-                if (keyCode == android.view.KeyEvent.KEYCODE_DEL && event.action == android.view.KeyEvent.ACTION_DOWN && selectionStart == 0 && selectionEnd == 0) {
+                if (event.action == android.view.KeyEvent.ACTION_DOWN && controller?.active == true &&
+                    (keyCode == android.view.KeyEvent.KEYCODE_DEL || keyCode == android.view.KeyEvent.KEYCODE_FORWARD_DEL)) {
+                    controller.session.replaceSelection(""); true
+                } else if (event.action == android.view.KeyEvent.ACTION_DOWN && (event.isCtrlPressed || event.isMetaPressed) &&
+                    keyCode == android.view.KeyEvent.KEYCODE_A && controller != null) {
+                    controller.selectAll(); true
+                } else if (keyCode == android.view.KeyEvent.KEYCODE_DEL && event.action == android.view.KeyEvent.ACTION_DOWN && selectionStart == 0 && selectionEnd == 0) {
                     currentOnDelete(); true
                 } else false
             }
@@ -103,8 +168,28 @@ fun WrappedTextField(
             changed = {
                 if (!syncing && hasFocus()) {
                     val now = text.toString()
-                    currentOnText(previous, now, TextRange(selectionStart.coerceAtLeast(0), selectionEnd.coerceAtLeast(0)), BaseInputConnection.getComposingSpanStart(text) >= 0)
-                    previous = now
+                    val changedText = previous != now
+                    val composingStart = BaseInputConnection.getComposingSpanStart(text)
+                    val composingEnd = BaseInputConnection.getComposingSpanEnd(text)
+                    val oldCaret = selectionEnd.coerceAtLeast(0)
+                    currentOnText(previous, now, TextRange(selectionStart.coerceAtLeast(0), oldCaret), composingStart >= 0)
+                    if (changedText && controller != null && address != null && controller.selection.focus().address == address) {
+                        val updated = controller.session.document.inlinesAt(address).plainText()
+                        val caret = controller.selection.end.coerceIn(0, updated.length)
+                        if (updated != now) {
+                            syncing = true
+                            try {
+                                setText(updated)
+                                setSelection(caret)
+                                if (composingStart >= 0) {
+                                    val shift = caret - oldCaret
+                                    currentInputConnection?.setComposingRegion((composingStart + shift).coerceIn(0, updated.length),
+                                        (composingEnd + shift).coerceIn(0, updated.length))
+                                }
+                            } finally { syncing = false }
+                        }
+                    }
+                    previous = text.toString()
                 }
             }
             addTextChangedListener(object : TextWatcher {
@@ -126,13 +211,17 @@ fun WrappedTextField(
             val plain = inlines.plainText()
             val composing = BaseInputConnection.getComposingSpanStart(view.text) >= 0
             val reset = view.appliedEpoch != fieldsEpoch
-            if (reset || (!composing && view.text.toString() != plain)) {
+            if (!composing && (reset || view.text.toString() != plain)) {
                 view.setText(plain)
                 val range = selection ?: TextRange(plain.length)
                 view.setSelection(range.start.coerceIn(0, plain.length), range.end.coerceIn(0, plain.length))
-                view.appliedEpoch = fieldsEpoch
             }
+            view.appliedEpoch = fieldsEpoch
             val editable = view.text
+            if (selected != null && !composing) {
+                val caret = selected.end.coerceIn(0, plain.length)
+                if (view.selectionStart != caret || view.selectionEnd != caret) view.setSelection(caret)
+            }
             if (editable != null && !composing) {
                 editable.getSpans(0, editable.length, CharacterStyle::class.java).forEach(editable::removeSpan)
                 var offset = 0
@@ -145,6 +234,10 @@ fun WrappedTextField(
                     if (run.highlight) span(BackgroundColorSpan(highlight))
                     if (run.linkUrl != null) { span(ForegroundColorSpan(primary)); span(UnderlineSpan()) }
                     offset = end
+                }
+                if (selected != null && !selected.collapsed) {
+                    editable.setSpan(BackgroundColorSpan(highlight), selected.min.coerceIn(0, editable.length),
+                        selected.max.coerceIn(0, editable.length), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
             editable?.getSpans(0, editable.length, WrapMargin::class.java)?.forEach(editable::removeSpan)

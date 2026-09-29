@@ -6,6 +6,14 @@ import com.xnote.app.domain.document.*
 // -- Functions
 
 internal fun rebaseEditorSelection(before: NoteDocument, after: NoteDocument, selection: EditorSelection): EditorSelection {
+    if (selection.isCrossField) {
+        fun rebase(position: TextPosition): TextPosition {
+            val address = position.address
+            return rebaseEditorSelection(before, after,
+                EditorSelection(address.blockId, position.offset, position.offset, address.row, address.column)).anchor()
+        }
+        return selectionBetween(rebase(selection.anchor()), rebase(selection.focus()))
+    }
     fun text(document: NoteDocument): String? = when (val block = document.block(selection.blockId)) {
         is TextBlock -> block.inlines.plainText()
         is TableBlock -> block.rows.getOrNull(selection.tableRow ?: -1)?.cells?.getOrNull(selection.tableColumn ?: -1)?.inlines?.plainText()

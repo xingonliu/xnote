@@ -218,10 +218,11 @@ class NoteEditorSession(
             if (compositionEnded) scope.launch { refreshFromStorage() }
             return
         }
-        captureHistory(snapshot(), key = "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
+        val replacingSelection = !selection.isCollapsed
+        captureHistory(snapshot(), key = if (replacingSelection) null else "type:${target.blockId}:${target.tableRow}:${target.tableColumn}")
         val (start, end, inserted) = findTextReplacement(oldText, newText)
         val change = document.replaceSelectedText(
-            target.copy(start = start, end = end),
+            if (!selection.isCollapsed) selection else target.copy(start = start, end = end),
             inserted,
             typingMarks,
         )
@@ -242,12 +243,22 @@ class NoteEditorSession(
             fieldsEpoch += 1
             focusBlockId = shortcut.selection.blockId
             typingMarks = currentInlines(shortcut.selection)?.marksAt(shortcut.selection.end) ?: InlineMarks()
-        } else if (structureChanged) {
+        } else if (structureChanged || replacingSelection) {
             fieldsEpoch += 1
             focusBlockId = change.selection.blockId
         }
         scheduleSave()
         if (compositionEnded) scope.launch { refreshFromStorage() }
+    }
+
+    fun replaceSelection(text: String) {
+        captureHistory(snapshot())
+        val change = document.replaceSelectedText(selection, text, typingMarks)
+        document = change.document
+        selection = change.selection
+        focusBlockId = change.selection.blockId
+        fieldsEpoch += 1
+        scheduleSave()
     }
 
     fun deleteBackward() {
@@ -370,7 +381,7 @@ class NoteEditorSession(
 
     fun select(target: EditorSelection) {
         selection = target
-        typingMarks = currentInlines(target)?.marksAt(target.end) ?: InlineMarks()
+        typingMarks = document.inlinesAt(target.focus().address).marksAt(target.end)
     }
 
     suspend fun imageFile(id: String): java.io.File? = library.getAttachment(id)?.let(library::attachmentFile)
@@ -605,6 +616,15 @@ fun toolbarStateFor(
     selection: EditorSelection,
     typingMarks: InlineMarks,
 ): XNoteRichTextToolbarState {
+    if (selection.isCrossField) {
+        val states = document.selectionParts(selection).filter { !it.isCollapsed }
+            .map { toolbarStateFor(document, it, typingMarks) }
+        if (states.isEmpty()) return XNoteRichTextToolbarState()
+        return states.first().copy(
+            selectedActions = states.map { it.selectedActions }.reduce { a, b -> a intersect b },
+            disabledActions = states.map { it.disabledActions }.reduce { a, b -> a intersect b },
+        )
+    }
     val block = document.block(selection.blockId)
     if (block is TableBlock) {
         val inlines = currentCellInlines(block, selection)

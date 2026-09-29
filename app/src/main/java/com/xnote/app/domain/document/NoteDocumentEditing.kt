@@ -8,7 +8,13 @@ data class EditorSelection(
     val end: Int = 0,
     val tableRow: Int? = null,
     val tableColumn: Int? = null,
+    val endBlockId: String? = null,
+    val endTableRow: Int? = null,
+    val endTableColumn: Int? = null,
 ) {
+    val isCrossField: Boolean
+        get() = endBlockId != null
+
     val min: Int
         get() = minOf(start, end)
 
@@ -16,7 +22,7 @@ data class EditorSelection(
         get() = maxOf(start, end)
 
     val isCollapsed: Boolean
-        get() = start == end
+        get() = !isCrossField && start == end
 
     val isTable: Boolean
         get() = tableRow != null && tableColumn != null
@@ -96,6 +102,7 @@ fun NoteDocument.replaceSelectedText(
     newText: String,
     marks: InlineMarks,
 ): EditorChange {
+    if (selection.isCrossField) return replaceAcrossFields(selection, newText, marks)
     if (selection.isTable) {
         return replaceTableCellText(selection, newText, marks)
     }
@@ -114,6 +121,10 @@ fun NoteDocument.replaceSelectedText(
 }
 
 fun NoteDocument.splitAt(selection: EditorSelection, newBlockId: String): EditorChange {
+    if (selection.isCrossField) {
+        val removed = replaceSelectedText(selection, "", InlineMarks())
+        return removed.document.splitAt(removed.selection, newBlockId)
+    }
     if (selection.isTable) {
         return insertNewlineInTableCell(selection)
     }
@@ -202,75 +213,65 @@ fun NoteDocument.deleteBackward(selection: EditorSelection): EditorChange {
     )
 }
 
-fun NoteDocument.setParagraphStyle(selection: EditorSelection, style: ParagraphStyle): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    val updated = block.copy(
-        paragraphStyle = style,
-        collapsed = if (
-            style == ParagraphStyle.Heading || style == ParagraphStyle.Subheading
-        ) {
-            block.collapsed
-        } else {
-            false
-        },
-        listMarker = if (style == ParagraphStyle.Monospace) ListMarker.None else block.listMarker,
-        checked = if (style == ParagraphStyle.Monospace) false else block.checked,
-    )
-    return EditorChange(replaceBlock(updated), selection)
-}
+fun NoteDocument.setParagraphStyle(selection: EditorSelection, style: ParagraphStyle): EditorChange =
+    mapSelectedParagraphs(selection) { block ->
+        block.copy(
+            paragraphStyle = style,
+            collapsed = block.collapsed && (style == ParagraphStyle.Heading || style == ParagraphStyle.Subheading),
+            listMarker = if (style == ParagraphStyle.Monospace) ListMarker.None else block.listMarker,
+            checked = style != ParagraphStyle.Monospace && block.checked,
+        )
+    }
 
 fun NoteDocument.setListMarker(selection: EditorSelection, marker: ListMarker): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    val next = if (block.listMarker == marker) ListMarker.None else marker
-    val updated = block.copy(
-        listMarker = next,
-        checked = if (next == ListMarker.Checklist) block.checked else false,
-        paragraphStyle = if (next == ListMarker.None) {
-            block.paragraphStyle
-        } else {
-            ParagraphStyle.Body
-        },
-    )
-    return EditorChange(replaceBlock(updated), selection)
+    val next = if (selectedParagraphs(selection).all { it.listMarker == marker }) ListMarker.None else marker
+    return mapSelectedParagraphs(selection) { block ->
+        block.copy(
+            listMarker = next,
+            checked = next == ListMarker.Checklist && block.checked,
+            paragraphStyle = if (next == ListMarker.None) block.paragraphStyle else ParagraphStyle.Body,
+        )
+    }
 }
 
 fun NoteDocument.toggleQuoted(selection: EditorSelection): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    return EditorChange(replaceBlock(block.copy(quoted = !block.quoted)), selection)
+    val enable = !selectedParagraphs(selection).all { it.quoted }
+    return mapSelectedParagraphs(selection) { it.copy(quoted = enable) }
 }
 
-fun NoteDocument.changeIndent(selection: EditorSelection, delta: Int): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    val indent = (block.indent + delta).coerceIn(0, MaxTextIndent)
-    return EditorChange(replaceBlock(block.copy(indent = indent)), selection)
-}
+fun NoteDocument.changeIndent(selection: EditorSelection, delta: Int): EditorChange =
+    mapSelectedParagraphs(selection) { it.copy(indent = (it.indent + delta).coerceIn(0, MaxTextIndent)) }
 
-fun NoteDocument.setAlignment(selection: EditorSelection, alignment: TextAlignment): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    return EditorChange(replaceBlock(block.copy(alignment = alignment)), selection)
-}
+fun NoteDocument.setAlignment(selection: EditorSelection, alignment: TextAlignment): EditorChange =
+    mapSelectedParagraphs(selection) { it.copy(alignment = alignment) }
 
-fun NoteDocument.toggleChecked(selection: EditorSelection): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    if (block.listMarker != ListMarker.Checklist) return EditorChange(this, selection)
-    return EditorChange(replaceBlock(block.copy(checked = !block.checked)), selection)
-}
-
-fun NoteDocument.toggleCollapsed(selection: EditorSelection): EditorChange {
-    val block = selectedTextBlock(selection) ?: return EditorChange(this, selection)
-    if (block.paragraphStyle != ParagraphStyle.Heading &&
-        block.paragraphStyle != ParagraphStyle.Subheading
-    ) {
-        return EditorChange(this, selection)
+fun NoteDocument.toggleChecked(selection: EditorSelection): EditorChange =
+    mapSelectedParagraphs(selection) {
+        if (it.listMarker == ListMarker.Checklist) it.copy(checked = !it.checked) else it
     }
-    return EditorChange(replaceBlock(block.copy(collapsed = !block.collapsed)), selection)
-}
+
+fun NoteDocument.toggleCollapsed(selection: EditorSelection): EditorChange =
+    mapSelectedParagraphs(selection) {
+        if (it.paragraphStyle == ParagraphStyle.Heading || it.paragraphStyle == ParagraphStyle.Subheading)
+            it.copy(collapsed = !it.collapsed) else it
+    }
 
 fun NoteDocument.applyInlineMark(
     selection: EditorSelection,
     mark: InlineMark,
     typingMarks: InlineMarks,
 ): Pair<EditorChange, InlineMarks> {
+    if (selection.isCrossField) {
+        val parts = selectionParts(selection).filter { !it.isCollapsed }
+        val enable = !parts.all { selectedInlines(it)?.rangeHasMark(it.min, it.max, mark) != false }
+        val updated = parts.fold(this) { document, part ->
+            val runs = document.selectedInlines(part).orEmpty()
+            document.replaceSelectedInlines(part, runs.mapRange(part.min, part.max) {
+                it.withMarks(it.marks().toggle(mark, enable))
+            })
+        }
+        return EditorChange(updated, selection) to typingMarks.toggle(mark, enable)
+    }
     val inlines = selectedInlines(selection) ?: return EditorChange(this, selection) to typingMarks
     if (selection.isCollapsed) {
         val enable = !typingMarks.has(mark)
@@ -288,6 +289,12 @@ fun NoteDocument.setLink(
     url: String?,
     typingMarks: InlineMarks,
 ): Pair<EditorChange, InlineMarks> {
+    if (selection.isCrossField) {
+        val updated = selectionParts(selection).fold(this) { document, part ->
+            if (part.isCollapsed) document else document.setLink(part, url, typingMarks).first.document
+        }
+        return EditorChange(updated, selection) to typingMarks.copy(linkUrl = url?.trim()?.takeIf { it.isNotEmpty() })
+    }
     val inlines = selectedInlines(selection) ?: return EditorChange(this, selection) to typingMarks
     val normalized = url?.trim()?.takeIf { it.isNotEmpty() }
     if (selection.isCollapsed) {

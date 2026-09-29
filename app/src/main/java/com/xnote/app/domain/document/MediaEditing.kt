@@ -7,6 +7,10 @@ enum class MediaAction { Backward, Forward, Reset, Duplicate, Delete }
 // -- Functions
 
 fun NoteDocument.insertMedia(selection: EditorSelection, media: NoteBlock, trailingTextId: String): EditorChange {
+    if (selection.isCrossField) {
+        val start = selectionParts(selection).firstOrNull() ?: return EditorChange(this, selection)
+        return insertMedia(start.copy(end = start.start), media, trailingTextId)
+    }
     val index = blockIndex(selection.blockId)
     val text = blocks.getOrNull(index) as? TextBlock
     val updated = blocks.toMutableList()
