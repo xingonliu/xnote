@@ -71,8 +71,7 @@ fun LiquidBottomTabs(
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val accentColor = MaterialTheme.colorScheme.primary
     val containerColor =
-        if (com.xnote.app.design.LocalXNoteInteractionSettings.current.highContrast) MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
-        else if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
+        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
 
     val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
@@ -151,6 +150,8 @@ fun LiquidBottomTabs(
         val interactiveHighlight = remember(animationScope) {
             InteractiveHighlight(
                 animationScope = animationScope,
+                surfaceAlpha = 0.08f,
+                fallbackSurfaceAlpha = 0.25f,
                 position = { size, _ ->
                     Offset(
                         if (isLtr) (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
@@ -184,7 +185,7 @@ fun LiquidBottomTabs(
                     onDrawSurface = { drawRect(containerColor) },
                 )
                 .then(interactiveHighlight.modifier)
-                .height(64.dp)
+                .height(56.dp)
                 .fillMaxWidth()
                 .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -224,7 +225,7 @@ fun LiquidBottomTabs(
                         onDrawSurface = { drawRect(containerColor) },
                     )
                     .then(interactiveHighlight.modifier)
-                    .height(56.dp)
+                    .height(48.dp)
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
@@ -286,7 +287,7 @@ fun LiquidBottomTabs(
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     },
                 )
-                .height(56.dp)
+                .height(48.dp)
                 .fillMaxWidth(1f / tabsCount),
         )
     }

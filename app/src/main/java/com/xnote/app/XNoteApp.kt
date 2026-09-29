@@ -703,7 +703,7 @@ fun XNoteApp(
                                     updateNavigationState(navigationState.openDestination(it))
                                 },
                                 onDestinationReselected = ::resetDestination,
-                                backdrop = backdrop,
+                                backdrop = contentBackdrop,
                                 modifier = Modifier.align(Alignment.BottomCenter),
                             )
                         }

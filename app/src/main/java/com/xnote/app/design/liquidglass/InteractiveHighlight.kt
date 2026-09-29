@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
     val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
+    private val surfaceAlpha: Float = 0.04f,
+    private val fallbackSurfaceAlpha: Float = 0.125f,
 ) {
     private val pressProgressAnimationSpec =
         spring(0.5f, 300f, 0.001f)
@@ -64,7 +66,7 @@ half4 main(float2 coord) {
             if (progress > 0f) {
                 if (shader != null) {
                     drawRect(
-                        Color.White.copy(0.04f * progress),
+                        Color.White.copy(surfaceAlpha * progress),
                         blendMode = BlendMode.Plus,
                     )
                     shader.apply {
@@ -84,7 +86,7 @@ half4 main(float2 coord) {
                     )
                 } else {
                     drawRect(
-                        Color.White.copy(0.125f * progress),
+                        Color.White.copy(fallbackSurfaceAlpha * progress),
                         blendMode = BlendMode.Plus,
                     )
                 }
