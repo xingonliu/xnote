@@ -97,7 +97,8 @@ fun AgentComposer(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                LiquidButton(onClick = onSend, backdrop = backdrop, modifier = Modifier.size(XNoteButtonSize).testTag("agent-send"), enabled = canSend) {
+                LiquidButton(onClick = onSend, backdrop = backdrop, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(XNoteButtonSize).testTag("agent-send"), enabled = canSend) {
                     Icon(painterResource(R.drawable.ic_keyline_fill_send), if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
                 }
             }
