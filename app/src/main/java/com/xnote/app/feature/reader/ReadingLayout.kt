@@ -35,7 +35,10 @@ sealed interface ReadingContent {
         val x: Float,
         val y: Float,
     ) : ReadingContent
+    data class Flow(val placements: List<ReadingPlacement>) : ReadingContent
 }
+
+data class ReadingPlacement(val content: ReadingContent, val top: Float, val height: Float, val zIndex: Int = 0)
 
 // -- Functions
 
@@ -76,7 +79,14 @@ fun measureReadingUnits(
     for (note in notes) {
         addText(note, "title", AnnotatedString(note.title.ifBlank { untitled }), typography.headlineLarge)
         val labels = note.document.numberedLabels()
-        for (block in note.document.blocks) {
+        for (group in note.document.blocks.flowGroups()) {
+            if (group.wraps) {
+                val pages = paginateReadingUnits(toList(), pageHeight)
+                val used = pages.lastOrNull()?.takeIf { it.noteId == note.id }?.units?.sumOf { it.height.toDouble() }?.toFloat() ?: 0f
+                addAll(measureReadingFlow(note.id, group, attachments, measurer, typography, colors, width, pageHeight, pageHeight - used, density, labels, lineHeightScale))
+                continue
+            }
+            for (block in group.blocks) {
             when (block) {
                 is TextBlock -> {
                     val marker = when (block.listMarker) {
@@ -117,7 +127,7 @@ fun measureReadingUnits(
                     val image = when (block) {
                         is ImageBlock -> block
                         is StickerBlock -> ImageBlock(block.id, block.attachmentId, scale = block.scale,
-                            rotationDegrees = block.rotationDegrees, offsetX = block.offsetX, offsetY = block.offsetY)
+                            rotationDegrees = block.rotationDegrees, offsetX = block.offsetX, offsetY = block.offsetY, layout = block.layout, zIndex = block.zIndex)
                         is DrawingBlock -> ImageBlock(block.id, block.attachmentId)
                     }
                     val attachment = attachments[image.attachmentId]
@@ -137,6 +147,7 @@ fun measureReadingUnits(
                             image.rotationDegrees, (image.offsetX * density).coerceIn(-space, space) * fit,
                             image.offsetY * density * fit)))
                 }
+            }
             }
         }
     }

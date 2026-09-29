@@ -29,6 +29,7 @@ fun ProfileScreen(
     LazyColumn(modifier.fillMaxSize(), state = listState, contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(stringResource(R.string.profile_library_section), style = MaterialTheme.typography.titleSmall) }
+        item { ProfileEntry("贴纸库", "创建、管理和预览贴纸") { onOpenDetail("贴纸库") } }
         item { ProfileEntry("统计", "文字量、内容数量与最近笔记") { onOpenDetail("统计") } }
         item { ProfileEntry(stringResource(R.string.recycle_bin_title), stringResource(R.string.recycle_bin_profile_summary, trashCount), onOpenRecycleBin) }
         item { ProfileEntry("存储与隐私", "本地占用与缓存清理") { onOpenDetail("存储与隐私") } }

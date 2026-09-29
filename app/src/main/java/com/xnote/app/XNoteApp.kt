@@ -419,6 +419,10 @@ fun XNoteApp(
             com.xnote.app.feature.agent.ModelSettingsScreen(modelProfiles, modelClient, onBack = { profilePage = null })
             return
         }
+        if (page == "贴纸库") {
+            com.xnote.app.feature.creative.StickerLibraryScreen(noteLibrary, onBack = { profilePage = null })
+            return
+        }
         ProfileDetailScreen(page, activeNotes, notebooks, agentTimeline?.noteMemory, onBack = { profilePage = null }, onOpenNote = {
             profilePage = null
             statisticsNoteId = it

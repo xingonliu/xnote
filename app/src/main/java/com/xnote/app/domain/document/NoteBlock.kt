@@ -110,30 +110,42 @@ data class TableBlock(
 ) : NoteBlock
 
 @Serializable
+sealed interface PlacedMediaBlock : NoteBlock {
+    val attachmentId: String
+    val layout: MediaLayout
+    val scale: Float
+    val rotationDegrees: Float
+    val offsetX: Float
+    val offsetY: Float
+    val zIndex: Int
+}
+
+@Serializable
 @SerialName("image")
 data class ImageBlock(
     override val id: String,
-    val attachmentId: String,
-    val layout: MediaLayout = MediaLayout.Block,
-    val scale: Float = 1f,
-    val rotationDegrees: Float = 0f,
-    val offsetX: Float = 0f,
-    val offsetY: Float = 0f,
-    val zIndex: Int = 0,
-) : NoteBlock
+    override val attachmentId: String,
+    override val layout: MediaLayout = MediaLayout.Block,
+    override val scale: Float = 1f,
+    override val rotationDegrees: Float = 0f,
+    override val offsetX: Float = 0f,
+    override val offsetY: Float = 0f,
+    override val zIndex: Int = 0,
+) : PlacedMediaBlock
 
 @Serializable
 @SerialName("sticker")
 data class StickerBlock(
     override val id: String,
-    val attachmentId: String,
+    override val attachmentId: String,
     val libraryEntryId: String? = null,
-    val scale: Float = 1f,
-    val rotationDegrees: Float = 0f,
-    val offsetX: Float = 0f,
-    val offsetY: Float = 0f,
-    val zIndex: Int = 0,
-) : NoteBlock
+    override val layout: MediaLayout = MediaLayout.Block,
+    override val scale: Float = 1f,
+    override val rotationDegrees: Float = 0f,
+    override val offsetX: Float = 0f,
+    override val offsetY: Float = 0f,
+    override val zIndex: Int = 0,
+) : PlacedMediaBlock
 
 @Serializable
 @SerialName("drawing")
@@ -142,6 +154,7 @@ data class DrawingBlock(
     val attachmentId: String,
     val width: Float,
     val height: Float,
+    val strokes: List<DrawingStroke> = emptyList(),
 ) : NoteBlock
 
 // -- Functions

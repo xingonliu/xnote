@@ -45,7 +45,7 @@ import kotlin.math.*
 
 @Composable
 fun NoteImageBlock(
-    block: ImageBlock,
+    block: PlacedMediaBlock,
     session: NoteEditorSession,
     originY: Float,
     modifier: Modifier = Modifier,
@@ -69,6 +69,7 @@ fun NoteImageBlock(
         try {
             val file = session.imageFile(block.attachmentId) ?: error("Missing image")
             bitmap = decodeNoteImage(file).asImageBitmap()
+            bitmap?.let { session.mediaRatios[block.attachmentId] = it.height.toFloat() / it.width }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
@@ -76,13 +77,12 @@ fun NoteImageBlock(
         }
     }
     BoxWithConstraints(modifier.zIndex(1f + block.zIndex.toFloat())) {
-        val baseWidth = maxWidth.value * 0.7f
         val ratio = bitmap?.let { it.height.toFloat() / it.width } ?: 0.65f
-        val width = baseWidth * block.scale
-        val height = width * ratio
-        val angle = Math.toRadians(block.rotationDegrees.toDouble())
-        val displayHeight = abs(sin(angle)).toFloat() * width + abs(cos(angle)).toFloat() * height
-        val center = Offset(maxWidth.value / 2f + block.offsetX, displayHeight / 2f + block.offsetY)
+        val geometry = block.geometry(maxWidth.value, ratio)
+        val width = geometry.width
+        val height = geometry.height
+        val displayHeight = geometry.boundsHeight
+        val center = Offset(geometry.centerX, geometry.centerY)
         SideEffect {
             onBottomChanged(originY + center.y + displayHeight / 2f + 44f)
         }
@@ -105,7 +105,7 @@ fun NoteImageBlock(
                     try {
                         do {
                             val event = awaitPointerEvent()
-                            val current = session.document.block(block.id) as? ImageBlock ?: break
+                            val current = session.document.block(block.id) as? PlacedMediaBlock ?: break
                             val pan = event.calculatePan()
                             val radians = Math.toRadians(current.rotationDegrees.toDouble())
                             val screenPan = Offset((pan.x * cos(radians) - pan.y * sin(radians)).toFloat(),
@@ -113,13 +113,13 @@ fun NoteImageBlock(
                             val zoom = event.calculateZoom()
                             val rotation = event.calculateRotation()
                             if (screenPan != Offset.Zero || zoom != 1f || rotation != 0f) {
-                                session.transformImage(block.id, current.scale * zoom, current.rotationDegrees + rotation,
+                                session.transformMedia(block.id, current.scale * zoom, current.rotationDegrees + rotation,
                                     current.offsetX + screenPan.x, current.offsetY + screenPan.y)
                             }
                             event.changes.forEach { it.consume() }
                         } while (event.changes.any { it.pressed })
                     } finally {
-                        session.finishImageGesture()
+                        session.finishMediaGesture()
                     }
                 }
             }
@@ -144,7 +144,7 @@ fun NoteImageBlock(
                     }
                 } else {
                     Image(image, stringResource(R.string.image_description),
-                        Modifier.fillMaxSize().clip(XNoteSmoothCornerShape(12.dp)))
+                        Modifier.fillMaxSize().then(if (block is ImageBlock) Modifier.clip(XNoteSmoothCornerShape(12.dp)) else Modifier))
                 }
             }
         }

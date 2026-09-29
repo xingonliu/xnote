@@ -2,6 +2,7 @@ package com.xnote.app.data.db
 
 import android.content.Context
 import androidx.room3.Database
+import androidx.room3.AutoMigration
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
@@ -16,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
         NoteFtsEntity::class,
         NoteRevisionEntity::class,
         AttachmentEntity::class,
+        StickerEntity::class,
         AgentPermissionEntity::class,
         AgentSegmentEntity::class,
         AgentMessageEntity::class,
@@ -44,7 +46,8 @@ import kotlinx.coroutines.Dispatchers
         AgentNoteMemoryFtsEntity::class,
         AgentFileEntity::class,
     ],
-    version = 16,
+    version = 17,
+    autoMigrations = [AutoMigration(from = 16, to = 17)],
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {
@@ -53,6 +56,7 @@ abstract class XNoteDatabase : RoomDatabase() {
     abstract fun noteFts(): NoteFtsDao
     abstract fun revisions(): NoteRevisionDao
     abstract fun attachments(): AttachmentDao
+    abstract fun stickers(): StickerDao
     abstract fun agent(): AgentDao
     abstract fun memory(): AgentMemoryDao
     abstract fun profileMemory(): AgentProfileDao

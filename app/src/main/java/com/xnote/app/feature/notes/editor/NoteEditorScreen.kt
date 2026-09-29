@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,18 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
+import com.xnote.app.domain.document.*
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
+import com.xnote.app.data.files.decodeNoteImage
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.ImageBitmap
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.ImageBlock
@@ -132,7 +145,7 @@ private fun NotePaper(session: NoteEditorSession) {
     val blocks = session.document.visibleBlocks()
     val labels = session.document.numberedLabels()
     val firstTextId = blocks.filterIsInstance<TextBlock>().firstOrNull()?.id
-    val images = blocks.filterIsInstance<ImageBlock>()
+    val images = blocks.filterIsInstance<PlacedMediaBlock>()
     val paperBottom = images.maxOfOrNull { imageBottoms[it.id] ?: 0f } ?: 0f
     Box(Modifier.widthIn(max = XNoteMaximumContentWidth).fillMaxWidth()
         .heightIn(min = maxOf(600f, paperBottom).dp)) {
@@ -158,29 +171,33 @@ private fun NotePaper(session: NoteEditorSession) {
                     modifier = Modifier.fillMaxWidth().testTag("xnote-editor-date"),
                 )
             }
-            blocks.forEach { block ->
-                key(block.id) {
-                    if (block is ImageBlock) {
-                        NoteImageBlock(
-                            block = block,
-                            session = session,
-                            originY = (imageOrigins[block.id] ?: 0f) / density,
-                            modifier = Modifier.fillMaxWidth().onPlaced {
-                                imageOrigins[block.id] = it.positionInParent().y
-                            },
-                            onBottomChanged = { imageBottoms[block.id] = it },
-                        )
-                    } else {
-                        EditorBlock(block, session, labels[block.id], block.id == firstTextId)
-                    }
-                    val nextBlock = session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1)
-                    if (block !is TextBlock && nextBlock !is TextBlock) {
-                        Box(Modifier.fillMaxWidth().height(XNoteMinimumTouchTarget)
-                            .testTag(when (block) {
-                                is TableBlock -> "xnote-editor-continue-after-table"
-                                is ImageBlock -> "xnote-editor-continue-after-image"
-                                else -> "xnote-editor-continue-after-${block.id}"
-                            }).clickable { session.continueAfterBlock(block.id) })
+            blocks.flowGroups().forEach { group ->
+                if (group.wraps) {
+                    EditorFlowGroup(group, session, labels, firstTextId)
+                } else group.blocks.forEach { block ->
+                    key(block.id) {
+                        if (block is PlacedMediaBlock) {
+                            NoteImageBlock(
+                                block = block,
+                                session = session,
+                                originY = (imageOrigins[block.id] ?: 0f) / density,
+                                modifier = Modifier.fillMaxWidth().onPlaced {
+                                    imageOrigins[block.id] = it.positionInParent().y
+                                },
+                                onBottomChanged = { imageBottoms[block.id] = it },
+                            )
+                        } else {
+                            EditorBlock(block, session, labels[block.id], block.id == firstTextId)
+                        }
+                        val nextBlock = session.document.blocks.getOrNull(session.document.blocks.indexOf(block) + 1)
+                        if (block !is TextBlock && nextBlock !is TextBlock) {
+                            Box(Modifier.fillMaxWidth().height(XNoteMinimumTouchTarget)
+                                .testTag(when (block) {
+                                    is TableBlock -> "xnote-editor-continue-after-table"
+                                    is ImageBlock -> "xnote-editor-continue-after-image"
+                                    else -> "xnote-editor-continue-after-${block.id}"
+                                }).clickable { session.continueAfterBlock(block.id) })
+                        }
                     }
                 }
             }
@@ -236,17 +253,8 @@ private fun EditorBlock(
             isFirstTextBlock = isFirstTextBlock,
         )
         is TableBlock -> TableBlockEditor(block = block, session = session)
-        is ImageBlock -> Unit
-        is StickerBlock, is DrawingBlock -> {
-            Text(
-                text = stringResource(R.string.editor_unsupported_block),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = XNoteSpacingSmall),
-            )
-        }
+        is PlacedMediaBlock -> Unit
+        is DrawingBlock -> DrawingBlockPreview(block, session)
     }
 }
 
@@ -256,6 +264,9 @@ private fun TextBlockEditor(
     session: NoteEditorSession,
     numberedLabel: Int?,
     isFirstTextBlock: Boolean,
+    nativeFlow: Boolean = false,
+    exclusionWidth: Float = 0f,
+    exclusionHeight: Float = 0f,
 ) {
     val alignment = block.alignment.toTextAlign()
     val style = block.paragraphStyle.toTextStyle()
@@ -349,6 +360,9 @@ private fun TextBlockEditor(
         }
         RichTextField(
             inlines = block.inlines,
+            nativeFlow = nativeFlow,
+            exclusionWidth = (exclusionWidth - with(LocalDensity.current) { (block.indent * 20 + if (block.quoted) 16 else 0).dp.toPx() }).coerceAtLeast(0f),
+            exclusionHeight = exclusionHeight,
             fieldsEpoch = session.fieldsEpoch,
             textStyle = style,
             textAlign = alignment,
@@ -508,4 +522,65 @@ private fun TextAlignment.toTextAlign(): TextAlign = when (this) {
     TextAlignment.Left -> TextAlign.Start
     TextAlignment.Center -> TextAlign.Center
     TextAlignment.Right -> TextAlign.End
+}
+
+@Composable
+private fun DrawingBlockPreview(block: DrawingBlock, session: NoteEditorSession) {
+    var image by remember(block.attachmentId) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(block.attachmentId) {
+        val file = session.imageFile(block.attachmentId)
+        if (file != null) try { image = decodeNoteImage(file).asImageBitmap() }
+        catch (error: kotlinx.coroutines.CancellationException) { throw error }
+        catch (_: Exception) { image = null }
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().aspectRatio(block.width / block.height).clickable { session.drawingBlockId = block.id }
+            .testTag("xnote-drawing-${block.id}")) {
+            image?.let { Image(it, "画笔内容，点击编辑", Modifier.fillMaxSize()) } ?: Text("画笔内容无法读取，点击重新编辑")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            XNoteButton({ session.drawingBlockId = block.id }) { Text("编辑画板") }
+            XNoteButton({ session.removeMedia(block.id) }) { Text("删除画笔块") }
+        }
+    }
+}
+
+@Composable
+private fun EditorFlowGroup(group: NoteFlowGroup, session: NoteEditorSession, labels: Map<String, Int>, firstTextId: String?) {
+    val density = LocalDensity.current.density
+    SubcomposeLayout(Modifier.fillMaxWidth()) { constraints ->
+        val width = constraints.maxWidth
+        val gap = 8.dp.toPx()
+        var y = 0f
+        var bottom = 0f
+        val exclusions = mutableListOf<Pair<Float, Float>>()
+        val positions = mutableListOf<Triple<androidx.compose.ui.layout.Placeable, Int, Float>>()
+        for (block in group.blocks) {
+            if (block is PlacedMediaBlock) {
+                val geometry = block.geometry(width / density, session.mediaRatios[block.attachmentId] ?: 0.65f)
+                val placeable = subcompose(block.id) {
+                    NoteImageBlock(block, session, 0f, onBottomChanged = {})
+                }.single().measure(Constraints(maxWidth = width))
+                positions += Triple(placeable, y.roundToInt(), 1f + block.zIndex)
+                bottom = maxOf(bottom, y + geometry.bottom * density)
+                if (block.layout == MediaLayout.Wrap) exclusions += (geometry.right * density + gap) to (y + geometry.bottom * density + gap)
+            } else if (block is TextBlock) {
+                val active = exclusions.filter { it.second > y }
+                val right = active.maxOfOrNull { it.first } ?: 0f
+                if (width - right < 80.dp.toPx()) y = maxOf(y, active.maxOfOrNull { it.second } ?: y)
+                val remaining = exclusions.filter { it.second > y }
+                val exclusionWidth = remaining.maxOfOrNull { it.first } ?: 0f
+                val exclusionHeight = (remaining.maxOfOrNull { it.second } ?: y) - y
+                val placeable = subcompose(block.id) {
+                    TextBlockEditor(block, session, labels[block.id], block.id == firstTextId,
+                        nativeFlow = true, exclusionWidth = exclusionWidth, exclusionHeight = exclusionHeight)
+                }.single().measure(Constraints(maxWidth = width))
+                positions += Triple(placeable, y.roundToInt(), 0f)
+                y += placeable.height + gap
+            }
+        }
+        layout(width, kotlin.math.ceil(maxOf(y, bottom + gap)).toInt()) {
+            positions.forEach { (placeable, top, z) -> placeable.place(0, top, zIndex = z) }
+        }
+    }
 }

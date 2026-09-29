@@ -8,7 +8,7 @@ import kotlinx.coroutines.withContext
 
 // -- Type Definitions
 
-data class LocalStorageUsage(val databaseBytes: Long, val attachmentBytes: Long, val cacheBytes: Long, val clearableBytes: Long, val chatAttachmentBytes: Long)
+data class LocalStorageUsage(val databaseBytes: Long, val attachmentBytes: Long, val cacheBytes: Long, val clearableBytes: Long, val chatAttachmentBytes: Long, val cutoutModelBytes: Long)
 
 class LocalStorage(context: Context) {
     // -- State
@@ -24,6 +24,7 @@ class LocalStorage(context: Context) {
             cache.sumOf { it.length() },
             cache.filter { clearable(it, System.currentTimeMillis()) }.sumOf { it.length() },
             size(File(appContext.filesDir, "attachments/agent")),
+            size(File(appContext.filesDir, "cutout-models")),
         )
     }
 

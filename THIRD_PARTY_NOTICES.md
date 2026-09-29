@@ -25,3 +25,9 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## U²-Net / U2NETP 与 ONNX Runtime
+
+主体分割使用 [U-2-Net](https://github.com/xuebinqin/U-2-Net) 的 U2NETP 模型，按 Apache-2.0 分发；权重来自 [rembg 固定发布资产](https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx)，SHA-256 为 `309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8`，首次使用时下载。许可证和来源说明随 APK 保存在 `assets/licenses/U2NETP-Apache-2.0.txt` 与 `U2NETP-NOTICE.txt`。
+
+Android 推理使用 [ONNX Runtime 1.25.0](https://github.com/microsoft/onnxruntime/tree/v1.25.0)，采用 MIT 许可证。完整 MIT 许可证及上游依赖通知随 APK 保存在 `assets/licenses/ONNX-Runtime-MIT.txt` 和 `ONNX-Runtime-ThirdPartyNotices.txt`。

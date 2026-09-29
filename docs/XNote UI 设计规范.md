@@ -563,3 +563,10 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 - [Keyline Icons：图标目录](https://keylineicons.com/icons)
 - [Keyline Icons：官方仓库](https://github.com/keyline-icons/keyline-icons)
 - [Keyline Icons：MIT License](https://github.com/keyline-icons/keyline-icons/blob/14cd695f3f2bbe320bbe7a01e65b251df7ba52cf/LICENSE)
+
+
+## S12 创作页面
+
+图片编辑、画板与贴纸库复用 CreativePage（XNotePageScaffold、XNoteHeader、公共按钮、Toast 和安全区）。Header 分别显示“图片编辑 / 完成”“画板 / 完成”“贴纸库 / 添加”。蒙版与透明画布使用棋盘格；预览按可用宽高等比适配，工具行在窄屏与放大字号下横向滚动。
+
+图片编辑展示原图、蒙版、结果、处理进度及手动添加/擦除工具；画板提供笔、橡皮、颜色、粗细与历史操作。贴纸库采用自适应网格，预览页提供名称、重命名、删除与上下文可用的插入动作，删除复用公共确认 Dialog。正文的图片与贴纸共享选择框、变换手柄、层级及布局菜单；画板块提供再次编辑和删除入口。

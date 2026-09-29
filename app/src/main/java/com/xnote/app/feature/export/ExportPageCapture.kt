@@ -44,7 +44,7 @@ internal fun ExportPageCapture(
     LaunchedEffect(Unit) {
         try {
             val images = mutableMapOf<String, ImageBitmap>()
-            page.units.mapNotNull { (it.content as? ReadingContent.Media)?.attachmentId }.distinct().forEach { id ->
+            page.units.flatMap { it.content.mediaAttachmentIds() }.distinct().forEach { id ->
                 try {
                     val attachment = library.getAttachment(id) ?: error("Missing attachment")
                     images[id] = decodeNoteImage(library.attachmentFile(attachment)).asImageBitmap()

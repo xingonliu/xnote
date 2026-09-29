@@ -9,7 +9,7 @@ class ImageEditingTest {
     @Test
     fun insertionSplitsStyledTextWithoutDeletingSelection() {
         val original = NoteDocument(blocks = listOf(TextBlock("text", inlines = listOf(InlineRun("前后", bold = true)))))
-        val result = original.insertImage(EditorSelection("text", 1, 2), ImageBlock("image", "file"), "tail")
+        val result = original.insertMedia(EditorSelection("text", 1, 2), ImageBlock("image", "file"), "tail")
         assertEquals(listOf("text", "image", "tail"), result.document.blocks.map { it.id })
         assertEquals(listOf(InlineRun("前", bold = true)), (result.document.blocks[0] as TextBlock).inlines)
         assertEquals(listOf(InlineRun("后", bold = true)), (result.document.blocks[2] as TextBlock).inlines)
@@ -19,7 +19,7 @@ class ImageEditingTest {
     @Test
     fun imageAfterTableIsNeverNestedAndHasEditableTrailingParagraph() {
         val table = emptyTableBlock("table")
-        val result = NoteDocument(blocks = listOf(table)).insertImage(
+        val result = NoteDocument(blocks = listOf(table)).insertMedia(
             EditorSelection("table", tableRow = 0, tableColumn = 0), ImageBlock("image", "file"), "tail",
         )
         assertEquals(table, result.document.blocks.first())
@@ -29,7 +29,7 @@ class ImageEditingTest {
     @Test
     fun duplicateSharesAttachmentButHasIndependentTransformAndHistory() {
         val original = NoteDocument(blocks = listOf(ImageBlock("image", "file")))
-        val duplicate = original.editImage("image", ImageAction.Duplicate, "copy").document
+        val duplicate = original.editMedia("image", MediaAction.Duplicate, "copy").document
         val copy = duplicate.block("copy") as ImageBlock
         val transformed = duplicate.replaceBlock(copy.transformed(1f, 90f, copy.offsetX, copy.offsetY))
         assertEquals(0f, (transformed.block("image") as ImageBlock).rotationDegrees)
@@ -48,13 +48,13 @@ class ImageEditingTest {
     fun layersSwapOneImageAtATimeAndDeletingLastBlockKeepsText() {
         val original = NoteDocument(blocks = listOf(ImageBlock("a", "file"), TextBlock("text"),
             ImageBlock("b", "file"), ImageBlock("c", "file")))
-        val forward = original.editImage("a", ImageAction.Forward, "unused").document
+        val forward = original.editMedia("a", MediaAction.Forward, "unused").document
         assertEquals(original.blocks.map { it.id }, forward.blocks.map { it.id })
         assertEquals(listOf("b", "a", "c"), forward.blocks.filterIsInstance<ImageBlock>().sortedBy { it.zIndex }.map { it.id })
-        val back = forward.editImage("a", ImageAction.Backward, "unused").document
+        val back = forward.editMedia("a", MediaAction.Backward, "unused").document
         assertEquals(listOf("a", "b", "c"), back.blocks.filterIsInstance<ImageBlock>().sortedBy { it.zIndex }.map { it.id })
         val deleted = NoteDocument(blocks = listOf(ImageBlock("image", "file")))
-            .editImage("image", ImageAction.Delete, "fallback")
+            .editMedia("image", MediaAction.Delete, "fallback")
         assertEquals(listOf(TextBlock("fallback")), deleted.document.blocks)
     }
 

@@ -440,6 +440,25 @@ class NoteLibrary(
 
     suspend fun getAttachment(id: String): Attachment? = attachments.get(id)?.toDomain()
 
+    fun observeStickers() = database.stickers().observeAll()
+
+    suspend fun saveSticker(attachmentId: String, name: String): com.xnote.app.data.db.StickerEntity = write {
+        check(attachments.get(attachmentId) != null) { "Missing sticker attachment" }
+        val sticker = com.xnote.app.data.db.StickerEntity(newNoteId(), attachmentId, name.trim().ifEmpty { "贴纸" }, clock.nowMs())
+        database.stickers().upsert(sticker)
+        sticker
+    }
+
+    suspend fun renameSticker(id: String, name: String) {
+        require(name.isNotBlank())
+        database.stickers().rename(id, name.trim())
+    }
+
+    suspend fun deleteSticker(id: String) = write {
+        database.stickers().delete(id)
+        deleteOrphanAttachments()
+    }
+
     fun attachmentFile(attachment: Attachment) = files.resolve(attachment.relativePath)
 
     private suspend fun indexForSearch(note: Note) {
@@ -460,6 +479,7 @@ class NoteLibrary(
         val remainingNotes = notes.getAll().map { it.toDomain() }
         val remainingRevisions = revisions.getAll().map { it.toDomain() }
         val referenced = linkedSetOf<String>()
+        referenced += database.stickers().attachmentIds()
         referenced += database.agent().referencedAttachmentIds()
         sessionAttachments.values.forEach { referenced += it }
         remainingNotes.forEach { referenced += it.referencedAttachmentIds() }

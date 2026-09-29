@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.xnote.app.R
 import com.xnote.app.data.files.decodeNoteImage
 import com.xnote.app.data.repository.NoteLibrary
@@ -37,21 +38,37 @@ fun ReadingPageContent(
     library: NoteLibrary,
     modifier: Modifier = Modifier,
     loadedMedia: Map<String, ImageBitmap>? = null,
+) = ReadingPageUnits(page, library, modifier.testTag("xnote-reader-page"), loadedMedia)
+
+@Composable
+private fun ReadingPageUnits(
+    page: ReadingPage<ReadingContent>,
+    library: NoteLibrary,
+    modifier: Modifier,
+    loadedMedia: Map<String, ImageBitmap>?,
 ) {
     val density = LocalDensity.current
     val uriHandler = LocalUriHandler.current
     val outline = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
     val quote = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-    Column(modifier.testTag("xnote-reader-page")) {
+    Column(modifier) {
         page.units.forEachIndexed { index, unit ->
             val content = unit.content
             val height = with(density) { unit.height.toDp() }
-            if (content is ReadingContent.Media) {
+            if (content is ReadingContent.Flow) {
+                Box(Modifier.fillMaxWidth().height(height)) {
+                    content.placements.forEach { placement ->
+                        ReadingPageUnits(ReadingPage(listOf(unit.copy(height = placement.height, content = placement.content))), library,
+                            Modifier.fillMaxWidth().offset(y = with(density) { placement.top.toDp() }).zIndex(placement.zIndex.toFloat()), loadedMedia)
+                    }
+                }
+            } else if (content is ReadingContent.Media) {
                 ReadingMedia(content, library, Modifier.fillMaxWidth().height(height), loadedMedia)
             } else {
                 val lines = when (content) {
                     is ReadingContent.TextLine -> listOf(content)
                     is ReadingContent.TableLine -> content.cells.filterNotNull()
+                    is ReadingContent.Flow -> emptyList()
                 }
                 val accessibleText = lines.joinToString(" ") { line ->
                     line.layout.layoutInput.text.text.substring(line.layout.getLineStart(line.line), line.layout.getLineEnd(line.line))

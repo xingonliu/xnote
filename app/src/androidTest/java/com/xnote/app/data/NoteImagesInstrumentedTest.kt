@@ -11,7 +11,7 @@ import com.xnote.app.data.files.cameraUri
 import com.xnote.app.data.files.decodeNoteImage
 import com.xnote.app.data.files.importNoteImage
 import com.xnote.app.data.repository.NoteLibrary
-import com.xnote.app.domain.document.ImageAction
+import com.xnote.app.domain.document.MediaAction
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.model.SystemEpochClock
@@ -98,18 +98,18 @@ class NoteImagesInstrumentedTest {
             val target = session.selection
             session.attachImage(attachment.id, target, null)
             val image = session.document.blocks.filterIsInstance<ImageBlock>().single()
-            session.transformImage(image.id, 1f, 90f, 0f, 0f)
-            session.finishImageGesture()
-            session.editImage(image.id, ImageAction.Duplicate)
+            session.transformMedia(image.id, 1f, 90f, 0f, 0f)
+            session.finishMediaGesture()
+            session.editMedia(image.id, MediaAction.Duplicate)
             val duplicateId = session.selection.blockId
-            session.transformImage(duplicateId, 0.5f, 25f, 12f, -8f)
-            session.finishImageGesture()
+            session.transformMedia(duplicateId, 0.5f, 25f, 12f, -8f)
+            session.finishMediaGesture()
             session.flushSave()
             val replacement = importNoteImage(context, library, Uri.fromFile(source), session.attachmentOwner)
             session.attachImage(replacement.id, EditorSelection(duplicateId), duplicateId)
             session.flushSave()
             assertEquals(0.5f, session.document.blocks.filterIsInstance<ImageBlock>().last().scale)
-            session.editImage(image.id, ImageAction.Delete)
+            session.editMedia(image.id, MediaAction.Delete)
             session.flushSave()
             library.purgeExpiredTrash()
             assertTrue(library.attachmentFile(attachment).exists())

@@ -5,14 +5,14 @@ import kotlin.math.hypot
 
 // -- Functions
 
-fun ImageBlock.transformed(scale: Float, rotation: Float, x: Float, y: Float): ImageBlock = copy(
+fun PlacedMediaBlock.transformed(scale: Float, rotation: Float, x: Float, y: Float): PlacedMediaBlock = withPlacement(
     scale = scale.coerceIn(0.15f, 4f),
     rotationDegrees = ((rotation % 360f) + 360f) % 360f,
     offsetX = x,
     offsetY = y,
 )
 
-fun ImageBlock.transformFromHandle(startX: Float, startY: Float, endX: Float, endY: Float): ImageBlock {
+fun PlacedMediaBlock.transformFromHandle(startX: Float, startY: Float, endX: Float, endY: Float): PlacedMediaBlock {
     val startDistance = hypot(startX, startY)
     if (startDistance < 1f) return this
     val angle = Math.toDegrees((atan2(endY, endX) - atan2(startY, startX)).toDouble()).toFloat()

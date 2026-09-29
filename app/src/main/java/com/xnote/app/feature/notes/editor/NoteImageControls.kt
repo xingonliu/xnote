@@ -34,6 +34,9 @@ import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.xNotePopupAnchor
+import com.xnote.app.design.XNoteDropdownMenu
+import com.xnote.app.design.XNoteDropdownMenuItem
+import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.domain.document.*
 import kotlin.math.*
 
@@ -45,7 +48,9 @@ data class ImagePlacement(val id: String, val center: Offset, val width: Float, 
 
 @Composable
 fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, replacementAnchor: XNotePopupAnchor) {
-    val block = session.document.block(session.selection.blockId) as? ImageBlock ?: return
+    val block = session.document.block(session.selection.blockId) as? PlacedMediaBlock ?: return
+    val menuAnchor = rememberXNotePopupAnchor()
+    var menuVisible by remember(block.id) { mutableStateOf(false) }
     val placement = session.imagePlacement?.takeIf { it.id == block.id } ?: return
     var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current.density
@@ -60,7 +65,7 @@ fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, r
         fun corner(x: Float, y: Float): Offset = center + Offset(
             (x * cos(angle) - y * sin(angle)).toFloat(), (x * sin(angle) + y * cos(angle)).toFloat())
         val top = center.y - (abs(sin(angle)).toFloat() * width + abs(cos(angle)).toFloat() * height) / 2f - 6f
-        val pillWidth = minOf(240f, maxWidth.value - 16f)
+        val pillWidth = minOf(288f, maxWidth.value - 16f)
         XNoteLiquidGlassPanel(backdrop, shape = XNoteSmoothCornerShape(24.dp),
             modifier = Modifier.offset {
                 IntOffset(((center.x - pillWidth / 2f).coerceIn(8f, maxWidth.value - pillWidth - 8f) * density).roundToInt(),
@@ -76,29 +81,36 @@ fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, r
                 Spacer(Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically)
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)))
                 listOf(
-                    Triple(R.drawable.ic_keyline_stroke_arrow_up, R.string.image_forward, ImageAction.Forward),
-                    Triple(R.drawable.ic_keyline_stroke_arrow_down, R.string.image_backward, ImageAction.Backward),
-                    Triple(R.drawable.ic_keyline_stroke_copy, R.string.image_duplicate, ImageAction.Duplicate),
-                    Triple(R.drawable.ic_keyline_stroke_rotate_ccw, R.string.image_reset, ImageAction.Reset),
+                    Triple(R.drawable.ic_keyline_stroke_arrow_up, R.string.image_forward, MediaAction.Forward),
+                    Triple(R.drawable.ic_keyline_stroke_arrow_down, R.string.image_backward, MediaAction.Backward),
+                    Triple(R.drawable.ic_keyline_stroke_copy, R.string.image_duplicate, MediaAction.Duplicate),
+                    Triple(R.drawable.ic_keyline_stroke_rotate_ccw, R.string.image_reset, MediaAction.Reset),
                 ).forEachIndexed { index, (iconRes, label, action) ->
                     EditorSymbolButton(
                         description = stringResource(label),
                         iconRes = iconRes,
                         modifier = Modifier.weight(1f),
-                        onClick = { session.editImage(block.id, action) },
+                        onClick = { session.editMedia(block.id, action) },
                     )
                     if (index == 1) Spacer(Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically)
                         .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)))
                 }
+                EditorSymbolButton(description = "抠图与布局", iconRes = R.drawable.ic_keyline_stroke_more_horizontal,
+                    modifier = Modifier.weight(1f).xNotePopupAnchor(menuAnchor), onClick = { menuVisible = true })
             }
         }
+        XNoteDropdownMenu(expanded = menuVisible, onDismissRequest = { menuVisible = false }, backdrop = backdrop, anchor = menuAnchor,
+            items = listOf(XNoteDropdownMenuItem("抠图", onClick = { menuVisible = false; session.cutoutImageId = block.id })) +
+                listOf("嵌入文字" to MediaLayout.Block, "文字环绕" to MediaLayout.Wrap, "浮于文字上方" to MediaLayout.Float).map { (label, layout) ->
+                    XNoteDropdownMenuItem("${if (block.layout == layout) "✓ " else ""}$label", onClick = { menuVisible = false; session.setMediaLayout(block.id, layout) })
+                })
         val delete = corner(width / 2f + 6f, -height / 2f - 6f)
         EditorGlassIconButton(
             iconRes = R.drawable.ic_keyline_stroke_bin,
             description = stringResource(R.string.image_delete),
             backdrop = backdrop,
             destructive = true,
-            onClick = { session.editImage(block.id, ImageAction.Delete) },
+            onClick = { session.editMedia(block.id, MediaAction.Delete) },
             modifier = Modifier
                 .offset { IntOffset(((delete.x - 22f) * density).roundToInt(), ((delete.y - 22f) * density).roundToInt()) }
                 .size(XNoteButtonSize),
@@ -123,11 +135,11 @@ fun BoxScope.NoteImageControls(session: NoteEditorSession, backdrop: Backdrop, r
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             val end = (handleCoordinates?.localToRoot(change.position) ?: break) - origin
                             val next = initial.transformFromHandle(start.x, start.y, end.x, end.y)
-                            session.transformImage(block.id, next.scale, next.rotationDegrees, next.offsetX, next.offsetY)
+                            session.transformMedia(block.id, next.scale, next.rotationDegrees, next.offsetX, next.offsetY)
                             event.changes.forEach { it.consume() }
                         } while (event.changes.any { it.pressed })
                     } finally {
-                        session.finishImageGesture()
+                        session.finishMediaGesture()
                     }
                 }
             }.clip(XNoteSmoothCornerShape(22.dp)).background(primary), contentAlignment = Alignment.Center) {

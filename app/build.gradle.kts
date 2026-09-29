@@ -24,6 +24,7 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.directories.add("schemas")
+        getByName("androidTest").assets.directories.add(rootProject.layout.buildDirectory.dir("s12/assets").get().asFile.path)
     }
 
     buildTypes {
@@ -89,6 +90,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core.ktx)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.25.0")
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

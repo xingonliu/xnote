@@ -765,7 +765,7 @@ private fun popupTransformOrigin(placement: XNotePopupPlacement): TransformOrigi
     XNotePopupPlacement.AboveEnd -> TransformOrigin(1f, 1f)
 }
 
-private fun Modifier.xNoteOverlayInputBarrier(): Modifier = pointerInput(Unit) {
+fun Modifier.xNoteOverlayInputBarrier(): Modifier = pointerInput(Unit) {
     awaitPointerEventScope {
         while (true) {
             awaitPointerEvent()

@@ -116,6 +116,7 @@ private fun StorageContent(padding: PaddingValues, backdrop: com.kyant.backdrop.
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("笔记数据库（含历史与回收站）：${Formatter.formatFileSize(context, value.databaseBytes)}")
                     Text("附件：${Formatter.formatFileSize(context, value.attachmentBytes)}")
+                    Text("抠图模型：${Formatter.formatFileSize(context, value.cutoutModelBytes)}")
                     Text("其中聊天文件：${Formatter.formatFileSize(context, value.chatAttachmentBytes)}；删除聊天后回收无引用文件，已另存或分享的副本独立保留。")
                     Text("缓存总量：${Formatter.formatFileSize(context, value.cacheBytes)}")
                     Text("可清理缓存：${Formatter.formatFileSize(context, value.clearableBytes)}")

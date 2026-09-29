@@ -15,11 +15,11 @@ import com.xnote.app.design.XNoteRichTextAction
 import com.xnote.app.design.XNoteRichTextToolbarState
 import com.xnote.app.domain.document.EditorChange
 import com.xnote.app.domain.document.EditorHistory
-import com.xnote.app.domain.document.ImageBlock
+import com.xnote.app.domain.document.*
 import com.xnote.app.domain.document.transformed
-import com.xnote.app.domain.document.ImageAction
-import com.xnote.app.domain.document.insertImage
-import com.xnote.app.domain.document.editImage
+import com.xnote.app.domain.document.MediaAction
+import com.xnote.app.domain.document.insertMedia
+import com.xnote.app.domain.document.editMedia
 import com.xnote.app.domain.document.replaceBlock
 import com.xnote.app.domain.document.attachmentIds
 import com.xnote.app.domain.document.EditorSelection
@@ -110,6 +110,9 @@ class NoteEditorSession(
         private set
 
     var markdownShortcutsEnabled by mutableStateOf(true)
+    var cutoutImageId by mutableStateOf<String?>(null)
+    val mediaRatios = androidx.compose.runtime.mutableStateMapOf<String, Float>()
+    var drawingBlockId by mutableStateOf<String?>(null)
     var replaceImageId by mutableStateOf<String?>(null)
     var imagePlacement by mutableStateOf<ImagePlacement?>(null)
     val attachmentOwner = newNoteId()
@@ -122,7 +125,7 @@ class NoteEditorSession(
     private var lastSavedDocument = emptyNoteDocument()
     private var editVersion = 0L
     private var savedVersion = 0L
-    private var imageGesture = 0
+    private var mediaGesture = 0
     private var closing = false
     private var composing = false
     private val saveMutex = Mutex()
@@ -375,32 +378,59 @@ class NoteEditorSession(
     fun attachImage(attachmentId: String, target: EditorSelection, replaceId: String?) {
         library.retainSessionAttachments(attachmentOwner, setOf(attachmentId))
         mutate { current ->
-            val existing = replaceId?.let { current.block(it) as? ImageBlock }
+            val existing = replaceId?.let { current.block(it) as? PlacedMediaBlock }
             if (replaceId != null) {
                 if (existing == null) EditorChange(current, selection)
                 else EditorChange(
-                    current.replaceBlock(existing.copy(attachmentId = attachmentId)), EditorSelection(existing.id),
+                    current.replaceBlock(existing.withAttachment(attachmentId)), EditorSelection(existing.id),
                 )
-            } else current.insertImage(target, ImageBlock(newNoteId(), attachmentId), newNoteId())
+            } else current.insertMedia(target, ImageBlock(newNoteId(), attachmentId), newNoteId())
         }
         focusBlockId = null
         fieldsEpoch += 1
     }
 
-    fun editImage(id: String, action: ImageAction) {
-        mutate { it.editImage(id, action, newNoteId()) }
+    fun attachMedia(media: NoteBlock, target: EditorSelection, replaceId: String? = null) {
+        val attachment = when (media) {
+            is PlacedMediaBlock -> media.attachmentId
+            is DrawingBlock -> media.attachmentId
+            else -> error("Expected media")
+        }
+        library.retainSessionAttachments(attachmentOwner, setOf(attachment))
+        mutate { current ->
+            if (replaceId != null && current.block(replaceId) != null) {
+                EditorChange(current.replaceBlock(media), EditorSelection(media.id))
+            } else current.insertMedia(target, media, newNoteId())
+        }
         focusBlockId = null
         fieldsEpoch += 1
     }
 
-    fun transformImage(id: String, scale: Float, rotation: Float, x: Float, y: Float) {
-        val image = document.block(id) as? ImageBlock ?: return
-        captureHistory(snapshot(), key = "image-gesture:$id:$imageGesture")
+    fun setMediaLayout(id: String, layout: MediaLayout) {
+        mutate { current ->
+            val media = current.block(id) as? PlacedMediaBlock
+            EditorChange(if (media == null) current else current.replaceBlock(media.withPlacement(layout = layout)), EditorSelection(id))
+        }
+    }
+
+    fun removeMedia(id: String) {
+        mutate { it.deleteBlock(id, newNoteId()) }
+    }
+
+    fun editMedia(id: String, action: MediaAction) {
+        mutate { it.editMedia(id, action, newNoteId()) }
+        focusBlockId = null
+        fieldsEpoch += 1
+    }
+
+    fun transformMedia(id: String, scale: Float, rotation: Float, x: Float, y: Float) {
+        val image = document.block(id) as? PlacedMediaBlock ?: return
+        captureHistory(snapshot(), key = "image-gesture:$id:$mediaGesture")
         document = document.replaceBlock(image.transformed(scale, rotation, x, y))
         scheduleSave()
     }
 
-    fun finishImageGesture() { imageGesture += 1 }
+    fun finishMediaGesture() { mediaGesture += 1 }
 
     fun releaseAttachments() {
         closing = true
@@ -469,7 +499,7 @@ class NoteEditorSession(
         document = snapshot.document
         selection = snapshot.selection
         fieldsEpoch += 1
-        focusBlockId = snapshot.selection.blockId.takeIf { document.block(it) !is ImageBlock }
+        focusBlockId = snapshot.selection.blockId.takeIf { document.block(it) !is PlacedMediaBlock }
         scheduleSave()
     }
 

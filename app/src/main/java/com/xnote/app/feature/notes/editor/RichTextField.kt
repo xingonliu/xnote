@@ -88,7 +88,15 @@ fun RichTextField(
     placeholder: String = "",
     singleLine: Boolean = false,
     selection: TextRange? = null,
+    nativeFlow: Boolean = false,
+    exclusionWidth: Float = 0f,
+    exclusionHeight: Float = 0f,
 ) {
+    if (nativeFlow) {
+        WrappedTextField(inlines, fieldsEpoch, textStyle, textAlign, exclusionWidth, exclusionHeight, focused, selection,
+            onFocused, onTextChange, onDeleteBackwardAtStart, modifier.then(if (fieldTestTag != null) Modifier.testTag(fieldTestTag) else Modifier))
+        return
+    }
     val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val linkColor = MaterialTheme.colorScheme.primary
     val annotated = remember(inlines, highlightColor, linkColor) {
