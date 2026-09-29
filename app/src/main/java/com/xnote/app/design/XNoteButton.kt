@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.semantics.Role
@@ -58,13 +59,15 @@ fun XNoteButton(
     // -- State and Variables
 
     val settings = LocalXNoteInteractionSettings.current
-    val interaction = rememberXNoteButtonInteraction(enabled)
+    val interaction = rememberXNoteButtonInteraction(enabled, softGlow = true)
     val colors = MaterialTheme.colorScheme
+
     // -- Derived Values
 
-    val background = if (tint.isSpecified) tint else colors.surfaceContainerHigh
+    val background = if (tint.isSpecified) tint else {
+        colors.onSurface.copy(alpha = 0.06f).compositeOver(colors.surface)
+    }
     val foreground = if (tint.isSpecified) contentColorFor(tint) else colors.onSurface
-    val border = colors.outline.copy(alpha = if (settings.highContrast) 1f else 0.24f)
 
     Row(
         modifier = modifier
@@ -75,7 +78,10 @@ fun XNoteButton(
             }
             .clip(XNoteButtonShape)
             .background(background, XNoteButtonShape)
-            .border(0.5.dp, border, XNoteButtonShape)
+            .then(
+                if (settings.highContrast) Modifier.border(1.dp, colors.outline, XNoteButtonShape)
+                else Modifier,
+            )
             .clickable(
                 enabled = enabled,
                 interactionSource = null,

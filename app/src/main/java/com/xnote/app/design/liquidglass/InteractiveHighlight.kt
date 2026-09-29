@@ -9,6 +9,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.input.pointer.pointerInput
@@ -26,7 +27,9 @@ class InteractiveHighlight(
     val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
     private val surfaceAlpha: Float = 0.04f,
     private val fallbackSurfaceAlpha: Float = 0.125f,
+    private val softGlow: Boolean = false,
 ) {
+    // -- State and Variables
     private val pressProgressAnimationSpec =
         spring(0.5f, 300f, 0.001f)
     private val positionAnimationSpec =
@@ -42,7 +45,7 @@ class InteractiveHighlight(
     val offset: Offset get() = positionAnimation.value - startPosition
 
     private val shader =
-        if (isRuntimeShaderSupported()) {
+        if (!softGlow && isRuntimeShaderSupported()) {
             RuntimeShader(
                 """
 uniform float2 size;
@@ -60,11 +63,35 @@ half4 main(float2 coord) {
             null
         }
 
+    // -- Derived Values
+
     val modifier: Modifier =
         Modifier.drawWithContent {
             val progress = pressProgressAnimation.value
             if (progress > 0f) {
-                if (shader != null) {
+                if (softGlow) {
+                    val touch = position(size, positionAnimation.value)
+                    val glow = Color.White.copy(alpha = 0.18f * progress.coerceIn(0f, 1f))
+                    // A broad Gaussian falloff avoids a solid center and a visible circular rim.
+                    drawRect(
+                        Brush.radialGradient(
+                            0f to glow,
+                            0.125f to glow.copy(alpha = glow.alpha * 0.91f),
+                            0.25f to glow.copy(alpha = glow.alpha * 0.69f),
+                            0.375f to glow.copy(alpha = glow.alpha * 0.43f),
+                            0.5f to glow.copy(alpha = glow.alpha * 0.22f),
+                            0.625f to glow.copy(alpha = glow.alpha * 0.094f),
+                            0.75f to glow.copy(alpha = glow.alpha * 0.032f),
+                            0.875f to glow.copy(alpha = glow.alpha * 0.008f),
+                            1f to glow.copy(alpha = 0f),
+                            center = Offset(
+                                touch.x.fastCoerceIn(0f, size.width),
+                                touch.y.fastCoerceIn(0f, size.height),
+                            ),
+                            radius = size.minDimension * 2f,
+                        ),
+                    )
+                } else if (shader != null) {
                     drawRect(
                         Color.White.copy(surfaceAlpha * progress),
                         blendMode = BlendMode.Plus,

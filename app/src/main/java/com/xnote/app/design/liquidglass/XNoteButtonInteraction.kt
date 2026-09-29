@@ -61,10 +61,15 @@ internal class XNoteButtonInteraction(
 // -- Functions
 
 @Composable
-internal fun rememberXNoteButtonInteraction(enabled: Boolean): XNoteButtonInteraction {
+internal fun rememberXNoteButtonInteraction(
+    enabled: Boolean,
+    softGlow: Boolean = false,
+): XNoteButtonInteraction {
     val settings = LocalXNoteInteractionSettings.current
     val scope = rememberCoroutineScope()
-    val highlight = remember(scope) { InteractiveHighlight(animationScope = scope) }
+    val highlight = remember(scope, softGlow) {
+        InteractiveHighlight(animationScope = scope, softGlow = softGlow)
+    }
     val hasMotion = enabled && !settings.reduceMotion
     return remember(highlight, hasMotion) { XNoteButtonInteraction(hasMotion, highlight) }
 }

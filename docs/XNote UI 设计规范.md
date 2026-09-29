@@ -304,13 +304,15 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 ### 内容区按钮与材质边界
 
-- `XNoteButton` 默认使用 `surfaceContainerHigh` 实色背景、0.5 dp 细边框与零投影；边框使用 `outline` 的 24% 不透明度，高对比度时为 100%。强调操作使用主题 Tint 与对应前景色，禁用时整体不透明度为 64%。
+- `XNoteButton` 默认采用 iOS 普通 Gray 按钮的轻填充层级：将 6% 的 `onSurface` 合成到 `surface`，形成不透明中性底色，常态无描边、无投影；高对比度时使用 1 dp 的 `outline` 边框。强调操作使用主题 Tint 与对应前景色，禁用时整体不透明度为 64%。
 - 非圆形按钮统一使用 `XNoteButtonRadius = 12.dp` 的连续圆角；等宽高按钮保持正圆。背景、边框、裁剪和按压反馈共用相同 Shape。12 dp 是项目调校值，并非 iOS 强制参数。
-- 不依赖 Backdrop；与玻璃按钮共享完整触点、形变、高光和回弹实现，不复制动画或增加另一套手势参数。减少动画时取消形变，保留点击反馈；禁用同时阻止触摸与无障碍点击。
+- 不依赖 Backdrop；与玻璃按钮共享触点、形变和回弹实现，不复制动画或增加另一套手势参数。普通材质选择柔和泛光：18% 白色以近似高斯曲线从中心持续衰减，半径为短边的 2 倍，以普通透明度混合代替加法混合，避免白色圆盘与锐利圆边；有无 RuntimeShader 均采用相同绘制。玻璃组件沿用自身高光配方。减少动画时取消形变，保留点击反馈；禁用同时阻止触摸与无障碍点击。
 - 笔记首页管理与添加、集合排序、搜索筛选、模型配置、存储与外观操作、Agent 消息与抽屉内容操作、回收站行内动作、空状态与错误重试使用普通按钮。笔记多选栏保留玻璃外壳，内部操作使用普通按钮。
 - Popup、Dialog、Drawer 可使用玻璃外壳；内部表单、列表与条目操作不因处于浮层而自动采用玻璃。共享 Dialog 确认按钮和笔记编辑页现有组件维持当前样式。
 - 笔记编辑页的 Header、Footer、格式检视器、图片控制、背景面板与相关弹窗沿用现有材质、形状及交互。本次共享交互提取不得改变这些控件的视觉和手势结果。
 - 分层原则参考 [Apple Materials](https://developer.apple.com/design/human-interface-guidelines/materials) 和 [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/)；内容与浮动操作应有明确层级，避免多层玻璃嵌套。
+
+- 普通按钮样式参考 [Apple iOS 27 设计资源](https://developer.apple.com/design/resources/) 与 UIKit 的 [Gray](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/gray())、[Filled](https://developer.apple.com/documentation/uikit/uibutton/configuration-swift.struct/filled()) 配置层级。填充比例、40 dp 高度、12 dp 圆角及泛光数值是 XNote 的适配值，不代表 Apple 公布的系统精确参数。
 
 ### 6.2 组件来源
 
