@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.data.agent.*
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -75,13 +75,12 @@ fun ModelSettingsScreen(
                 start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
                 bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (selected == null) {
-                    LiquidButton({ toast.currentSnackbarData?.dismiss(); editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI, modelId = "", isDefault = profiles.isEmpty()) },
-                        backdrop, modifier = Modifier.fillMaxWidth().testTag("model-add")) { Text("新增配置") }
+                    XNoteButton({ toast.currentSnackbarData?.dismiss(); editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI, modelId = "", isDefault = profiles.isEmpty()) }, modifier = Modifier.fillMaxWidth().testTag("model-add")) { Text("新增配置") }
                     if (profiles.isEmpty()) Text("还没有模型配置")
                     profiles.forEach { profile ->
                         XNoteGroupCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                LiquidButton({ toast.currentSnackbarData?.dismiss(); editing = profile }, backdrop,
+                                XNoteButton({ toast.currentSnackbarData?.dismiss(); editing = profile },
                                     modifier = Modifier.fillMaxWidth().testTag("model-profile-${profile.id}")) {
                                     Text(profile.name + if (profile.isDefault) " · 默认" else "")
                                 }
@@ -90,7 +89,7 @@ fun ModelSettingsScreen(
                         }
                     }
                 } else {
-                    ModelProfileForm(selected, saved == null, backdrop, catalog, selectState, saving || testing, saving, onNotice = ::notify, onCancel = { back() }) { profile, secret ->
+                    ModelProfileForm(selected, saved == null, catalog, selectState, saving || testing, saving, onNotice = ::notify, onCancel = { back() }) { profile, secret ->
                         focus.clearFocus()
                         saving = true
                         scope.launch {
@@ -103,7 +102,7 @@ fun ModelSettingsScreen(
                     if (saved != null) {
                         HorizontalDivider()
                         Text("连接测试仅检查模型可用性，工具按权限默认启用。测试可能产生费用。", style = MaterialTheme.typography.bodySmall)
-                        LiquidButton({
+                        XNoteButton({
                             testing = true
                             job = scope.launch {
                                 try { notify(ModelCapabilityTest(client, store).test(saved).detail) }
@@ -111,10 +110,10 @@ fun ModelSettingsScreen(
                                 catch (failure: Exception) { notify(safeModelError(failure)) }
                                 finally { testing = false }
                             }
-                        }, backdrop, enabled = !testing && !saving && saved.enabled) { Text(if (testing) "测试中…" else "测试连接") }
+                        }, enabled = !testing && !saving && saved.enabled) { Text(if (testing) "测试中…" else "测试连接") }
                         Text("连接：${if (saved.capabilities.testedAtEpochMs == null) "未测试" else if (saved.capabilities.textStreaming) "可用" else "测试失败"}", style = MaterialTheme.typography.bodySmall)
                         Text("图片：${if (saved.capabilities.images) "已验证" else "未验证"} · PDF 原生输入：${if (saved.capabilities.pdf) "已验证" else "未验证"}", style = MaterialTheme.typography.bodySmall)
-                        LiquidButton({
+                        XNoteButton({
                             testing = true
                             job = scope.launch {
                                 try { notify(ModelAttachmentCapabilityTest(client, store).test(saved).detail) }
@@ -122,9 +121,9 @@ fun ModelSettingsScreen(
                                 catch (failure: Exception) { notify(safeModelError(failure)) }
                                 finally { testing = false }
                             }
-                        }, backdrop, enabled = !testing && !saving && saved.enabled) { Text("验证图片与 PDF（两次请求）") }
-                        if (testing) LiquidButton({ job?.cancel(); notify("测试已取消") }, backdrop) { Text("取消测试") }
-                        LiquidButton({
+                        }, enabled = !testing && !saving && saved.enabled) { Text("验证图片与 PDF（两次请求）") }
+                        if (testing) XNoteButton({ job?.cancel(); notify("测试已取消") }) { Text("取消测试") }
+                        XNoteButton({
                             saving = true
                             scope.launch {
                                 try { store.save(saved.copy(isDefault = true), null); notify("已设为默认配置") }
@@ -132,8 +131,8 @@ fun ModelSettingsScreen(
                                 catch (failure: Exception) { notify(safeModelError(failure)) }
                                 finally { saving = false }
                             }
-                        }, backdrop, enabled = !saving && !testing && saved.enabled && !saved.isDefault) { Text("设为默认") }
-                        LiquidButton({
+                        }, enabled = !saving && !testing && saved.enabled && !saved.isDefault) { Text("设为默认") }
+                        XNoteButton({
                             saving = true
                             scope.launch {
                                 try { store.delete(saved.id); editing = null; notify("配置已删除") }
@@ -141,7 +140,7 @@ fun ModelSettingsScreen(
                                 catch (failure: Exception) { notify(safeModelError(failure)) }
                                 finally { saving = false }
                             }
-                        }, backdrop, enabled = !saving && !testing) { Text("删除") }
+                        }, enabled = !saving && !testing) { Text("删除") }
                     }
                 }
             }

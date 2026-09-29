@@ -19,7 +19,7 @@ import com.xnote.app.data.agent.*
 import com.xnote.app.data.db.*
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.*
 import com.xnote.app.feature.notes.editor.toAnnotatedString
@@ -82,9 +82,9 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
     XNoteDrawer(visible, onDismiss, "笔记改动", backdrop, XNoteDrawerPlacement.Bottom,
         Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).testTag("agent-review-drawer")) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            if (selected != null) LiquidButton(::back, backdrop) { Text("返回列表") }
+            if (selected != null) XNoteButton(::back) { Text("返回列表") }
             else Text("全部笔记", style = MaterialTheme.typography.labelLarge)
-            LiquidButton(onDismiss, backdrop) { Text("关闭") }
+            XNoteButton(onDismiss) { Text("关闭") }
         }
         androidx.activity.compose.BackHandler(enabled = visible && selected != null) { back() }
         Column(Modifier.fillMaxWidth().testTag("agent-review-content"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -94,7 +94,7 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                 if (reviews.isEmpty()) Text("暂无笔记改动")
                 reviews.groupBy { it.noteId }.forEach { (noteId, batches) ->
                     val pending = batches.any { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
-                    LiquidButton({ selected = noteId; notice = null }, backdrop, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
+                    XNoteButton({ selected = noteId; notice = null }, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
                         Text((notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记") + if (pending) " · 待审阅" else " · 已审阅")
                     }
                 }
@@ -131,20 +131,20 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                 }
                 if (current.review.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) && note != null) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LiquidButton({ action { store.accept(note.id); notice = "已接受，保留当前内容。" } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
-                        LiquidButton({ action { report(store.reject(note.id)) } }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-reject")) { Text("全部拒绝") }
+                        XNoteButton({ action { store.accept(note.id); notice = "已接受，保留当前内容。" } }, enabled = !busy, modifier = Modifier.testTag("agent-review-accept")) { Text(if (rollback is AgentContentMerge.Conflict) "保留当前内容" else "全部接受") }
+                        XNoteButton({ action { report(store.reject(note.id)) } }, enabled = !busy, modifier = Modifier.testTag("agent-review-reject")) { Text("全部拒绝") }
                     }
                 }
                 if (rollback is AgentContentMerge.Conflict && note != null) {
-                    if (current.review.status == AgentReviewStatus.Accepted) LiquidButton(onDismiss, backdrop, enabled = !busy) { Text("保留当前内容") }
-                    LiquidButton({ adjust(note.id, note.deletedAtEpochMs != null) }, backdrop, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) {
+                    if (current.review.status == AgentReviewStatus.Accepted) XNoteButton(onDismiss, enabled = !busy) { Text("保留当前内容") }
+                    XNoteButton({ adjust(note.id, note.deletedAtEpochMs != null) }, enabled = !busy, modifier = Modifier.testTag("agent-review-adjust")) {
                         Text(if (note.deletedAtEpochMs != null) "恢复笔记并重新调整" else "重新调整")
                     }
                 }
                 if (current.undoReview != null && note != null) {
                     val available = canUndoAcceptedAgentReview(current.undoReview.reviewedAtEpochMs, System.currentTimeMillis())
                     Text(if (available) "最近接受的改动可在 30 天内撤回。" else "已超过 30 天，不能撤回本次接受。")
-                    LiquidButton({ action { report(store.undoAccepted(note.id)) } }, backdrop, enabled = !busy && available, modifier = Modifier.testTag("agent-review-undo")) { Text("撤回最近接受") }
+                    XNoteButton({ action { report(store.undoAccepted(note.id)) } }, enabled = !busy && available, modifier = Modifier.testTag("agent-review-undo")) { Text("撤回最近接受") }
                 }
             }
         }

@@ -14,10 +14,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.xnote.app.R
-import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.*
 import com.xnote.app.feature.background.XNoteBackgroundPicker
 import kotlinx.coroutines.launch
@@ -25,7 +24,7 @@ import kotlinx.coroutines.launch
 // -- Functions
 
 @Composable
-fun AppearanceScreen(settings: AppSettingsRepository, backdrop: Backdrop, contentPadding: PaddingValues, scrollState: ScrollState) {
+fun AppearanceScreen(settings: AppSettingsRepository, contentPadding: PaddingValues, scrollState: ScrollState) {
     val value by settings.settings.collectAsState(defaultAppSettings())
     val scope = rememberCoroutineScope()
     var error by remember { mutableStateOf(false) }
@@ -53,7 +52,7 @@ fun AppearanceScreen(settings: AppSettingsRepository, backdrop: Backdrop, conten
         Text(stringResource(R.string.background_settings_title), style = MaterialTheme.typography.titleMedium)
         XNoteBackgroundPicker(value.defaultBackground, value.defaultBackground, stringResource(R.string.background_scope_default),
             onSelect = { selected -> save { settings.setDefaultBackground(selected ?: defaultBackgroundKey()) } })
-        LiquidButton({ save { settings.setDefaultBackground(defaultBackgroundKey()) } }, backdrop, modifier = Modifier.fillMaxWidth()) {
+        XNoteButton({ save { settings.setDefaultBackground(defaultBackgroundKey()) } }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.background_restore_initial))
         }
     }

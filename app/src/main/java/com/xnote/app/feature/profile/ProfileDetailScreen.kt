@@ -17,7 +17,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.data.files.LocalStorage
 import com.xnote.app.data.files.LocalStorageUsage
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.*
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -123,13 +123,13 @@ private fun StorageContent(padding: PaddingValues, backdrop: com.kyant.backdrop.
             } ?: Text(if (busy) "正在计算…" else "尚未读取占用")
         }
         item { Text("清理超过 24 小时的导出和相机临时文件。保留近期分享文件、笔记、回收站、附件和设置。", style = MaterialTheme.typography.bodyMedium) }
-        item { LiquidButton({ refresh(true) }, backdrop, enabled = !busy && (usage?.clearableBytes ?: 0) > 0) { Text("清理缓存") } }
-        item { LiquidButton({ refresh(false) }, backdrop, enabled = !busy) { Text("重新计算") } }
+        item { XNoteButton({ refresh(true) }, enabled = !busy && (usage?.clearableBytes ?: 0) > 0) { Text("清理缓存") } }
+        item { XNoteButton({ refresh(false) }, enabled = !busy) { Text("重新计算") } }
         message?.let { item { Text(it) } }
         item { Text("笔记记忆索引", style = MaterialTheme.typography.titleMedium) }
         item { Text("${memories.size} 篇笔记；内容估算 ${Formatter.formatFileSize(context, memories.sumOf { (it.title + it.plainText + it.summaryJson).toByteArray(Charsets.UTF_8).size.toLong() })}（数据库页与全文索引开销包含在数据库占用中）。") }
         item { Text("${memories.count { it.status in setOf("failed", "blocked") }} 个摘要尚未完成。清除后保留笔记和聊天，后续后台任务按当前权限重建；生成摘要可能产生模型服务费用。") }
-        item { LiquidButton({ clearingMemory = true }, backdrop, enabled = memories.isNotEmpty()) { Text("清除笔记记忆索引") } }
+        item { XNoteButton({ clearingMemory = true }, enabled = memories.isNotEmpty()) { Text("清除笔记记忆索引") } }
         item { Text("笔记、聊天与附件存储于本机应用私有目录。发送给模型的资料遵守当前权限。Linux 环境尚未接入。", style = MaterialTheme.typography.bodyMedium) }
     }
     XNoteDialog(clearingMemory, { clearingMemory = false }, "清除笔记记忆索引？", backdrop,

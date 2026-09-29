@@ -32,7 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.text.extractPlainText
 import androidx.compose.material3.TextButton
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.data.db.AgentSnapshotEntity
 import com.xnote.app.data.db.AgentToolEventEntity
@@ -168,7 +168,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                             if (message.role == AgentMessageRole.User) {
                                 Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
                                     val snapshot = snapshots.find { it.id == source.snapshotId }
-                                    LiquidButton({ snapshotPreview = snapshot }, backdrop, enabled = snapshot != null) {
+                                    XNoteButton({ snapshotPreview = snapshot }, enabled = snapshot != null) {
                                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(snapshot?.let { "发送快照 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除 · 快照不可用")
                                             snapshot?.let { saved ->
@@ -192,10 +192,10 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                                             tool.name == "create" -> "已新建 · ${note.title.ifBlank { "未命名笔记" }}"
                                             note.deletedAtEpochMs != null -> "已移入回收站 · ${note.title.ifBlank { "未命名笔记" }}"
                                             else -> "笔记已恢复 · ${note.title.ifBlank { "未命名笔记" }}" }, Modifier.testTag("agent-note-receipt-$noteId"))
-                                        LiquidButton({ openReviews(noteId) }, backdrop, modifier = Modifier.testTag("agent-review-receipt-$noteId")) { Text("查看单篇改动") }
+                                        XNoteButton({ openReviews(noteId) }, modifier = Modifier.testTag("agent-review-receipt-$noteId")) { Text("查看单篇改动") }
                                     }
                                 }
-                                LiquidButton({ toolPreview = tool }, backdrop) { Text("${tool.name} · ${tool.status.toolStatusLabel()}") }
+                                XNoteButton({ toolPreview = tool }) { Text("${tool.name} · ${tool.status.toolStatusLabel()}") }
                             }
                             if (message.role == AgentMessageRole.Assistant) {
                                 if (message.status != AgentMessageStatus.Complete) Text(when (message.status) {
@@ -206,7 +206,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                                     AgentMessageStatus.Interrupted -> if (run?.status == AgentRunStatus.PausedBudget) "达到容量上限" else "已中断"
                                 }, style = MaterialTheme.typography.bodySmall)
                                 if (!state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)) {
-                                    LiquidButton({ action { timeline.continueRun(checkNotNull(run).id) } }, backdrop) { Text("继续此任务") }
+                                    XNoteButton({ action { timeline.continueRun(checkNotNull(run).id) } }) { Text("继续此任务") }
                                 }
                             }
                         AgentMessageActions(
@@ -230,7 +230,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(state.notice ?: "笔记内容发生变化，任务已暂停。", Modifier.testTag("agent-notice"))
                                 if (selectionConflict) Text("请结束当前任务，再回到笔记编辑器重新选择文字。原选区不会自动扩大或移动。")
-                                else LiquidButton({ action { timeline.replanConflict(run.id, conflict.callId) } }, backdrop,
+                                else XNoteButton({ action { timeline.replanConflict(run.id, conflict.callId) } },
                                     enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
                             }
                         }
@@ -244,7 +244,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                             Text("此任务需要你的授权", style = MaterialTheme.typography.titleMedium)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton({ toolPreview = request }) { Text("查看请求") }
-                                LiquidButton({ permissionRequest = request }, backdrop, enabled = !state.running,
+                                XNoteButton({ permissionRequest = request }, enabled = !state.running,
                                     modifier = Modifier.testTag("agent-authorize")) { Text("审批本次调用") }
                                 TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
                             }
@@ -302,13 +302,12 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
             Modifier.consumeWindowInsets(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
             Text("队列中的消息会依次执行；运行中可在输入框补充当前任务。")
             if (queue.isEmpty()) Text("暂无待执行任务")
-            if (input.isNotBlank() || draftFiles.isNotEmpty()) LiquidButton({ val sent = input; action { timeline.enqueue(sent); input = "" } }, backdrop,
+            if (input.isNotBlank() || draftFiles.isNotEmpty()) XNoteButton({ val sent = input; action { timeline.enqueue(sent); input = "" } },
                 enabled = state.ready && restored && !importingFile, modifier = Modifier.testTag("agent-enqueue")) { Text("将输入内容加入队列") }
-            if (queue.isNotEmpty() && !state.running && !unresolved) LiquidButton({ action { timeline.resumeQueue(); queueDrawer = false } },
-                backdrop, modifier = Modifier.testTag("agent-resume-queue")) { Text("继续队列") }
+            if (queue.isNotEmpty() && !state.running && !unresolved) XNoteButton({ action { timeline.resumeQueue(); queueDrawer = false } }, modifier = Modifier.testTag("agent-resume-queue")) { Text("继续队列") }
             queue.forEach { queued ->
                 messages.find { it.id == queued.messageId }?.let { message ->
-                    AgentQueueCard(queued.id, message.text, queued.status == AgentQueueStatus.Paused, backdrop,
+                    AgentQueueCard(queued.id, message.text, queued.status == AgentQueueStatus.Paused,
                         onSave = { value -> action { timeline.editQueued(queued.id, value) } },
                         onMove = { direction -> action { timeline.moveQueued(queued.id, direction) } },
                         onRemove = { action { timeline.removeQueued(queued.id) } })
@@ -364,7 +363,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
 }
 
 @Composable
-private fun AgentQueueCard(id: String, text: String, paused: Boolean, backdrop: Backdrop,
+private fun AgentQueueCard(id: String, text: String, paused: Boolean,
     onSave: (String) -> Unit, onMove: (Int) -> Unit, onRemove: () -> Unit) {
     var editing by rememberSaveable(id) { mutableStateOf(false) }
     var input by rememberSaveable(id, text) { mutableStateOf(text) }
@@ -373,10 +372,10 @@ private fun AgentQueueCard(id: String, text: String, paused: Boolean, backdrop: 
             Text(if (paused) "队列已暂停" else "等待执行", style = MaterialTheme.typography.labelMedium)
             if (editing) XNoteTextField(input, { input = it }, singleLine = false) else Text(text)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LiquidButton({ if (editing) { onSave(input); editing = false } else editing = true }, backdrop, enabled = !editing || input.isNotBlank()) { Text(if (editing) "保存" else "编辑") }
-                LiquidButton({ onMove(-1) }, backdrop) { Text("上移") }
-                LiquidButton({ onMove(1) }, backdrop) { Text("下移") }
-                LiquidButton(onRemove, backdrop) { Text("删除") }
+                XNoteButton({ if (editing) { onSave(input); editing = false } else editing = true }, enabled = !editing || input.isNotBlank()) { Text(if (editing) "保存" else "编辑") }
+                XNoteButton({ onMove(-1) }) { Text("上移") }
+                XNoteButton({ onMove(1) }) { Text("下移") }
+                XNoteButton(onRemove) { Text("删除") }
             }
         }
     }

@@ -51,6 +51,7 @@ import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.XNoteTextField
 import com.xnote.app.design.rememberXNotePopupAnchor
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
@@ -581,7 +582,7 @@ private fun SelectionBar(
                     maxLines = 1,
                     modifier = Modifier.weight(1f).padding(start = XNoteSpacingSmall),
                 )
-                LiquidButton(onClick = onCancel, backdrop = backdrop) {
+                XNoteButton(onClick = onCancel) {
                     Text(stringResource(R.string.notes_cancel_selection),
                         color = LocalContentColor.current, maxLines = 1)
                 }
@@ -591,11 +592,11 @@ private fun SelectionBar(
                 horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
                 verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
             ) {
-                LiquidButton(onClick = onMove, backdrop = backdrop) {
+                XNoteButton(onClick = onMove) {
                     Text(stringResource(R.string.notes_move_to_notebook),
                         color = LocalContentColor.current, maxLines = 1)
                 }
-                LiquidButton(onClick = onTrash, backdrop = backdrop) {
+                XNoteButton(onClick = onTrash) {
                     Icon(
                         painter = painterResource(R.drawable.ic_keyline_stroke_bin),
                         contentDescription = null,

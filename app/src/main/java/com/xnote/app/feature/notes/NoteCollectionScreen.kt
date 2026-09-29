@@ -42,7 +42,7 @@ import com.xnote.app.design.XNotePopupAnchor
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.xNotePopupAnchor
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.NoteListSort
 import com.xnote.app.domain.model.Notebook
@@ -128,9 +128,8 @@ fun NoteCollectionScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                LiquidButton(
+                XNoteButton(
                     onClick = onOpenSort,
-                    backdrop = backdrop,
                     modifier = Modifier.xNotePopupAnchor(sortMenuAnchor),
                 ) {
                     Row(

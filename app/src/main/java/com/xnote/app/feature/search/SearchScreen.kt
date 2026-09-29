@@ -50,7 +50,7 @@ import com.xnote.app.design.XNoteMinimumTouchTarget
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.XNoteTextField
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.text.searchMatchRanges
@@ -117,7 +117,6 @@ fun SearchScreen(
                 notebooks = notebooks,
                 selectedNotebookId = selectedNotebookId,
                 onNotebookSelected = onNotebookSelected,
-                backdrop = backdrop,
             )
         }
 
@@ -204,7 +203,6 @@ private fun SearchNotebookFilters(
     notebooks: List<Notebook>,
     selectedNotebookId: String?,
     onNotebookSelected: (String?) -> Unit,
-    backdrop: Backdrop,
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
@@ -215,7 +213,6 @@ private fun SearchNotebookFilters(
                 label = stringResource(R.string.search_filter_all),
                 selected = selectedNotebookId == null,
                 onClick = { onNotebookSelected(null) },
-                backdrop = backdrop,
             )
         }
         items(notebooks, key = Notebook::id) { notebook ->
@@ -223,7 +220,6 @@ private fun SearchNotebookFilters(
                 label = notebook.name,
                 selected = selectedNotebookId == notebook.id,
                 onClick = { onNotebookSelected(notebook.id) },
-                backdrop = backdrop,
             )
         }
     }
@@ -234,11 +230,9 @@ private fun SearchFilterButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
-    backdrop: Backdrop,
 ) {
-    LiquidButton(
+    XNoteButton(
         onClick = onClick,
-        backdrop = backdrop,
         tint = if (selected) MaterialTheme.colorScheme.primary else Color.Unspecified,
         modifier = Modifier.semantics { this.selected = selected },
     ) {

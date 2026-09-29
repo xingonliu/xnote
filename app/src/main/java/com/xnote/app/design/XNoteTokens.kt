@@ -14,6 +14,7 @@ val XNoteCreateNoteButtonSize = 52.dp
 val XNoteMinimumTouchTarget = XNoteButtonSize
 val XNoteButtonHorizontalPadding = 8.dp
 val XNoteButtonContentSpacing = 8.dp
+val XNoteButtonRadius = 12.dp
 val XNoteHeaderTopPadding = 15.dp
 val XNoteHeaderHeight = XNoteHeaderTopPadding + XNoteButtonSize
 val XNoteProgressiveBlurHeight = 128.dp

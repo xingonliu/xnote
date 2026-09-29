@@ -9,7 +9,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import com.kyant.backdrop.Backdrop
-import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Type Definitions
 
@@ -42,7 +41,6 @@ fun XNoteSelectField(
     selectedLabel: String,
     options: List<XNoteSelectOption>,
     state: XNoteSelectState,
-    backdrop: Backdrop,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -51,14 +49,14 @@ fun XNoteSelectField(
     val keyboard = LocalSoftwareKeyboardController.current
     Column(verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall)) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        LiquidButton({
+        XNoteButton({
             keyboard?.hide()
             state.options = options
             state.selectedId = selectedId
             state.query = ""
             state.onSelect = onSelect
             state.anchor = anchor
-        }, backdrop, enabled = enabled && options.isNotEmpty(), modifier = modifier.fillMaxWidth().xNotePopupAnchor(anchor)) {
+        }, enabled = enabled && options.isNotEmpty(), modifier = modifier.fillMaxWidth().xNotePopupAnchor(anchor)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(selectedLabel.ifBlank { "请选择" }, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("⌄")

@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.navigation.NoteCollection
@@ -86,9 +86,8 @@ fun NotesHomeScreen(
                         style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onBackground,
                     )
-                    LiquidButton(
+                    XNoteButton(
                         onClick = { ui.managing = true },
-                        backdrop = backdrop,
                         modifier = Modifier.testTag("xnote-manage-notebooks"),
                     ) {
                         Icon(
@@ -161,9 +160,8 @@ fun NotesHomeScreen(
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    LiquidButton(
+                    XNoteButton(
                         onClick = onCreateNotebook,
-                        backdrop = backdrop,
                         modifier = Modifier.testTag("xnote-create-notebook"),
                     ) {
                         Icon(

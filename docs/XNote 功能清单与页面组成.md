@@ -400,16 +400,17 @@ Liquid Glass 用于：
 - 平板侧边栏。
 - 顶部工具栏。
 - 浮动按钮。
-- 胶囊按钮。
-- 卡片。
-- 同窗口弹层和悬浮面板。
+- 悬浮操作胶囊。
+- 同窗口弹层和悬浮面板的外壳。
+
+内容卡片、列表行内操作、筛选与表单入口使用普通材质；`XNoteButton` 复用玻璃按钮的完整按压形变与回弹，采用稳定底色、细边界、零投影及 12 dp 连续圆角，等宽高图标按钮保持正圆。笔记编辑页及其工具栏、背景和图片面板维持现有外观与交互。
 
 技术边界：
 
 - 使用固定版本的 AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1`。
 - Android 13（API 33）是最低支持版本，所有受支持设备统一启用完整背景采样、模糊、折射和色散效果。
 - AndroidLiquidGlass 发布物不打包高层组件，因此固定采用官方 catalog 提供的组件源码；当前基线对应上游提交 `65ab177`。
-- 手机 tabbar 直接使用官方 `LiquidBottomTabs` / `LiquidBottomTab`，按钮直接使用官方 `LiquidButton`，保留其材质和交互配方；按钮几何固定为 XNote 紧凑控件的 40 dp 高度与 8 dp 水平内边距。
+- 手机 tabbar 直接使用官方 `LiquidBottomTabs` / `LiquidBottomTab`，悬浮按钮使用 `LiquidButton` 并保留其材质配方，内容区按钮使用 `XNoteButton`；两者共用交互实现；按钮几何固定为 XNote 紧凑控件的 40 dp 高度与 8 dp 水平内边距。
 - Bottom Tabs 外层导航高度保持 88 dp，内部玻璃容器为 56 dp、滑块为 48 dp；滑块路径切割出的图标和文字使用主题主色。
 - 所有二级页面顶部使用 AndroidLiquidGlass catalog Progressive blur 配方；固定底部按钮或操作栏所在页面同时使用底部遮罩，生效的遮罩不随滚动边界消失。
 - 后续组件先核对官方 catalog；已有 `LiquidToggle`、`LiquidSlider` 等实现时直接采用，只有不存在对应组件时才创建基于 AndroidLiquidGlass 的项目级适配。

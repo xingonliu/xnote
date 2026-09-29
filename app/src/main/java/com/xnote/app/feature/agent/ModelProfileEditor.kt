@@ -9,17 +9,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.*
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import kotlinx.coroutines.CancellationException
 
 // -- Functions
 
 @Composable
-internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: Backdrop, catalog: ModelCatalog, selectState: XNoteSelectState, busy: Boolean, saving: Boolean, onNotice: (String) -> Unit, onCancel: () -> Unit, onSave: (ModelProfile, String?) -> Unit) {
+internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, catalog: ModelCatalog, selectState: XNoteSelectState, busy: Boolean, saving: Boolean, onNotice: (String) -> Unit, onCancel: () -> Unit, onSave: (ModelProfile, String?) -> Unit) {
     // -- State and Variables
 
     var advanced by remember { mutableStateOf(false) }
@@ -101,7 +100,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
     if (preset) {
         val providers = models.map { it.provider }.distinctBy { it.id }
         XNoteSelectField("厂商", provider?.id.orEmpty(), provider?.name.orEmpty(),
-            providers.map { XNoteSelectOption(it.id, it.name) }, selectState, backdrop,
+            providers.map { XNoteSelectOption(it.id, it.name) }, selectState,
             onSelect = { id ->
                 if (provider?.id != id) {
                     secret = ""
@@ -111,15 +110,15 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
             }, modifier = Modifier.testTag("model-provider"), enabled = !busy && !loading)
         val choices = models.filter { it.provider.id == provider?.id }
         XNoteSelectField("模型", model, choices.find { it.id == model }?.name ?: model,
-            choices.map { XNoteSelectOption(it.id, it.name + " · " + it.id) }, selectState, backdrop,
+            choices.map { XNoteSelectOption(it.id, it.name + " · " + it.id) }, selectState,
             onSelect = { id -> choices.find { it.id == id }?.let(::select) },
             modifier = Modifier.testTag("model-picker"), enabled = !busy && !loading)
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("model-loading"))
-        if (catalogError) LiquidButton({ refresh++ }, backdrop, enabled = !loading && !busy) { Text("重试") }
+        if (catalogError) XNoteButton({ refresh++ }, enabled = !loading && !busy) { Text("重试") }
     } else {
         Text("接口协议")
         XNoteSelectField("接口类型", protocol.name, protocol.label,
-            ModelProtocol.entries.map { XNoteSelectOption(it.name, it.label) }, selectState, backdrop,
+            ModelProtocol.entries.map { XNoteSelectOption(it.name, it.label) }, selectState,
             onSelect = { id -> protocol = ModelProtocol.valueOf(id); root = protocol.root; secret = "" },
             modifier = Modifier.testTag("model-protocol"), enabled = !busy)
         Text("服务地址")
@@ -131,7 +130,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
     XNoteTextField(secret, { secret = it }, Modifier.testTag("model-key"),
         placeholder = if (needsSecret) "填写 API Key" else "留空保留现有密钥", enabled = !busy,
         visualTransformation = PasswordVisualTransformation(), keyboardType = KeyboardType.Password)
-    LiquidButton({ advanced = !advanced }, backdrop, enabled = !busy,
+    XNoteButton({ advanced = !advanced }, enabled = !busy,
         modifier = Modifier.fillMaxWidth().testTag("model-advanced")) { Text(if (advanced) "收起高级设置" else "高级设置") }
     if (advanced) {
         Text("配置名称")
@@ -139,7 +138,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
         if (preset) {
             Text(protocol.label, style = MaterialTheme.typography.bodySmall)
             Text(root, Modifier.testTag("model-preset-url"), style = MaterialTheme.typography.bodySmall)
-            if (!catalogError) LiquidButton({ refresh++ }, backdrop, enabled = !loading && !busy) { Text("刷新模型列表") }
+            if (!catalogError) XNoteButton({ refresh++ }, enabled = !loading && !busy) { Text("刷新模型列表") }
         }
         Text("上下文容量（Token）")
         XNoteTextField(context, { context = it }, Modifier.testTag("model-context"), enabled = !busy, keyboardType = KeyboardType.Number)
@@ -150,10 +149,10 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, backdrop: B
             Switch(enabled, { enabled = it }, enabled = !busy)
         }
     }
-    LiquidButton(::save, backdrop, enabled = !busy, tint = MaterialTheme.colorScheme.primary,
+    XNoteButton(::save, enabled = !busy, tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().testTag("model-save")) {
         if (saving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
         Text(if (saving) "保存中…" else "保存配置")
     }
-    LiquidButton(onCancel, backdrop, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("取消") }
+    XNoteButton(onCancel, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("取消") }
 }

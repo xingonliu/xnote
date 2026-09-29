@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
-import com.xnote.app.design.liquidglass.LiquidButton
 
 // -- Type Definitions
 
@@ -137,9 +136,8 @@ fun XNoteEmptyState(
             )
         }
         if (actionLabel != null && onAction != null) {
-            LiquidButton(
+            XNoteButton(
                 onClick = onAction,
-                backdrop = backdrop,
                 enabled = actionEnabled,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = XNoteSpacingSmall),
@@ -221,9 +219,8 @@ fun XNoteErrorState(
             }
         }
         if (actionLabel != null && onAction != null) {
-            LiquidButton(
+            XNoteButton(
                 onClick = onAction,
-                backdrop = backdrop,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = XNoteSpacingSmall),
             ) {

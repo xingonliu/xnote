@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.db.*
 import com.xnote.app.design.*
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.text.extractPlainText
@@ -40,7 +40,7 @@ fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, back
             }
         }
         selection.filter { selectedId -> notes.none { it.id == selectedId } }.forEach { missing ->
-            LiquidButton({ selection = selection - missing }, backdrop) { Text("移除已删除的附加笔记") }
+            XNoteButton({ selection = selection - missing }) { Text("移除已删除的附加笔记") }
         }
         if (notes.isEmpty()) Text("暂无可附加的笔记")
     }
@@ -52,7 +52,7 @@ fun AgentPermissionDialog(permission: AgentPermission, backdrop: Backdrop, onDis
     XNoteDialog(true, onDismiss, "Agent 权限", backdrop,
         confirmAction = XNoteDialogAction("保存", { onSave(choice) }), dismissAction = XNoteDialogAction("取消", onDismiss)) {
         AgentPermissionMode.entries.forEach { mode ->
-            LiquidButton({ choice = choice.copy(mode = mode) }, backdrop, modifier = Modifier.testTag("agent-permission-${mode.name}")) {
+            XNoteButton({ choice = choice.copy(mode = mode) }, modifier = Modifier.testTag("agent-permission-${mode.name}")) {
                 Text((if (choice.mode == mode) "✓ " else "") + mode.permissionLabel())
             }
         }
@@ -102,10 +102,10 @@ fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue:
             Text("参数：${event.argumentsJson}")
             Text("结果：${event.resultJson ?: "等待执行或授权"}")
             Text("开始：${java.util.Date(event.createdAtEpochMs)}\n结束：${event.committedAtEpochMs?.let { java.util.Date(it) } ?: "尚未结束"}", style = MaterialTheme.typography.bodySmall)
-            if (onStop != null) LiquidButton(onStop, backdrop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止所属任务") }
+            if (onStop != null) XNoteButton(onStop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止所属任务") }
             if (onContinue != null) {
                 Text("继续所属任务会保留已提交结果，后续执行重新检查当前权限。", style = MaterialTheme.typography.bodySmall)
-                LiquidButton(onContinue, backdrop, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续此任务") }
+                XNoteButton(onContinue, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续此任务") }
             }
         }
     }

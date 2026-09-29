@@ -41,7 +41,7 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
-import com.xnote.app.design.liquidglass.LiquidButton
+import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.feature.notes.displayTitle
@@ -110,7 +110,6 @@ fun RecycleBinScreen(
                             untitledLabel = untitledLabel,
                             selected = note.id in selectedIds,
                             selectionMode = selectionMode,
-                            backdrop = backdrop,
                             onClick = {
                                 if (selectionMode) {
                                     onToggleSelection(note.id)
@@ -140,7 +139,6 @@ private fun RecycleBinRow(
     untitledLabel: String,
     selected: Boolean,
     selectionMode: Boolean,
-    backdrop: Backdrop,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onRestore: () -> Unit,
@@ -224,9 +222,8 @@ private fun RecycleBinRow(
                 modifier = Modifier.padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
             ) {
-                LiquidButton(
+                XNoteButton(
                     onClick = onRestore,
-                    backdrop = backdrop,
                 ) {
                     Text(
                         text = stringResource(R.string.recycle_bin_restore),
@@ -234,9 +231,8 @@ private fun RecycleBinRow(
                         color = LocalContentColor.current,
                     )
                 }
-                LiquidButton(
+                XNoteButton(
                     onClick = onPermanentlyDelete,
-                    backdrop = backdrop,
                     tint = MaterialTheme.colorScheme.primary,
                 ) {
                     Text(

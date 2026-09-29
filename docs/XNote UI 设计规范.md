@@ -274,7 +274,7 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 
 Backdrop 捕获层只能包含背景内容；所有使用同一 `Backdrop` 的玻璃控件必须作为捕获层的同级节点绘制，不能嵌套在 `layerBackdrop` 子树中，否则 Android HWUI 可能形成循环渲染并导致 `RenderThread` 原生崩溃。
 
-AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方原则上原样复用；`LiquidButton` 使用 XNote 紧凑控件的 40 dp 高度与 8 dp 水平内边距，并针对近白背景的加法混合亮度饱和，将全区域按压白光从 `0.08` 降为 `0.04`，将无 RuntimeShader 时的全区域兜底白光从 `0.25` 降为 `0.125`。项目只允许在上述尺寸令牌与材质配方之内补充禁用状态、动态遮罩、触觉反馈和无障碍行为，业务页面不得覆盖这些参数。
+AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy、高光与阴影等底层能力，不包含高层组件。XNote 将官方仓库 catalog 作为高层组件的唯一上游，基础源码固定到提交 `65ab177`。官方已有的按钮源码与 Dialog 材质配方原则上原样复用；`LiquidButton` 使用 XNote 紧凑控件的 40 dp 高度与 8 dp 水平内边距，并针对近白背景的加法混合亮度饱和，将全区域按压白光从 `0.08` 降为 `0.04`，将无 RuntimeShader 时的全区域兜底白光从 `0.25` 降为 `0.125`。玻璃组件保留上述尺寸令牌与材质配方，可补充禁用状态、动态遮罩、触觉反馈和无障碍行为；普通材质按钮通过共享交互内核复用按压反馈，业务页面不得覆盖公共参数。
 
 ### 6.1 使用范围
 
@@ -289,26 +289,37 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - Bottom Tabs 外层导航占位保持 88 dp；玻璃容器高度为 56 dp、选中滑块静止高度为 48 dp，调用方使用顶部 12 dp、底部 20 dp 间距，使整体布局高度不变。
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
-- Header 图标按钮、浮动按钮、胶囊按钮、确认按钮和筛选按钮使用 `LiquidButton`。
+- 悬浮 Header、浮动按钮、阅读与导出底部操作使用 `LiquidButton`；页面内容内的操作、筛选、表单选择入口和列表行内按钮使用 `XNoteButton`。材质由所在层级决定，不能仅因控件可点击或位置固定就使用玻璃。
 - `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。新建笔记浮动按钮是唯一例外：使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 52 × 52 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
 - 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
-- 出现开关或连续数值输入时，优先纳入同一 catalog 的 `LiquidToggle` 或 `LiquidSlider`，不得先创建项目私有样式。
+- 开关和连续数值输入按控件语义与所在层级选择材质；设置内容中的开关保持普通控件，编辑页背景面板继续使用现有 `LiquidSlider`。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
-列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立的图标操作仍使用玻璃按钮。
+列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立操作使用 `XNoteButton`。下拉选择入口使用普通材质，展开后的菜单外壳使用玻璃。
+
+### 内容区按钮与材质边界
+
+- `XNoteButton` 默认使用 `surfaceContainerHigh` 实色背景、0.5 dp 细边框与零投影；边框使用 `outline` 的 24% 不透明度，高对比度时为 100%。强调操作使用主题 Tint 与对应前景色，禁用时整体不透明度为 64%。
+- 非圆形按钮统一使用 `XNoteButtonRadius = 12.dp` 的连续圆角；等宽高按钮保持正圆。背景、边框、裁剪和按压反馈共用相同 Shape。12 dp 是项目调校值，并非 iOS 强制参数。
+- 不依赖 Backdrop；与玻璃按钮共享完整触点、形变、高光和回弹实现，不复制动画或增加另一套手势参数。减少动画时取消形变，保留点击反馈；禁用同时阻止触摸与无障碍点击。
+- 笔记首页管理与添加、集合排序、搜索筛选、模型配置、存储与外观操作、Agent 消息与抽屉内容操作、回收站行内动作、空状态与错误重试使用普通按钮。笔记多选栏保留玻璃外壳，内部操作使用普通按钮。
+- Popup、Dialog、Drawer 可使用玻璃外壳；内部表单、列表与条目操作不因处于浮层而自动采用玻璃。共享 Dialog 确认按钮和笔记编辑页现有组件维持当前样式。
+- 笔记编辑页的 Header、Footer、格式检视器、图片控制、背景面板与相关弹窗沿用现有材质、形状及交互。本次共享交互提取不得改变这些控件的视觉和手势结果。
+- 分层原则参考 [Apple Materials](https://developer.apple.com/design/human-interface-guidelines/materials) 和 [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/)；内容与浮动操作应有明确层级，避免多层玻璃嵌套。
 
 ### 6.2 组件来源
 
 | 组件 | 来源 | XNote 用途 |
 | ---- | ---- | ---------- |
 | `LiquidBottomTabs` / `LiquidBottomTab` | 官方 catalog | 手机一级底部导航 |
-| `LiquidButton` | 官方 catalog | 图标、胶囊、确认与浮动操作 |
+| `LiquidButton` | 官方 catalog | 悬浮导航、工具栏及浮动操作 |
+| `XNoteButton` | 项目普通材质，共享 catalog 按压交互 | 内容区、筛选、表单和列表操作 |
 | `XNoteDialog` | 官方 catalog `DialogContent` 材质配方 | 阻断式确认与关键说明 |
 | `LiquidToggle` | 官方 catalog，按需纳入 | 设置开关 |
 | `LiquidSlider` | 官方 catalog，已纳入 | 自定义图片背景遮罩不透明度（0–100%） |
-| `XNoteLiquidGlassPanel` | catalog 无对应组件时的项目适配 | 卡片、工具栏与同窗口面板 |
+| `XNoteLiquidGlassPanel` | catalog 无对应组件时的项目适配 | 浮动工具栏与同窗口浮层外壳 |
 | 平板 Navigation Rail | catalog 无竖向组件时的项目适配 | 平板一级导航 |
 
 业务页面只能调用上述公共组件，不允许复制模糊、描边、阴影、按压动画或 Bottom Tabs 的选中滑块逻辑。新增组件前必须先核对当前 AndroidLiquidGlass 官方 catalog；存在对应实现时直接采用，不得创建功能重复的 XNote 版本。
@@ -321,9 +332,9 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 - 所有需要主强调色的组件通过 `MaterialTheme.colorScheme.primary` 读取当前主题值，不得在业务页面或组件内部另写近似色。
 - `LiquidBottomTabs` 的选中图标与选中文字统一使用当前主题主色；未选中图标与文字继续使用中性前景色，保持导航层级清晰。
-- 默认材质使用透明采样、柔和高光和低对比描边，前景文字与图标保持清晰。
+- 玻璃材质使用透明采样、柔和高光和低对比描边；内容区普通按钮使用稳定主题底色和细边界，不进行背景采样、模糊或透镜折射。
 - 主操作使用当前主题 `primary` Tint；普通操作使用中性 Tint；危险动作使用明确标签和确认弹窗，有色按钮仍使用黄色与白色内容。
-- 按钮按下时使用轻微的纵向下陷、轴向压缩、聚光和内阴影变化；Bottom Tabs 选中滑块按下时改为中心放大，不能造成组件布局位置跳动。
+- `XNoteButton` 与 `LiquidButton` 共用 `XNoteButtonInteraction` 及 `InteractiveHighlight`，按压放大、触点跟随、轴向拉伸、位移和松手回弹参数完全一致。变换仅作用于绘制层，不改变布局占位；Bottom Tabs 保持独立的官方交互。
 - 选中状态通过 Tint、前景色和图标状态共同表达，不能只依赖颜色。
 - 禁用状态必须降低前景与材质强调，同时保持文字可读，并彻底阻止点击。
 - 加载状态保持按钮尺寸不变，防止布局位移；重复提交操作必须锁定。
@@ -335,7 +346,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 所有由 XNote 绘制且包含圆角的界面元素，统一使用 `cornerSmoothing = 0.60` 的连续平滑曲线，包括：
 
-- Liquid Glass 按钮、卡片和工具栏。
+- 普通按钮、卡片及 Liquid Glass 工具栏；圆形与胶囊按钮按下述几何规则处理。
 - Header、底部导航、侧边导航和浮动操作区的容器。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu。
 - 输入框、搜索框、筛选器、列表分组和状态容器。
@@ -366,9 +377,10 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | ------------------------ | ---------------------------------------------------- | ------------------------------ |
 | `XNotePageScaffold`      | 页面骨架、安全区域、Header、Progressive blur、Toast Host | 承载业务数据请求            |
 | `XNoteHeader`            | 二级页面返回、标题和右侧操作                         | 页面自定义高度或返回图标       |
-| `LiquidButton`          | 官方 catalog 按钮材质与交互                          | 页面私有玻璃参数               |
+| `LiquidButton`          | 官方 catalog 悬浮按钮材质与共享交互                  | 页面私有玻璃参数               |
+| `XNoteButton`           | 内容区普通按钮材质、12 dp 圆角与共享交互             | 复制按压动画、背景折射         |
 | `LiquidBottomTabs`      | 官方 catalog 手机底部导航、选中滑块与拖拽交互        | 自写 tabbar 样式或选中动画      |
-| `XNoteLiquidGlassPanel` | 官方 catalog 没有 Panel 时的卡片与面板适配           | 重复实现 Backdrop 或 Lens       |
+| `XNoteLiquidGlassPanel` | 官方 catalog 没有 Panel 时的浮动工具栏与面板适配     | 内容卡片套玻璃、重复实现 Lens  |
 | `XNoteDialog`            | 阻断式确认、危险操作、关键说明                       | 承载长表单或多级导航           |
 | `XNoteDrawer`            | 长内容、选择器、辅助工作流                           | 替代简单确认弹窗               |
 | `XNoteToastHost`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
@@ -419,7 +431,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 - 使用中性白色内容表面、浅灰分组背景与黑色深色背景，正文保持最高对比度。
 - 常规主题 `primary` 是笔记相关主强调色：浅色模式固定为 `#E09F3E`，深色模式固定为 `#FFD60A`；用于主操作和选中态，不大面积铺满页面。
 - 分隔线、次级文字和卡片边界保持低对比；依靠留白与分组建立层级。
-- 玻璃材质主要用于固定、浮动和可交互控件，正文承载区优先保持稳定、平整和易读。
+- 玻璃材质用于浮于内容之上的导航、操作层和浮层外壳；滚动内容、表单与列表行内操作使用普通材质，正文承载区保持稳定、平整和易读。
 - 浅色、深色与高对比度模式均使用语义色，不在业务页面写死颜色。高对比度采用黑白正文与边界，浅色主题使用深金色操作色，玻璃表面遮色提高到 92%；模糊、折射和高光仍保留。
 
 ### 9.2 笔记背景
@@ -496,7 +508,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 - 拖拽释放后滑块按官方 catalog 弹簧吸附到目标 tab，并仅输出一次确认触觉。
 - 二次轻触已激活 tab 时不发生横向位移，并将对应长列表滚回顶部或重置该目的地的子导航栈。
 - Bottom Tabs 的选中图标和文字在浅色模式使用 `#E09F3E`，在深色模式使用 `#FFD60A`，且不存在组件私有强调色。
-- 页面中的独立按钮全部来自官方 catalog `LiquidButton`，高度与圆形按钮边长均为 40 dp；只有 catalog 缺少的组件才允许项目级适配。
+- 内容区独立按钮使用 `XNoteButton`，悬浮层使用 `LiquidButton`；两者共用按压交互，标准高度与圆形按钮边长均为 40 dp。普通非圆形按钮使用 12 dp 连续圆角，浮动新建按钮仍为 52 dp。
 - Dialog、Drawer、Toast、Popup 和 DropdownMenu 均来自公共组件，不存在页面私有副本。
 - 笔记编辑页的格式工具栏来自 `XNoteRichTextToolbar`，不存在页面私有格式栏。
 - 输入法组合态文本在返回、切后台和进程重启后保持完整；插入表格后再次点击“表格”可直接打开当前表格的行列操作菜单。
