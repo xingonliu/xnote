@@ -178,7 +178,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 contentPadding = PaddingValues(
                     start = contentPadding.calculateStartPadding(direction),
                     end = contentPadding.calculateEndPadding(direction),
-                    top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight + 16.dp,
+                    top = xNoteScrollEdgePadding(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight),
                     bottom = composerBottom + composerHeight + 12.dp,
                 )) {
                 if (messages.isEmpty() && state.ready && !keyboardVisible) item(key = "welcome") {
@@ -269,6 +269,11 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 }
             }
         }
+        XNoteProgressiveBlur(
+            backdrop = backdrop,
+            state = rememberXNoteScrollEdgeState(list),
+            edges = setOf(XNoteScrollEdge.Top),
+        )
         XNoteHeader(
             title = "", backdrop = backdrop,
             actions = listOf(
