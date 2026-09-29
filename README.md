@@ -129,3 +129,11 @@ app/src/main/java/com/xnote/app
 ├─ MainActivity.kt     # Android 入口
 └─ XNoteApp.kt         # 手机/平板应用外壳
 ```
+
+### Agent 工具与笔记读取
+
+“测试连接”只用一次文字流式请求记录模型可用性。工具根据当前权限默认提供，未测试或测试失败不会关闭工具；每次执行重新校验授权。模型服务实际不支持工具协议时会报告请求失败。
+
+统一 `read`：`{}` 浏览授权目录，`{"notebook_id":"…"}` 列出笔记本内笔记，`{"notebook_id":""}` 列出未归档笔记，`{"note_id":"…"}` 读取正文。目录每页最多 20 项，仅返回元信息；正文按 `snapshot_id` 与 `next_offset` 固定版本分页。附加笔记初始只发送引用元信息，正文保存在本地快照，Agent 通过 `read` 按需读取。
+
+内置及扩展工具通过 Provider 注册，统一权限过滤、派发、审计、去重与结果核对。详见 [Agent 工具扩展](./docs/XNote%20Agent%20工具扩展.md)。

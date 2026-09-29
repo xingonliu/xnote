@@ -6,7 +6,7 @@ import kotlinx.serialization.json.*
 // -- Type Definitions
 
 @Serializable
-data class AgentReadArguments(val note_id: String, val snapshot_id: String? = null, val offset: Int = 0, val limit: Int = AgentNoteLimits.ReadPageCharacters)
+data class AgentReadArguments(val note_id: String? = null, val snapshot_id: String? = null, val offset: Int = 0, val limit: Int = AgentNoteLimits.ReadPageCharacters, val notebook_id: String? = null)
 
 @Serializable
 data class AgentSearchArguments(val query: String, val offset: Int = 0, val limit: Int = AgentNoteLimits.SearchPageSize)
@@ -75,15 +75,16 @@ val AgentNoteTools = listOf(
         putJsonArray("required") { add("note_id"); add("base_version") }
         put("additionalProperties", false)
     }),
-    ModelTool("read", "读取已授权笔记。省略 snapshot_id 时读取当前版本，返回可固定该版本的 snapshot_id；分页继续时传回它，避免混合不同版本。也可指定发送快照 ID。正文为可拼接的 document_json，offset/next_offset 使用 UTF-16 字符位置。快照不是当前版本，也不会增加权限。", buildJsonObject {
+    ModelTool("read", "统一浏览笔记库、笔记本和笔记：不传 note_id/notebook_id 时分页返回授权目录；传 notebook_id 时列出该笔记本内笔记，空字符串表示未归档；传 note_id 时读取正文，不能同时传两个 ID。目录只返回元信息，每页最多20项。省略 snapshot_id 时读取当前版本，返回可固定该版本的 snapshot_id；分页继续时传回它，避免混合不同版本。也可指定发送快照 ID。正文为可拼接的 document_json，offset/next_offset 使用 UTF-16 字符位置。快照不是当前版本，也不会增加权限。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("note_id") { put("type", "string") }
+            putJsonObject("notebook_id") { put("type", "string") }
             putJsonObject("snapshot_id") { put("type", "string") }
             putJsonObject("offset") { put("type", "integer"); put("minimum", 0) }
             putJsonObject("limit") { put("type", "integer"); put("minimum", 1); put("maximum", AgentNoteLimits.ReadPageCharacters) }
         }
-        putJsonArray("required") { add("note_id") }
+        putJsonArray("required") {}
         put("additionalProperties", false)
     }),
     ModelTool("note_search", "在当前授权范围内检索笔记标题和正文，返回有限页及是否还有结果；无权访问的数据不会参与结果。", buildJsonObject {

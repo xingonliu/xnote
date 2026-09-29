@@ -112,7 +112,7 @@ class AgentHistoryMemoryTest {
     // -- Functions
 
     private suspend fun execute(db: XNoteDatabase, run: AgentRunEntity, id: String, name: String, args: JsonObject) =
-        AgentNoteStore(db).executeTool(run.id, ModelToolCall(id, name, args)) as AgentToolResult.Finished
+        AgentNoteStore(db).toolExecutor.execute(run.id, ModelToolCall(id, name, args)) as AgentToolResult.Finished
 
     private suspend fun fixture(block: suspend (XNoteDatabase, AgentRunEntity) -> Unit) {
         val db = XNoteDatabase.createInMemory(ApplicationProvider.getApplicationContext<Context>())

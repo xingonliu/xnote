@@ -21,24 +21,24 @@ class AgentWriteToolTest {
             val base = db.notes().get("note")!!
             val selection = AgentSelection(base.agentVersion(), "body", 6, 12)
             store.capture("user", listOf("note"), AgentDraftSelection("note", selection))
-            val outside = store.executeTool("run", write("outside-selection", base, "changed middle end")) as AgentToolResult.Finished
+            val outside = store.toolExecutor.execute("run", write("outside-selection", base, "changed middle end")) as AgentToolResult.Finished
             assertTrue(outside.result.content.contains("invalid_arguments"))
             val forged = write("forged", base, "changed middle end")
-            assertTrue((store.executeTool("run", forged.copy(arguments = JsonObject(forged.arguments +
+            assertTrue((store.toolExecutor.execute("run", forged.copy(arguments = JsonObject(forged.arguments +
                 ("selection" to Json.encodeToJsonElement(selection.copy(start = 0, end = 15)))))) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
             for (name in listOf("create", "delete")) {
-                assertTrue((store.executeTool("run", ModelToolCall(name, name, buildJsonObject {})) as AgentToolResult.Finished).result.content.contains("selection_scope"))
+                assertTrue((store.toolExecutor.execute("run", ModelToolCall(name, name, buildJsonObject {})) as AgentToolResult.Finished).result.content.contains("selection_scope"))
             }
             db.notes().upsert(base.copy(id = "other"))
-            assertTrue((store.executeTool("run", write("other", base.copy(id = "other"), "changed")) as AgentToolResult.Finished).result.content.contains("selection_scope"))
+            assertTrue((store.toolExecutor.execute("run", write("other", base.copy(id = "other"), "changed")) as AgentToolResult.Finished).result.content.contains("selection_scope"))
             assertEquals(base, db.notes().get("note"))
             val valid = write("selected", base, "start 润色内容 end")
-            val first = store.executeTool("run", valid)
+            val first = store.toolExecutor.execute("run", valid)
             assertEquals("applied", (first as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
-            assertEquals(first, store.executeTool("run", valid))
+            assertEquals(first, store.toolExecutor.execute("run", valid))
             assertEquals(1, db.agent().noteChanges("note").size)
-            store.executeTool("run", read("read-again"))
-            assertTrue(store.executeTool("run", write("new-version", db.notes().get("note")!!, "start 再改 end")) is AgentToolResult.Conflict)
+            store.toolExecutor.execute("run", read("read-again"))
+            assertTrue(store.toolExecutor.execute("run", write("new-version", db.notes().get("note")!!, "start 再改 end")) is AgentToolResult.Conflict)
             assertTrue(AgentReviewStore(db).reject("note") is AgentReviewResult.Applied)
             assertEquals(base.documentJson, db.notes().get("note")!!.documentJson)
         }
@@ -66,9 +66,9 @@ class AgentWriteToolTest {
             db.close()
             db = XNoteDatabase.create(context, name)
             val store = AgentNoteStore(db)
-            assertTrue((store.executeTool("run", write("outside", base, "changed middle end")) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
+            assertTrue((store.toolExecutor.execute("run", write("outside", base, "changed middle end")) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
             assertEquals(base, db.notes().get("note"))
-            assertEquals("applied", (store.executeTool("run", write("inside", base, "start 精炼 end")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
+            assertEquals("applied", (store.toolExecutor.execute("run", write("inside", base, "start 精炼 end")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
         } finally { db.close(); context.deleteDatabase(name) }
     }
 
@@ -80,11 +80,11 @@ class AgentWriteToolTest {
             seed(db)
             val store = AgentNoteStore(db)
             val base = db.notes().get("note")!!
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             db.close()
             db = XNoteDatabase.create(context, name)
             db.notes().upsert(base.copy(title = "用户标题", documentJson = document("start 用户 end"), updatedAtEpochMs = 2))
-            val result = AgentNoteStore(db).executeTool("run", write("write", base, "A middle end")) as AgentToolResult.Finished
+            val result = AgentNoteStore(db).toolExecutor.execute("run", write("write", base, "A middle end")) as AgentToolResult.Finished
             assertEquals("applied", result.json()["status"]!!.jsonPrimitive.content)
             val saved = db.notes().get("note")!!
             assertEquals("用户标题", saved.title)
@@ -98,17 +98,17 @@ class AgentWriteToolTest {
     @Test fun writeReplayDoesNotReapplyAndRevocationDoesNotExposeCachedResult() = runBlocking {
         fixture { db, store ->
             val base = db.notes().get("note")!!
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             val call = write("once", base, "A middle end")
-            val first = store.executeTool("run", call)
+            val first = store.toolExecutor.execute("run", call)
             val user = db.notes().get("note")!!.copy(title = "之后的用户标题")
             db.notes().upsert(user)
-            assertEquals(first, store.executeTool("run", call))
+            assertEquals(first, store.toolExecutor.execute("run", call))
             assertEquals(user, db.notes().get("note"))
             assertEquals(1, db.agent().noteChanges("note").size)
-            try { store.executeTool("run", write("once", base, "other")); fail("call identity") } catch (_: IllegalArgumentException) { }
+            try { store.toolExecutor.execute("run", write("once", base, "other")); fail("call identity") } catch (_: IllegalArgumentException) { }
             store.savePermissionFromUser(AgentPermission())
-            val revoked = store.executeTool("run", call) as AgentToolResult.Finished
+            val revoked = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
             assertTrue(revoked.result.content.contains("unavailable_under_current_permission"))
             assertEquals(user, db.notes().get("note"))
         }
@@ -117,14 +117,14 @@ class AgentWriteToolTest {
     @Test fun onlyCurrentTopicReadOrDispatchedAttachmentCanSupplyTheBase() = runBlocking {
         fixture { db, store ->
             val base = db.notes().get("note")!!
-            assertTrue((store.executeTool("run", write("unread", base, "A")) as AgentToolResult.Finished).result.content.contains("read_required"))
+            assertTrue((store.toolExecutor.execute("run", write("unread", base, "A")) as AgentToolResult.Finished).result.content.contains("read_required"))
             store.capture("user", listOf("note"))
-            assertEquals("applied", (store.executeTool("run", write("attached", base, "A middle end")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
-            store.executeTool("run", read())
+            assertEquals("applied", (store.toolExecutor.execute("run", write("attached", base, "A middle end")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
+            store.toolExecutor.execute("run", read())
             val latest = db.notes().get("note")!!
             db.agent().saveSegment(AgentSegmentEntity("other-segment", 3))
             db.agent().saveRun(db.agent().run("run")!!.copy(id = "other-run", segmentId = "other-segment"))
-            assertTrue((store.executeTool("other-run", write("other-topic", latest, "B middle end")) as AgentToolResult.Finished).result.content.contains("read_required"))
+            assertTrue((store.toolExecutor.execute("other-run", write("other-topic", latest, "B middle end")) as AgentToolResult.Finished).result.content.contains("read_required"))
         }
     }
 
@@ -132,14 +132,14 @@ class AgentWriteToolTest {
         fixture { db, store ->
             val base = db.notes().get("note")!!.copy(documentJson = NoteDocument(blocks = listOf(ImageBlock("media", "file"))).encodeToJson())
             db.notes().upsert(base)
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             val snapshot = db.agent().readSnapshot("segment", "note", base.agentVersion())!!
             db.agent().deleteUnusedSnapshots()
             assertNotNull(db.agent().snapshot(snapshot.id))
             assertEquals(listOf("file"), db.agent().referencedAttachmentIds())
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Attached))
             assertTrue(store.access(db.agent().run("run")!!).attachedNoteIds.isEmpty())
-            assertTrue(store.executeTool("run", write("outside", base, "x")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", write("outside", base, "x")) is AgentToolResult.PermissionRequired)
             db.agent().deleteToolEvents("run")
             db.agent().deleteUnusedSnapshots()
             db.agent().deleteUnusedSnapshotAttachments()
@@ -153,7 +153,7 @@ class AgentWriteToolTest {
             val base = db.notes().get("note")!!
             store.capture("user", listOf("note"))
             store.savePermissionFromUser(AgentPermission(level, AgentScope.All))
-            assertTrue(store.executeTool("run", write("denied", base, "A middle end")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", write("denied", base, "A middle end")) is AgentToolResult.PermissionRequired)
             assertEquals(base, db.notes().get("note"))
             assertTrue(db.agent().noteChanges("note").isEmpty())
             assertEquals(AgentRunStatus.WaitingPermission, db.agent().run("run")!!.status)
@@ -163,20 +163,20 @@ class AgentWriteToolTest {
     @Test fun conflictingWriteWaitsAndExplicitReplanNeverReexecutesTheOldWrite() = runBlocking {
         fixture { db, store ->
             val base = db.notes().get("note")!!
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             val user = base.copy(documentJson = document("start 用户 end"))
             db.notes().upsert(user)
             val call = write("conflict", base, "start Agent end")
-            assertTrue(store.executeTool("run", call) is AgentToolResult.Conflict)
+            assertTrue(store.toolExecutor.execute("run", call) is AgentToolResult.Conflict)
             assertEquals(AgentRunStatus.WaitingConflict, db.agent().run("run")!!.status)
             assertEquals(user, db.notes().get("note"))
             assertTrue(db.agent().noteChanges("note").isEmpty())
             store.replanConflictFromUser("run", "conflict")
             db.agent().saveRun(db.agent().run("run")!!.copy(status = AgentRunStatus.Running))
-            assertTrue((store.executeTool("run", call) as AgentToolResult.Finished).result.content.contains("edit_conflict"))
+            assertTrue((store.toolExecutor.execute("run", call) as AgentToolResult.Finished).result.content.contains("edit_conflict"))
             assertEquals(user, db.notes().get("note"))
-            store.executeTool("run", read("read-latest"))
-            assertEquals("applied", (store.executeTool("run", write("adjusted", user, "start 用户 end！")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
+            store.toolExecutor.execute("run", read("read-latest"))
+            assertEquals("applied", (store.toolExecutor.execute("run", write("adjusted", user, "start 用户 end！")) as AgentToolResult.Finished).json()["status"]!!.jsonPrimitive.content)
         }
     }
 
@@ -184,7 +184,7 @@ class AgentWriteToolTest {
         fixture { db, store ->
             val base = db.notes().get("note")!!.copy(documentJson = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("start middle end"))), ImageBlock("media", "file"))).encodeToJson())
             db.notes().upsert(base)
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             val valid = write("base", base, "A").arguments
             val invalid = listOf(
                 JsonObject(valid + ("extra" to JsonPrimitive(true))),
@@ -193,7 +193,7 @@ class AgentWriteToolTest {
                 JsonObject(valid + ("document_json" to JsonPrimitive(document("x".repeat(AgentNoteLimits.MaxWriteArgumentCharacters))))),
             )
             invalid.forEachIndexed { index, args ->
-                assertTrue((store.executeTool("run", ModelToolCall("bad-$index", "write", args)) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
+                assertTrue((store.toolExecutor.execute("run", ModelToolCall("bad-$index", "write", args)) as AgentToolResult.Finished).result.content.contains("invalid_arguments"))
             }
             assertEquals(base, db.notes().get("note"))
             assertTrue(db.agent().noteChanges("note").isEmpty())
@@ -203,9 +203,9 @@ class AgentWriteToolTest {
     @Test fun outerTransactionFailureRollsBackBodyReviewAndToolResultTogether() = runBlocking {
         fixture { db, store ->
             val base = db.notes().get("note")!!
-            store.executeTool("run", read())
+            store.toolExecutor.execute("run", read())
             try { db.useWriterConnection { connection -> connection.immediateTransaction {
-                store.executeTool("run", write("rollback", base, "A middle end"))
+                store.toolExecutor.execute("run", write("rollback", base, "A middle end"))
                 error("simulated interruption before commit")
             } }; fail("rollback") } catch (_: IllegalStateException) { }
             assertEquals(base, db.notes().get("note"))
@@ -218,10 +218,10 @@ class AgentWriteToolTest {
     @Test fun paginatedReadCanPinItsVersionAndPermanentDeletionRemovesTheBase() = runBlocking {
         fixture { db, store ->
             val base = db.notes().get("note")!!
-            val first = (store.executeTool("run", ModelToolCall("page", "read", buildJsonObject { put("note_id", "note"); put("limit", 20) })) as AgentToolResult.Finished).json()
+            val first = (store.toolExecutor.execute("run", ModelToolCall("page", "read", buildJsonObject { put("note_id", "note"); put("limit", 20) })) as AgentToolResult.Finished).json()
             val snapshotId = first.getValue("snapshot_id").jsonPrimitive.content
             db.notes().upsert(base.copy(documentJson = document("NEW")))
-            val rest = (store.executeTool("run", ModelToolCall("rest", "read", buildJsonObject {
+            val rest = (store.toolExecutor.execute("run", ModelToolCall("rest", "read", buildJsonObject {
                 put("note_id", "note"); put("snapshot_id", snapshotId); put("offset", first.getValue("next_offset").jsonPrimitive.int)
             })) as AgentToolResult.Finished).json()
             assertEquals(base.documentJson, first.getValue("document_json").jsonPrimitive.content + rest.getValue("document_json").jsonPrimitive.content)

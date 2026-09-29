@@ -42,7 +42,7 @@ class ModelSettingsFlowTest {
         compose.onNodeWithTag("model-id").performScrollTo().performTextInput("test-model")
         compose.onNodeWithTag("model-key").performScrollTo().performTextInput("local-test-key")
         compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
-            .performTouchInput { click() }
+            .performClick()
         compose.waitUntil(5000) { runBlocking { store.list().size == 1 } }
         compose.onNodeWithText("测试配置 · 默认").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("model-name").assertDoesNotExist()
@@ -50,12 +50,12 @@ class ModelSettingsFlowTest {
         compose.onNodeWithText("测试配置 · 默认").performClick()
         compose.onNodeWithText("测试连接").performScrollTo().performClick()
         compose.waitUntil(5000) { runBlocking { store.list().single().capabilities.textStreaming } }
-        compose.onNodeWithText("文字流式通过；工具验证未通过。", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("连接成功，模型文字流式可用。", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("model-advanced").performScrollTo().performClick()
         compose.onNodeWithTag("model-name").performScrollTo().performTextReplacement("重命名配置")
         compose.onNodeWithTag("model-key").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         compose.onNodeWithTag("model-save").performScrollTo().assertIsEnabled()
-            .performTouchInput { click() }
+            .performClick()
         compose.waitUntil(5000) { runBlocking { store.list().single().name == "重命名配置" } }
         compose.onNodeWithText("重命名配置 · 默认").performScrollTo().performClick()
         compose.onNodeWithText("删除").performScrollTo().performClick()

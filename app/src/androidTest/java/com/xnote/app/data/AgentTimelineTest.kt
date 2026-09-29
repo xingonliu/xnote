@@ -15,6 +15,44 @@ import org.junit.Test
 // -- Tests
 
 class AgentTimelineTest {
+    @Test fun untestedModelReadsAttachedSnapshotBeforeWriting() = runBlocking {
+        withFixture { db, profiles, scope ->
+            seedReadableNote(db)
+            assertFalse(profiles.active().capabilities.tools)
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            var requests = 0
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                requests++
+                assertTrue(request.tools.any { it.name == "write" })
+                when (requests) {
+                    1 -> {
+                        assertFalse(request.messages.any { it.text.contains("受保护正文") })
+                        val snapshot = db.agent().observeSnapshots().first().single()
+                        emit(ModelEvent.ToolCall(ModelToolCall("read-base", "read", buildJsonObject { put("note_id", "readable"); put("snapshot_id", snapshot.id) })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    2 -> {
+                        val body = Json.parseToJsonElement(request.messages.last().results.single().content).jsonObject
+                        assertTrue(body.getValue("document_json").jsonPrimitive.content.contains("受保护正文"))
+                        emit(ModelEvent.ToolCall(ModelToolCall("write-base", "write", buildJsonObject {
+                            put("note_id", "readable"); put("base_version", body.getValue("version")); put("title", "已润色")
+                            put("document_json", body.getValue("document_json").jsonPrimitive.content.replace("受保护正文", "完成润色正文"))
+                        })))
+                        emit(ModelEvent.Finished(ModelFinish.ToolCalls))
+                    }
+                    else -> { emit(ModelEvent.Text("已完成")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                }
+            }, scope)
+            timeline.selectDraftNotes(listOf("readable"))
+            timeline.send("润色这篇笔记")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(3, requests)
+            assertEquals("已润色", db.notes().get("readable")!!.title)
+            assertTrue(db.notes().get("readable")!!.documentJson.contains("完成润色正文"))
+            assertTrue(db.agent().toolEvents(db.agent().messages().first().runId!!).all { it.status == AgentToolStatus.Committed })
+        }
+    }
+
     @Test fun editorCarryPreservesDraftSelectionAcrossRestoreAndQueuedSubmission() = runBlocking {
         withFixture { db, profiles, scope ->
             val note = NoteEntity("note", null, "标题", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("前原文后"))))).encodeToJson(), null, 0, 0, 0, "摘要", 1, 1, null, null)
@@ -44,7 +82,7 @@ class AgentTimelineTest {
             val run = db.agent().observeRuns().first().single()
             assertEquals(message.id, run.userMessageId)
             val projected = restored.noteStore.projectMessage(run.id, db.agent().message(message.id)!!)!!
-            assertTrue(projected.message.text.contains("用户显式提供的笔记内容"))
+            assertTrue(projected.message.text.contains("用户显式附加的笔记引用"))
             assertTrue(projected.message.text.contains("\"selection\""))
             restored.carryNote("note", selection)
             val messageCount = db.agent().messages().size
@@ -67,7 +105,7 @@ class AgentTimelineTest {
             timeline.send("用户输入")
             withTimeout(5000) { timeline.messages.first { it.any { message -> message.text == "部分回复" } } }
             assertEquals(AgentMessageStatus.Streaming, db.agent().messages().last().status)
-            assertTrue(captured.single().tools.isEmpty())
+            assertEquals(setOf("memory_remember", "memory_search", "memory_read"), captured.single().tools.map { it.name }.toSet())
             release.complete(Unit)
             withTimeout(5000) { timeline.runs.first { it.lastOrNull()?.status == AgentRunStatus.Complete } }
             assertEquals("部分回复，完成", db.agent().messages().last().text)
@@ -360,7 +398,7 @@ class AgentTimelineTest {
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("memory_remember", "create", "delete", "read", "note_search", "write", "memory_search", "memory_read", "output_file"), requests.first().tools.map { it.name })
+            assertEquals(listOf("read", "note_search", "memory_remember", "memory_search", "memory_read"), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
             val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
@@ -453,7 +491,8 @@ class AgentTimelineTest {
             timeline.send("继续使用之前的版本")
             release.complete(Unit)
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
-            assertTrue(requests.last().messages.first().text.contains("受保护正文"))
+            assertTrue(requests.last().messages.first().text.contains("受保护标题"))
+            assertFalse(requests.last().messages.first().text.contains("受保护正文"))
             assertFalse(requests.last().messages.joinToString { it.text }.contains("最新正文"))
             assertTrue(timeline.draftNotes.value.isEmpty())
             assertEquals(1, db.agent().snapshotRefs(db.agent().messages().first().id).size)
@@ -566,7 +605,8 @@ class AgentTimelineTest {
             val timeline = AgentTimeline(db, profiles, client { request ->
                 requests += request
                 if (requests.size == 1) {
-                    assertTrue(request.messages.first().text.contains("受保护正文"))
+                    assertTrue(request.messages.first().text.contains("受保护标题"))
+                    assertFalse(request.messages.first().text.contains("受保护正文"))
                     emit(ModelEvent.NativeParts(buildJsonArray { add(buildJsonObject { put("text", "受保护正文的旧原生片段") }) }))
                     emit(ModelEvent.ToolCall(ModelToolCall("delete", "delete", Json.encodeToJsonElement(AgentDeleteArguments(original.id, original.agentVersion())).jsonObject)))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))

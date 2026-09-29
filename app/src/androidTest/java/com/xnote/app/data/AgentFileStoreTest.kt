@@ -159,7 +159,7 @@ class AgentFileStoreTest {
                 if (++calls == 1) { emit(ModelEvent.ToolCall(call)); emit(ModelEvent.Finished(ModelFinish.ToolCalls)) }
                 else {
                     val run = db.agent().unfinishedRuns().single()
-                    val cached = AgentNoteStore(db, files).executeTool(run.id, call) as AgentToolResult.Finished
+                    val cached = AgentNoteStore(db, files).toolExecutor.execute(run.id, call) as AgentToolResult.Finished
                     assertTrue(cached.result.content.contains("saved"))
                     emit(ModelEvent.Text("文件已生成")); emit(ModelEvent.Finished(ModelFinish.Complete))
                 }

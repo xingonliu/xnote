@@ -5,7 +5,7 @@ import com.xnote.app.domain.agent.*
 
 // -- Type Definitions
 
-data class AgentRequestContext(val plan: AgentContextPlan, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList(), val sourceMessageIds: List<String> = emptyList())
+data class AgentRequestContext(val plan: AgentContextPlan, val sources: List<AgentMessageSource>, val profileFactIds: List<String> = emptyList(), val sourceMessageIds: List<String> = emptyList(), val tools: List<ModelTool> = emptyList())
 class AgentSourceAccessException : Exception("当前任务引用的笔记或记忆已不可用，请确认权限和来源后重新发送。")
 
 class AgentConversationContext(private val database: XNoteDatabase, private val notes: AgentNoteStore) {
@@ -65,7 +65,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         }
         require(execution.any { it.role == AgentMessageRole.User })
         if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
-        val tools = if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools + AgentFileTools else emptyList()
+        val tools = notes.toolRegistry.definitions(notes.toolContext(run))
         val base = planAgentExecutionContext(profile, turns, execution, tools)
         var remaining = profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens - base.estimatedInputTokens
         val memoryMessages = mutableListOf<ModelMessage>()
@@ -97,6 +97,6 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             sources += AgentMessageSource(memory.note.id)
         }
         val memoryCost = memoryMessages.sumOf { estimatedAgentTokens(kotlinx.serialization.json.Json.encodeToString(it)) }
-        return AgentRequestContext(base.copy(messages = memoryMessages + base.messages, estimatedInputTokens = base.estimatedInputTokens + memoryCost), sources.distinct(), factIds.toList(), sourceIds.toList())
+        return AgentRequestContext(base.copy(messages = memoryMessages + base.messages, estimatedInputTokens = base.estimatedInputTokens + memoryCost), sources.distinct(), factIds.toList(), sourceIds.toList(), tools)
     }
 }

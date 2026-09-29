@@ -14,6 +14,7 @@ enum class ModelProtocol(val label: String, val root: String) {
     Gemini("Gemini GenerateContent", "https://generativelanguage.googleapis.com/v1beta"),
 }
 
+// The tools field is retained for existing stored profiles only; it never controls tool availability.
 @Serializable
 data class ModelCapabilities(val textStreaming: Boolean = false, val tools: Boolean = false, val testedAtEpochMs: Long? = null,
     val images: Boolean = false, val pdf: Boolean = false, val attachmentsTestedAtEpochMs: Long? = null)

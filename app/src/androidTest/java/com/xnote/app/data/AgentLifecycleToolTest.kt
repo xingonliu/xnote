@@ -39,12 +39,12 @@ class AgentLifecycleToolTest {
             val original = note("existing", null)
             db.notes().upsert(original)
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
-            store.executeTool("run", read("read", original.id))
+            store.toolExecutor.execute("run", read("read", original.id))
             store.savePermissionFromUser(AgentPermission(level, AgentScope.All))
-            assertTrue(store.executeTool("run", delete("delete", original)) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", delete("delete", original)) is AgentToolResult.PermissionRequired)
             assertEquals(original, db.notes().get(original.id))
             resume(db)
-            assertTrue(store.executeTool("run", create("create")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", create("create")) is AgentToolResult.PermissionRequired)
             assertEquals(1, db.notes().getAll().size)
         }
     }
@@ -52,8 +52,8 @@ class AgentLifecycleToolTest {
     @Test fun soleWritableTargetCreatesOnceAndRejectMovesToTrash() = runBlocking { fixture { db, store, _ ->
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
         val call = create("create")
-        val first = store.executeTool("run", call) as AgentToolResult.Finished
-        assertEquals(first, store.executeTool("run", call))
+        val first = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
+        assertEquals(first, store.toolExecutor.execute("run", call))
         val note = db.notes().get(first.noteId())!!
         assertNull(note.notebookId)
         assertEquals(1, db.notes().getAll().size)
@@ -67,13 +67,13 @@ class AgentLifecycleToolTest {
     @Test fun explicitTargetAndMultipleTargetsFollowSelectionRules() = runBlocking { fixture { db, store, _ ->
         books(db)
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Notebooks, setOf("one", "two")))
-        val explicit = store.executeTool("run", create("explicit", AgentCreateTarget("two"))) as AgentToolResult.Finished
+        val explicit = store.toolExecutor.execute("run", create("explicit", AgentCreateTarget("two"))) as AgentToolResult.Finished
         assertEquals("two", db.notes().get(explicit.noteId())!!.notebookId)
-        assertTrue(store.executeTool("run", create("choose")) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("choose")) is AgentToolResult.PermissionRequired)
         assertEquals(1, db.notes().getAll().size)
         store.authorizeCreationFromUser("run", "choose", AgentCreateTarget("one"))
         resume(db)
-        val chosen = store.executeTool("run", create("choose")) as AgentToolResult.Finished
+        val chosen = store.toolExecutor.execute("run", create("choose")) as AgentToolResult.Finished
         assertEquals("one", db.notes().get(chosen.noteId())!!.notebookId)
     } }
 
@@ -81,16 +81,16 @@ class AgentLifecycleToolTest {
         books(db)
         db.notes().upsert(note("read-only", "one"))
         db.agent().saveRun(db.agent().run("run")!!.copy(grantJson = Json.encodeToString(AgentRunGrant("run", 0, AgentPermissionLevel.Read, setOf("read-only")))))
-        assertTrue(store.executeTool("run", create("once")) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
         store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
         resume(db)
-        val created = store.executeTool("run", create("once")) as AgentToolResult.Finished
+        val created = store.toolExecutor.execute("run", create("once")) as AgentToolResult.Finished
         val access = store.access(db.agent().run("run")!!)
         assertTrue(access.canEdit(AgentNoteAccess(created.noteId(), "one")))
         assertTrue(access.canReadCurrent(AgentNoteAccess("read-only", "one")))
         assertFalse(access.canEdit(AgentNoteAccess("read-only", "one")))
         assertEquals(AgentPermission(), access.permission)
-        assertTrue(store.executeTool("run", create("next", AgentCreateTarget("one"))) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("next", AgentCreateTarget("one"))) is AgentToolResult.PermissionRequired)
         db.agent().saveRun(db.agent().run("run")!!.copy(id = "other", status = AgentRunStatus.Running))
         assertFalse(store.access(db.agent().run("other")!!).canEdit(AgentNoteAccess(created.noteId(), "one")))
         store.savePermissionFromUser(AgentPermission())
@@ -99,22 +99,22 @@ class AgentLifecycleToolTest {
 
     @Test fun approvalExpiresWithPermissionRevisionOrMissingNotebook() = runBlocking { fixture { db, store, _ ->
         books(db)
-        assertTrue(store.executeTool("run", create("once")) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
         store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
         store.savePermissionFromUser(AgentPermission())
         resume(db)
-        assertTrue(store.executeTool("run", create("once")) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
         assertTrue(db.notes().getAll().isEmpty())
         store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
         db.notebooks().deleteById("one")
         resume(db)
-        assertTrue(store.executeTool("run", create("once")) is AgentToolResult.PermissionRequired)
+        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
         assertTrue(db.notes().getAll().isEmpty())
     } }
 
     @Test fun createdNoteWithUserContentBlocksWholeBatchRejection() = runBlocking { fixture { db, store, library ->
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
-        val created = store.executeTool("run", create("create")) as AgentToolResult.Finished
+        val created = store.toolExecutor.execute("run", create("create")) as AgentToolResult.Finished
         val original = db.notes().get(created.noteId())!!
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 后续正文")))
         library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("Agent 后续正文；用户补充")))
@@ -128,20 +128,20 @@ class AgentLifecycleToolTest {
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
         val original = note("note", null)
         db.notes().upsert(original)
-        store.executeTool("run", read("read", original.id))
+        store.toolExecutor.execute("run", read("read", original.id))
         library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("用户已经改写")))
         val current = db.notes().get(original.id)!!
-        assertTrue(store.executeTool("run", delete("stale", original)) is AgentToolResult.Conflict)
+        assertTrue(store.toolExecutor.execute("run", delete("stale", original)) is AgentToolResult.Conflict)
         assertEquals(current, db.notes().get(original.id))
         store.replanConflictFromUser("run", "stale"); resume(db)
-        store.executeTool("run", read("fresh", original.id))
-        val removed = store.executeTool("run", delete("delete", current)) as AgentToolResult.Finished
+        store.toolExecutor.execute("run", read("fresh", original.id))
+        val removed = store.toolExecutor.execute("run", delete("delete", current)) as AgentToolResult.Finished
         assertTrue(removed.sources.isEmpty())
         assertNotNull(db.notes().get(original.id)!!.deletedAtEpochMs)
         assertTrue(AgentReviewStore(db).reject(original.id) is AgentReviewResult.Applied)
         assertNull(db.notes().get(original.id)!!.deletedAtEpochMs)
         assertEquals(current.documentJson, db.notes().get(original.id)!!.documentJson)
-        assertEquals(removed, store.executeTool("run", delete("delete", current)))
+        assertEquals(removed, store.toolExecutor.execute("run", delete("delete", current)))
         assertNull(db.notes().get(original.id)!!.deletedAtEpochMs)
     } }
 
@@ -150,13 +150,13 @@ class AgentLifecycleToolTest {
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
         val original = note("note", "one")
         db.notes().upsert(original)
-        store.executeTool("run", read("read", original.id)); store.executeTool("run", delete("delete", original))
+        store.toolExecutor.execute("run", read("read", original.id)); store.toolExecutor.execute("run", delete("delete", original))
         library.restoreNotes(listOf(original.id))
         library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = "用户恢复后的标题", document = document("用户恢复后的正文")))
         val restored = db.notes().get(original.id)!!
         AgentReviewStore(db).reject(original.id)
         assertEquals(restored, db.notes().get(original.id))
-        store.executeTool("run", read("again", original.id)); store.executeTool("run", delete("delete-again", restored))
+        store.toolExecutor.execute("run", read("again", original.id)); store.toolExecutor.execute("run", delete("delete-again", restored))
         db.notebooks().deleteById("one")
         AgentReviewStore(db).reject(original.id)
         assertNull(db.notes().get(original.id)!!.notebookId)
@@ -170,7 +170,7 @@ class AgentLifecycleToolTest {
         db.notes().upsert(original)
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 正文")))
         val edited = db.notes().get(original.id)!!
-        store.executeTool("run", read("read", original.id)); store.executeTool("run", delete("delete", edited))
+        store.toolExecutor.execute("run", read("read", original.id)); store.toolExecutor.execute("run", delete("delete", edited))
         library.saveNote(requireNotNull(library.getNote(original.id)).copy(title = original.title, document = document("用户改写这段")))
         val current = db.notes().get(original.id)!!
         assertTrue(AgentReviewStore(db).reject(original.id) is AgentReviewResult.Conflict)
@@ -180,13 +180,13 @@ class AgentLifecycleToolTest {
 
     @Test fun acceptedCreationAndDeletionCanBeUndoneAndPermanentDeletionIsUnrecoverable() = runBlocking { fixture { db, store, library ->
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
-        val id = (store.executeTool("run", create("create")) as AgentToolResult.Finished).noteId()
+        val id = (store.toolExecutor.execute("run", create("create")) as AgentToolResult.Finished).noteId()
         val reviews = AgentReviewStore(db)
         reviews.accept(id); reviews.undoAccepted(id)
         assertNotNull(db.notes().get(id)!!.deletedAtEpochMs)
         library.restoreNotes(listOf(id))
         val restored = db.notes().get(id)!!
-        store.executeTool("run", read("read", id)); store.executeTool("run", delete("delete", restored))
+        store.toolExecutor.execute("run", read("read", id)); store.toolExecutor.execute("run", delete("delete", restored))
         reviews.accept(id); reviews.undoAccepted(id)
         assertNull(db.notes().get(id)!!.deletedAtEpochMs)
         library.permanentlyDeleteNotes(listOf(id))
@@ -198,7 +198,7 @@ class AgentLifecycleToolTest {
         store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
         val run = db.agent().run("run")!!
         try { db.useWriterConnection { it.immediateTransaction {
-            store.executeTool("run", create("rollback")); error("before outer commit")
+            store.toolExecutor.execute("run", create("rollback")); error("before outer commit")
         } }; fail("rollback") } catch (_: IllegalStateException) { }
         assertTrue(db.notes().getAll().isEmpty())
         assertNull(db.agent().toolEvent("run", "rollback"))

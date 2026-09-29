@@ -408,6 +408,8 @@ Note
 
 抠图模型在本切片开始前做许可证、包体、内存和端侧兼容性验证。
 
+S11 的工具通过统一 Provider 注册和 Executor 执行；连接测试只标记模型可用性，笔记与笔记本共用 `read`，附加笔记正文按需读取。扩展接口见 [Agent 工具扩展](./XNote%20Agent%20工具扩展.md)。
+
 ### S13 MCP、Skill、Linux
 
 对应功能清单 7.4。进入条件：S11 Agent Loop 稳定。

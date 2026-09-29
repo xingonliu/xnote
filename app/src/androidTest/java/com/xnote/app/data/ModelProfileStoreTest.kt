@@ -6,6 +6,7 @@ import com.xnote.app.data.agent.*
 import com.xnote.app.data.db.*
 import com.xnote.app.domain.agent.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
@@ -14,6 +15,27 @@ import java.util.UUID
 // -- Tests
 
 class ModelProfileStoreTest {
+    @Test fun connectionTestOnlyChecksAvailabilityInOneTextRequest() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = XNoteDatabase.createInMemory(context)
+        val store = ModelProfileStore(db, AndroidModelCredentialStore(context))
+        try {
+            val profile = store.save(ModelProfile("connection", name = "连接", protocol = ModelProtocol.OpenAI, modelId = "model"), "test-key")
+            var requests = 0
+            val client = object : ModelClient {
+                override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) =
+                    flowOf(ModelEvent.Text("OK"), ModelEvent.Finished(ModelFinish.Complete)).also {
+                        requests++
+                        assertTrue(request.tools.isEmpty())
+                    }
+            }
+            assertTrue(ModelCapabilityTest(client, store).test(profile).capabilities.textStreaming)
+            assertEquals(1, requests)
+            assertTrue(store.list().single().capabilities.textStreaming)
+            store.delete(profile.id)
+        } finally { db.close() }
+    }
+
     @Test fun credentialsAreEncryptedExcludedFromProfileAndDeletedWithProfile() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = XNoteDatabase.createInMemory(context)

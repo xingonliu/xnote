@@ -102,7 +102,7 @@ fun ModelSettingsScreen(
                     }
                     if (saved != null) {
                         HorizontalDivider()
-                        Text("测试已保存配置，可能产生费用", style = MaterialTheme.typography.bodySmall)
+                        Text("连接测试仅检查模型可用性，工具按权限默认启用。测试可能产生费用。", style = MaterialTheme.typography.bodySmall)
                         LiquidButton({
                             testing = true
                             job = scope.launch {
@@ -112,6 +112,7 @@ fun ModelSettingsScreen(
                                 finally { testing = false }
                             }
                         }, backdrop, enabled = !testing && !saving && saved.enabled) { Text(if (testing) "测试中…" else "测试连接") }
+                        Text("连接：${if (saved.capabilities.testedAtEpochMs == null) "未测试" else if (saved.capabilities.textStreaming) "可用" else "测试失败"}", style = MaterialTheme.typography.bodySmall)
                         Text("图片：${if (saved.capabilities.images) "已验证" else "未验证"} · PDF 原生输入：${if (saved.capabilities.pdf) "已验证" else "未验证"}", style = MaterialTheme.typography.bodySmall)
                         LiquidButton({
                             testing = true

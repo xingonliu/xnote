@@ -88,7 +88,7 @@ class EditorAgentFlowTest {
         val client = object : ModelClient {
             override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
                 if (++requests == 1) {
-                    assertTrue(request.messages.any { it.text.contains("用户显式提供的笔记内容") })
+                    assertTrue(request.messages.any { it.text.contains("用户显式附加的笔记引用") })
                     val base = db.notes().get(note.id)!!
                     emit(ModelEvent.ToolCall(ModelToolCall("polish", "write", buildJsonObject {
                         put("note_id", note.id); put("base_version", base.agentVersion()); put("title", note.title)

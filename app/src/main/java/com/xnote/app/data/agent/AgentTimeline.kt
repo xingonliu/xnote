@@ -24,6 +24,7 @@ class AgentTimeline(
     private val startBackground: () -> Unit = {},
     private val scheduleMemory: () -> Unit = {},
     val fileStore: AgentFileStore? = null,
+    toolProviders: List<AgentToolProvider> = emptyList(),
 ) {
     // -- State and Variables
 
@@ -32,7 +33,7 @@ class AgentTimeline(
     private val mutableDraft = MutableStateFlow("")
     private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
     private val mutableDraftSelection = MutableStateFlow<AgentDraftSelection?>(null)
-    val noteStore = AgentNoteStore(database, fileStore)
+    val noteStore = AgentNoteStore(database, fileStore, toolProviders)
     val reviewStore = AgentReviewStore(database)
     val episodeStore = AgentEpisodeStore(database)
     val noteMemory = AgentNoteMemoryStore(database)
@@ -272,6 +273,7 @@ class AgentTimeline(
         awaitReady()
         mutex.withLock {
             if (mutableState.value.running) throw ModelException(ModelError.Busy)
+            noteStore.toolExecutor.reconcilePending(runId)
             val resumed = transaction {
                 val run = checkNotNull(database.agent().run(runId))
                 require(run.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.Failed, AgentRunStatus.Cancelled, AgentRunStatus.PausedBudget))
@@ -465,7 +467,7 @@ class AgentTimeline(
                     val calls = mutableListOf<ModelToolCall>()
                     var nativeParts: JsonArray? = null
                     try {
-                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, if (profile.capabilities.tools) AgentNoteTools + AgentMemoryTools + AgentFileTools else emptyList())).collect { event ->
+                        client.stream(profile, secret, ModelRequest(AgentSystemPrompt, requestContext.plan.messages, requestContext.tools)).collect { event ->
                             currentCoroutineContext().ensureActive()
                             when (event) {
                                 is ModelEvent.Text -> {
@@ -475,13 +477,6 @@ class AgentTimeline(
                                 is ModelEvent.Usage -> run = run.copy(inputTokens = addUsage(run.inputTokens, event.inputTokens), outputTokens = addUsage(run.outputTokens, event.outputTokens))
                                 is ModelEvent.Finished -> finish = event.reason
                                 is ModelEvent.ToolCall -> {
-                                    if (!profile.capabilities.tools) {
-                                        val permission = AgentPermissionStore(database).current()
-                                        database.agent().saveToolEvent(AgentToolEventEntity(id(), run.id, event.value.id, event.value.name,
-                                            event.value.arguments.toString(), "{\"error\":\"tools_not_verified\"}", AgentToolStatus.Denied, permission.revision, now(), now(),
-                                            decisionsJson = Json.encodeToString(listOf(AgentToolDecision(now(), permission, null, emptySet(), "当前模型尚未通过工具能力验证，未派发工具。")))))
-                                        throw ModelException(ModelError.Protocol)
-                                    }
                                     if (calls.size >= AgentNoteLimits.MaxToolCallsPerResponse || calls.any { it.id == event.value.id }) throw ModelException(ModelError.Protocol)
                                     calls += event.value
                                 }
@@ -555,7 +550,7 @@ class AgentTimeline(
             val sources = Json.decodeFromString<List<AgentMessageSource>>(reply.sourcesJson).toMutableList()
             for (call in model.calls) {
                 currentCoroutineContext().ensureActive()
-                when (val outcome = noteStore.executeTool(run.id, call)) {
+                when (val outcome = noteStore.toolExecutor.execute(run.id, call)) {
                     is AgentToolResult.PermissionRequired -> {
                         mutableState.value = mutableState.value.copy(notice = "工具需要授权，队列保持等待。")
                         return false

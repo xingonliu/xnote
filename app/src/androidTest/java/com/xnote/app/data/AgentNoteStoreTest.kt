@@ -15,6 +15,117 @@ import org.junit.Test
 // -- Tests
 
 class AgentNoteStoreTest {
+    @Test fun emptyNotebookMetadataCannotLeakThroughDerivedHistoryAfterRevocation() = runBlocking {
+        fixture { db, store ->
+            seed(db)
+            db.notebooks().upsert(NotebookEntity("empty", "空目录秘密", 1, 1, 1))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            val call = ModelToolCall("directory", "read", buildJsonObject { put("note_id", JsonNull) })
+            val result = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
+            db.agent().insertMessage(AgentMessageEntity(id = "result", segmentId = "segment", runId = "run", role = AgentMessageRole.Tool,
+                text = result.result.content, status = AgentMessageStatus.Complete, createdAtEpochMs = 2,
+                modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = listOf(result.result)))))
+            AgentMemoryProvenance(db).save("derived-answer", listOf("result"))
+            assertTrue(AgentMemoryProvenance(db).canUse("derived-answer", db.agent().run("run")!!))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
+            assertNull(store.projectMessage("run", db.agent().message("result")!!))
+            assertFalse(AgentMemoryProvenance(db).canUse("derived-answer", db.agent().run("run")!!))
+        }
+    }
+
+    @Test fun attachedMessageContainsOnlyMetadataAndReadReturnsFixedBody() = runBlocking {
+        fixture { db, store ->
+            seed(db)
+            val snapshot = store.capture("user", listOf("note")).single()
+            val projected = store.projectMessage("run", db.agent().message("user")!!)!!.message.text
+            assertTrue(projected.contains(snapshot.snapshotId!!))
+            assertTrue(projected.contains("旧版标题"))
+            assertFalse(projected.contains("旧版正文"))
+            assertFalse(projected.contains("\"document\""))
+            db.notes().upsert(db.notes().get("note")!!.copy(documentJson = document("新版正文")))
+            val result = store.toolExecutor.execute("run", read("fixed", snapshotId = snapshot.snapshotId)) as AgentToolResult.Finished
+            assertTrue(result.result.content.contains("旧版正文"))
+            assertFalse(result.result.content.contains("新版正文"))
+        }
+    }
+
+    @Test fun unifiedReadBrowsesAuthorizedNotebooksAndNotesWithoutBodies() = runBlocking {
+        fixture { db, store ->
+            seed(db)
+            db.notebooks().upsert(NotebookEntity("book", "工作", 1, 1, 1))
+            db.notebooks().upsert(NotebookEntity("empty", "空笔记本", 2, 1, 1))
+            db.notebooks().upsert(NotebookEntity("secret", "秘密目录", 3, 1, 1))
+            db.notes().upsert(db.notes().get("note")!!.copy(notebookId = "book"))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.Notebooks, setOf("book", "empty")))
+            val root = store.toolExecutor.execute("run", ModelToolCall("root", "read", buildJsonObject {})) as AgentToolResult.Finished
+            assertTrue(root.result.content.contains("空笔记本"))
+            assertTrue(root.result.content.contains("旧版标题"))
+            assertFalse(root.result.content.contains("旧版正文"))
+            assertFalse(root.result.content.contains("秘密目录"))
+            val page = store.toolExecutor.execute("run", ModelToolCall("book", "read", buildJsonObject { put("notebook_id", "book"); put("limit", 1) })) as AgentToolResult.Finished
+            assertTrue(page.result.content.contains("旧版标题"))
+            assertFalse(page.result.content.contains("空笔记本"))
+            val body = store.toolExecutor.execute("run", read("body")) as AgentToolResult.Finished
+            assertTrue(body.result.content.contains("旧版正文"))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
+            val replay = store.toolExecutor.execute("run", ModelToolCall("root", "read", buildJsonObject {})) as AgentToolResult.Finished
+            assertFalse(replay.result.content.contains("空笔记本"))
+            assertTrue(store.toolExecutor.execute("run", ModelToolCall("hidden", "read", buildJsonObject { put("notebook_id", "secret") })) is AgentToolResult.PermissionRequired)
+        }
+    }
+
+    @Test fun toolDefinitionsFollowPermissionWithoutModelVerification() = runBlocking {
+        fixture { db, store ->
+            seed(db)
+            suspend fun names() = store.toolRegistry.definitions(store.toolContext(db.agent().run("run")!!)).map { it.name }.toSet()
+            assertEquals(setOf("memory_remember", "memory_search", "memory_read"), names())
+            store.capture("user", listOf("note"))
+            assertTrue("read" in names())
+            assertFalse("write" in names())
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            assertTrue(names().containsAll(setOf("read", "note_search", "create", "write", "delete")))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            assertTrue("read" in names())
+            assertFalse("write" in names())
+        }
+    }
+
+    @Test fun externalProviderUsesSharedAuditIndependentPermissionAndReconciliation() = runBlocking {
+        fixture { db, _ ->
+            seed(db)
+            var allowed = true
+            var executions = 0
+            var reconciliations = 0
+            val tool = ModelTool("example_remote_read", "示例外部工具", buildJsonObject { put("type", "object") })
+            val provider = AgentToolProvider { listOf(AgentToolRegistration(tool, { allowed }, { _, call ->
+                executions++
+                // A database write from a different coroutine proves the remote call holds no writer transaction.
+                withContext(Dispatchers.Default) { db.notebooks().upsert(NotebookEntity("remote", "外部结果", 1, 1, 1)) }
+                throw java.io.IOException("result unknown")
+            }, auditReason = "独立外部授权", mode = AgentToolExecutionMode.External, reconcile = { _, call ->
+                reconciliations++
+                AgentToolResult.Finished(ModelToolResult(call.id, call.name, "{\"ok\":true}"), emptyList())
+            })) }
+            val store = AgentNoteStore(db, toolProviders = listOf(provider))
+            val call = ModelToolCall("remote-call", tool.name, buildJsonObject {})
+            try { withTimeout(5000) { store.toolExecutor.execute("run", call) }; fail("unknown result") } catch (_: java.io.IOException) { }
+            assertEquals(AgentToolStatus.Unknown, db.agent().toolEvent("run", call.id)!!.status)
+            store.toolExecutor.reconcilePending("run")
+            assertEquals(1, executions)
+            assertEquals(1, reconciliations)
+            assertEquals(AgentToolStatus.Committed, db.agent().toolEvent("run", call.id)!!.status)
+            store.toolExecutor.execute("run", call)
+            assertEquals(1, executions)
+            allowed = false
+            assertFalse(store.toolRegistry.definitions(store.toolContext(db.agent().run("run")!!)).any { it.name == tool.name })
+            val replay = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
+            assertTrue(replay.result.content.contains("unavailable"))
+            store.toolExecutor.execute("run", call.copy(id = "denied-call"))
+            assertEquals(AgentToolStatus.Denied, db.agent().toolEvent("run", "denied-call")!!.status)
+            assertEquals(1, executions)
+        }
+    }
+
     @Test fun snapshotIsImmutableReusableAndDistinctAcrossVersions() = runBlocking {
         fixture { db, store ->
             seed(db)
@@ -26,10 +137,10 @@ class AgentNoteStoreTest {
             user(db, "third")
             val newer = store.capture("third", listOf("note")).single()
             assertNotEquals(first.snapshotId, newer.snapshotId)
-            val result = store.executeTool("run", read("snapshot", snapshotId = first.snapshotId)) as AgentToolResult.Finished
+            val result = store.toolExecutor.execute("run", read("snapshot", snapshotId = first.snapshotId)) as AgentToolResult.Finished
             assertTrue(result.result.content.contains("旧版正文"))
             assertFalse(result.result.content.contains("新版正文"))
-            assertTrue(store.executeTool("run", read("current")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", read("current")) is AgentToolResult.PermissionRequired)
         }
     }
 
@@ -63,13 +174,13 @@ class AgentNoteStoreTest {
             db.notebooks().upsert(NotebookEntity("hidden", "隐私笔记本", 1, 1, 1))
             db.notes().upsert(db.notes().get("note")!!.copy(id = "secret", title = "秘密标题", documentJson = document("秘密匹配正文"), notebookId = "hidden", updatedAtEpochMs = 5))
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
-            val result = store.executeTool("run", search("search", "")) as AgentToolResult.Finished
+            val result = store.toolExecutor.execute("run", search("search", "")) as AgentToolResult.Finished
             assertTrue(result.result.content.contains("旧版标题"))
             assertFalse(result.result.content.contains("秘密"))
             assertFalse(result.result.content.contains("secret"))
             assertEquals(false, Json.parseToJsonElement(result.result.content).jsonObject["has_more"]!!.jsonPrimitive.boolean)
             assertEquals(listOf(AgentMessageSource("note")), result.sources)
-            assertTrue(store.executeTool("run", read("outside", noteId = "secret")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", read("outside", noteId = "secret")) is AgentToolResult.PermissionRequired)
         }
     }
 
@@ -78,27 +189,27 @@ class AgentNoteStoreTest {
             seed(db)
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
             val call = read("once")
-            val first = store.executeTool("run", call)
+            val first = store.toolExecutor.execute("run", call)
             db.notes().upsert(db.notes().get("note")!!.copy(documentJson = document("用户已经改了")))
-            assertEquals(first, store.executeTool("run", call))
+            assertEquals(first, store.toolExecutor.execute("run", call))
             assertEquals(1, db.agent().toolEvents("run").size)
             store.savePermissionFromUser(AgentPermission())
-            val replay = store.executeTool("run", call) as AgentToolResult.Finished
+            val replay = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
             assertFalse(replay.result.content.contains("旧版正文"))
             assertTrue(replay.result.content.contains("unavailable"))
             assertTrue(replay.sources.isEmpty())
-            try { store.executeTool("run", read("once", noteId = "other")); fail("different operation cannot reuse call id") } catch (_: IllegalArgumentException) { }
+            try { store.toolExecutor.execute("run", read("once", noteId = "other")); fail("different operation cannot reuse call id") } catch (_: IllegalArgumentException) { }
         }
     }
 
     @Test fun onceGrantIsBoundToRunAndCurrentPermissionRevision() = runBlocking {
         fixture { db, store ->
             seed(db)
-            assertTrue(store.executeTool("run", read("needs-authorization")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", read("needs-authorization")) is AgentToolResult.PermissionRequired)
             store.grantFromUser("run", AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled), false)
             val grant = db.agent().run("run")!!
             db.agent().saveRun(grant.copy(status = AgentRunStatus.Running))
-            val granted = store.executeTool("run", read("needs-authorization")) as AgentToolResult.Finished
+            val granted = store.toolExecutor.execute("run", read("needs-authorization")) as AgentToolResult.Finished
             assertTrue(granted.result.content.contains("旧版正文"))
             assertEquals(AgentPermission(), AgentPermissionStore(db).current())
             val event = db.agent().toolEvent("run", "needs-authorization")!!
@@ -108,7 +219,7 @@ class AgentNoteStoreTest {
             assertEquals(setOf("note"), decisions.last().grant?.noteIds)
             assertEquals(AgentPermissionLevel.None, decisions.last().permission.level)
             store.savePermissionFromUser(AgentPermission())
-            assertTrue(store.executeTool("run", read("after-revoke")) is AgentToolResult.PermissionRequired)
+            assertTrue(store.toolExecutor.execute("run", read("after-revoke")) is AgentToolResult.PermissionRequired)
             assertEquals(event.decisionsJson, db.agent().toolEvent("run", "needs-authorization")!!.decisionsJson)
         }
     }
@@ -118,7 +229,7 @@ class AgentNoteStoreTest {
             seed(db)
             store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
             val invalid = ModelToolCall("bad", "read", buildJsonObject { put("note_id", "note"); put("ignore_permission", true) })
-            val denied = store.executeTool("run", invalid) as AgentToolResult.Finished
+            val denied = store.toolExecutor.execute("run", invalid) as AgentToolResult.Finished
             assertTrue(denied.result.content.contains("invalid_arguments"))
             val document = document("长文本😀".repeat(100))
             db.notes().upsert(db.notes().get("note")!!.copy(documentJson = document))
@@ -126,7 +237,7 @@ class AgentNoteStoreTest {
             val parts = StringBuilder()
             do {
                 val call = ModelToolCall("page-$offset", "read", buildJsonObject { put("note_id", "note"); put("offset", offset); put("limit", 31) })
-                val result = store.executeTool("run", call) as AgentToolResult.Finished
+                val result = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
                 val payload = Json.parseToJsonElement(result.result.content).jsonObject
                 parts.append(payload["document_json"]!!.jsonPrimitive.content)
                 offset = payload["next_offset"]?.jsonPrimitive?.intOrNull ?: -1
