@@ -1,19 +1,27 @@
 package com.xnote.app.feature.export
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -64,9 +72,11 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
     val shareLabel = stringResource(R.string.export_share)
     val errorMessage = stringResource(R.string.export_failed)
     val untitled = stringResource(R.string.notes_untitled)
+
     DisposableEffect(library, owner) {
         onDispose { library.releaseSessionAttachments(owner) }
     }
+
     LaunchedEffect(noteId, attempt) {
         failure = false
         completed = 0
@@ -88,6 +98,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
             failure = true
         }
     }
+
     MaterialTheme(colorScheme = colors, typography = typography) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val insets = WindowInsets.safeDrawing.asPaddingValues()
@@ -107,8 +118,21 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                     if (note == null || attachments == null) emptyList() else {
                         val width = with(rasterDensity) { (pageWidth - margin * 2).roundToPx() }.coerceAtLeast(1)
                         val height = with(rasterDensity) { (pageHeight - margin * 2).toPx() }.coerceAtLeast(1f)
-                        paginateReadingUnits(measureReadingUnits(listOf(note!!), attachments.orEmpty(), measurer,
-                            typography, colors, width, height, rasterDensity.density, untitled, readingLayout.lineHeightScale), height)
+                        paginateReadingUnits(
+                            measureReadingUnits(
+                                listOf(note!!),
+                                attachments.orEmpty(),
+                                measurer,
+                                typography,
+                                colors,
+                                width,
+                                height,
+                                rasterDensity.density,
+                                untitled,
+                                readingLayout.lineHeightScale,
+                            ),
+                            height,
+                        )
                     }
                 }
                 val ready = pages.isNotEmpty() && completed == pages.size && !failure
@@ -119,31 +143,60 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                 }
                 val savedMessage = stringResource(R.string.export_saved, pages.size)
                 val files = remember(directory, pages.size) {
-                    directory?.let { dir -> pages.indices.map { File(dir, "page-${(it + 1).toString().padStart(4, '0')}.png") } }.orEmpty()
+                    directory?.let { dir ->
+                        pages.indices.map { File(dir, "page-${(it + 1).toString().padStart(4, '0')}.png") }
+                    }.orEmpty()
                 }
+
                 CompositionLocalProvider(LocalDensity provides initialDensity) {
                     XNotePageScaffold(
                         backdrop = backdrop,
                         scrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         alwaysVisibleScrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         content = {
-                            Box(Modifier.fillMaxSize().padding(top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
-                                bottom = xNoteScrollEdgePadding(if (controlsHeight == 0) insets.calculateBottomPadding() + 140.dp
-                                else with(initialDensity) { controlsHeight.toDp() })), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(
+                                        top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
+                                        bottom = xNoteScrollEdgePadding(
+                                            if (controlsHeight == 0) insets.calculateBottomPadding() + 140.dp
+                                            else with(initialDensity) { controlsHeight.toDp() }
+                                        ),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 when {
-                                    failure -> XNoteErrorState(errorMessage, backdrop, actionLabel = stringResource(R.string.export_retry),
-                                        onAction = { attempt++ })
-                                    ready -> ExportPreview(files[selected], Modifier.fillMaxSize().padding(horizontal = horizontal), { failure = true })
+                                    failure -> XNoteErrorState(
+                                        title = errorMessage,
+                                        backdrop = backdrop,
+                                        actionLabel = stringResource(R.string.export_retry),
+                                        onAction = { attempt++ },
+                                    )
+                                    ready -> ExportPreview(
+                                        file = files[selected],
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = horizontal),
+                                        onError = { failure = true },
+                                    )
                                     else -> {
                                         if (pages.isNotEmpty() && files.isNotEmpty()) {
                                             key(attempt, completed) {
                                                 CompositionLocalProvider(LocalDensity provides rasterDensity) {
-                                                    ExportPageCapture(pages[completed], library,
-                                                        resolveBackgroundKey(note?.backgroundKey, defaultSnapshot), pageWidth,
+                                                    ExportPageCapture(
+                                                        pages[completed],
+                                                        library,
+                                                        resolveBackgroundKey(note?.backgroundKey, defaultSnapshot),
+                                                        pageWidth,
                                                         if (pages.size == 1) with(rasterDensity) {
                                                             pages.first().units.sumOf { it.height.toDouble() }.toFloat().toDp() + margin * 2
                                                         } else pageHeight,
-                                                        margin, files[completed], { completed++ }, { failure = true })
+                                                        margin,
+                                                        files[completed],
+                                                        { completed++ },
+                                                        { failure = true },
+                                                    )
                                                 }
                                             }
                                         }
@@ -153,39 +206,167 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                             }
                         },
                         overlay = {
-                            XNoteHeader(stringResource(R.string.export_title), backdrop, onBack = onBack,
-                                actions = listOf(XNoteHeaderAction(R.drawable.ic_keyline_stroke_share,
-                                    stringResource(R.string.export_share), {
-                                        try {
-                                            context.startActivity(Intent.createChooser(exportShareIntent(context, files), shareLabel))
-                                        } catch (_: Exception) { toast.show(errorMessage) }
-                                    }, enabled = ready && !saving)), modifier = Modifier.align(Alignment.TopCenter))
-                            Column(Modifier.align(Alignment.BottomCenter).onSizeChanged { controlsHeight = it.height }.navigationBarsPadding().padding(horizontal = horizontal, vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(stringResource(R.string.export_background_hint), style = typography.labelMedium, color = colors.onSurface)
-                                Text(if (ready) stringResource(R.string.export_page, selected + 1, pages.size)
-                                    else stringResource(R.string.export_progress, minOf(completed + 1, pages.size), pages.size),
-                                    modifier = Modifier.testTag("xnote-export-progress"), style = typography.labelMedium, color = colors.onSurface)
-                                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    LiquidButton({ selected-- }, backdrop, enabled = ready && selected > 0,
-                                        modifier = Modifier.testTag("xnote-export-previous")) { Text(stringResource(R.string.reader_previous)) }
-                                    LiquidButton({ selected++ }, backdrop, enabled = ready && selected < pages.lastIndex,
-                                        modifier = Modifier.testTag("xnote-export-next")) { Text(stringResource(R.string.reader_next)) }
-                                }
-                                LiquidButton(onClick = {
-                                    saving = true
-                                    scope.launch {
-                                        try {
-                                            saveExportToGallery(context, files)
-                                            saved = true
-                                            toast.show(savedMessage)
-                                        } catch (error: CancellationException) { throw error }
-                                        catch (_: Exception) { toast.show(errorMessage) }
-                                        finally { saving = false }
+                            XNoteHeader(
+                                title = stringResource(R.string.export_title),
+                                backdrop = backdrop,
+                                onBack = onBack,
+                                actions = listOf(
+                                    XNoteHeaderAction(
+                                        R.drawable.ic_keyline_stroke_share,
+                                        stringResource(R.string.export_share),
+                                        {
+                                            try {
+                                                context.startActivity(Intent.createChooser(exportShareIntent(context, files), shareLabel))
+                                            } catch (_: Exception) {
+                                                toast.show(errorMessage)
+                                            }
+                                        },
+                                        enabled = ready && !saving,
+                                    ),
+                                ),
+                                modifier = Modifier.align(Alignment.TopCenter),
+                            )
+
+                            // 底部操作控制台 (Floating Export Console)
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .onSizeChanged { controlsHeight = it.height }
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = horizontal, vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = colors.surface.copy(alpha = 0.90f),
+                                    tonalElevation = 6.dp,
+                                    shadowElevation = 8.dp,
+                                    border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.35f)),
+                                    modifier = Modifier.widthIn(max = 500.dp),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        // 顶部信息条：背景提示与进度标签
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.export_background_hint),
+                                                style = typography.labelSmall,
+                                                color = colors.outline,
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(colors.surfaceVariant.copy(alpha = 0.6f))
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                                            ) {
+                                                Text(
+                                                    text = if (ready) {
+                                                        stringResource(R.string.export_page, selected + 1, pages.size)
+                                                    } else {
+                                                        stringResource(R.string.export_progress, minOf(completed + 1, pages.size), pages.size)
+                                                    },
+                                                    modifier = Modifier.testTag("xnote-export-progress"),
+                                                    style = typography.labelSmall,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = colors.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+
+                                        // 操作按钮栏：翻页与保存
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            LiquidButton(
+                                                onClick = { selected-- },
+                                                backdrop = backdrop,
+                                                enabled = ready && selected > 0,
+                                                modifier = Modifier.testTag("xnote-export-previous"),
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_left),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(14.dp),
+                                                    )
+                                                    Text(
+                                                        text = stringResource(R.string.reader_previous),
+                                                        style = typography.labelLarge,
+                                                    )
+                                                }
+                                            }
+
+                                            LiquidButton(
+                                                onClick = { selected++ },
+                                                backdrop = backdrop,
+                                                enabled = ready && selected < pages.lastIndex,
+                                                modifier = Modifier.testTag("xnote-export-next"),
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(R.string.reader_next),
+                                                        style = typography.labelLarge,
+                                                    )
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.ic_keyline_stroke_chevron_right),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(14.dp),
+                                                    )
+                                                }
+                                            }
+
+                                            LiquidButton(
+                                                onClick = {
+                                                    saving = true
+                                                    scope.launch {
+                                                        try {
+                                                            saveExportToGallery(context, files)
+                                                            saved = true
+                                                            toast.show(savedMessage)
+                                                        } catch (error: CancellationException) {
+                                                            throw error
+                                                        } catch (_: Exception) {
+                                                            toast.show(errorMessage)
+                                                        } finally {
+                                                            saving = false
+                                                        }
+                                                    }
+                                                },
+                                                backdrop = backdrop,
+                                                enabled = ready && !saving && !saved,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("xnote-export-save"),
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center,
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(if (saving) R.string.export_working else R.string.export_save),
+                                                        style = typography.labelLarge,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                }, backdrop = backdrop, enabled = ready && !saving && !saved,
-                                    modifier = Modifier.testTag("xnote-export-save")) {
-                                    Text(stringResource(if (saving) R.string.export_working else R.string.export_save))
                                 }
                             }
                         },
@@ -201,8 +382,17 @@ private fun ExportPreview(file: File, modifier: Modifier, onError: () -> Unit) {
     val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, file) {
         try {
             value = withContext(Dispatchers.IO) { checkNotNull(android.graphics.BitmapFactory.decodeFile(file.path)).asImageBitmap() }
-        } catch (error: CancellationException) { throw error }
-        catch (_: Exception) { onError() }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            onError()
+        }
     }
-    bitmap?.let { Image(it, stringResource(R.string.export_title), modifier.testTag("xnote-export-preview")) }
+    bitmap?.let {
+        Image(
+            bitmap = it,
+            contentDescription = stringResource(R.string.export_title),
+            modifier = modifier.testTag("xnote-export-preview"),
+        )
+    }
 }
