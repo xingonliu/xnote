@@ -3,7 +3,6 @@ package com.xnote.app.feature.creative
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,13 +16,13 @@ import com.xnote.app.design.*
 // -- Functions
 
 @Composable
-fun CreativePage(title: String, onBack: () -> Unit, toast: SnackbarHostState,
+fun CreativePage(title: String, onBack: () -> Unit,
     actions: List<XNoteHeaderAction> = emptyList(),
     overlay: @Composable BoxScope.(com.kyant.backdrop.Backdrop) -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     val backdrop = rememberLayerBackdrop()
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
     BackHandler(onBack = onBack)
-    XNotePageScaffold(backdrop, modifier = Modifier.xNoteOverlayInputBarrier(), scrollEdges = edges, alwaysVisibleScrollEdges = edges, toastHostState = toast,
+    XNotePageScaffold(backdrop, modifier = Modifier.xNoteOverlayInputBarrier(), scrollEdges = edges, alwaysVisibleScrollEdges = edges,
         content = {
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(top = XNoteHeaderHeight + 16.dp, bottom = 24.dp)
                 .padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)

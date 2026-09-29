@@ -4,7 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.material3.SnackbarHostState
+import com.xnote.app.design.XNoteToastState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.Composable
@@ -54,7 +54,7 @@ fun BoxScope.NoteImageChrome(
     session: NoteEditorSession,
     library: NoteLibrary,
     backdrop: Backdrop,
-    toast: SnackbarHostState,
+    toast: XNoteToastState,
     ui: NoteImageUiState,
     sourceAnchor: XNotePopupAnchor,
 ) {
@@ -90,7 +90,7 @@ fun BoxScope.NoteImageChrome(
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                toast.showSnackbar(failure)
+                toast.show(failure)
             } finally {
                 ui.busy = false
                 temporaryName?.let { cameraFile(context, it).delete() }
@@ -124,7 +124,7 @@ fun BoxScope.NoteImageChrome(
             } catch (_: Exception) {
                 cameraName?.let { cameraFile(context, it).delete() }
                 cameraName = null
-                scope.launch { toast.showSnackbar(unavailable) }
+                toast.show(unavailable)
             }
         }),
         XNoteDropdownMenuItem(stringResource(R.string.image_gallery), onClick = {
@@ -132,7 +132,7 @@ fun BoxScope.NoteImageChrome(
             try {
                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             } catch (_: Exception) {
-                scope.launch { toast.showSnackbar(unavailable) }
+                toast.show(unavailable)
             }
         }),
     )
@@ -183,7 +183,7 @@ fun BoxScope.NoteImageChrome(
         if (cutoutId != null) {
             val block = session.document.block(cutoutId) as? PlacedMediaBlock
             cutoutFile = block?.let { session.imageFile(it.attachmentId) }
-            if (cutoutFile == null) { session.cutoutImageId = null; toast.showSnackbar("图片无法读取") }
+            if (cutoutFile == null) { session.cutoutImageId = null; toast.show("图片无法读取") }
         }
     }
     cutoutFile?.let { file ->

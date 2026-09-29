@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import com.xnote.app.design.liquidglass.LiquidButton
-import androidx.compose.material3.SnackbarHostState
+import com.xnote.app.design.XNoteToastState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +60,7 @@ internal fun NoteBackgroundChrome(
     onDismiss: () -> Unit,
     backdrop: Backdrop,
     placement: XNoteDrawerPlacement,
-    toast: SnackbarHostState,
+    toast: XNoteToastState,
 ) {
     val preferences by settings.settings.collectAsState(defaultAppSettings())
     val context = LocalContext.current
@@ -82,7 +82,7 @@ internal fun NoteBackgroundChrome(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
-                    toast.showSnackbar(failure)
+                    toast.show(failure)
                 } finally {
                     busy = false
                 }
@@ -104,7 +104,7 @@ internal fun NoteBackgroundChrome(
                     scope.launch {
                         try { settings.setEditorAutoThemeEnabled(enabled) }
                         catch (error: CancellationException) { throw error }
-                        catch (_: Exception) { toast.showSnackbar(failure) }
+                        catch (_: Exception) { toast.show(failure) }
                     }
                 },
             ).padding(vertical = 8.dp),
@@ -130,7 +130,7 @@ internal fun NoteBackgroundChrome(
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: Exception) {
-                            toast.showSnackbar(failure)
+                            toast.show(failure)
                         } finally {
                             busy = false
                         }
@@ -165,7 +165,7 @@ internal fun NoteBackgroundChrome(
                         try {
                             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         } catch (_: Exception) {
-                            scope.launch { toast.showSnackbar(unavailable) }
+                            toast.show(unavailable)
                         }
                     },
                     backdrop = backdrop,

@@ -78,7 +78,7 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 - 页面背景和明暗主题。
 - Header、底部导航、底部工具区和浮动操作区的层级。
 - Progressive blur 的顶部与底部效果。
-- Toast Host、全局加载态和页面级错误态。
+- 全局加载态和页面级错误态。Toast 由应用根层唯一的 `XNoteToastProvider` 承载，页面只通过 `LocalXNoteToast.current.show(message)` 发送提示，不创建状态或显示宿主；显示队列和计时不随页面切换重建。
 - 手机、横屏和平板的内容宽度与边距。
 
 弹窗、Popup 和下拉菜单不视为页面，不单独套用页面 Scaffold；它们自身存在可滚动内容时，必须在内部滚动容器接入相同的边缘效果。
@@ -380,7 +380,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 | 公共组件                 | 职责                                                 | 禁止行为                       |
 | ------------------------ | ---------------------------------------------------- | ------------------------------ |
-| `XNotePageScaffold`      | 页面骨架、安全区域、Header、Progressive blur、Toast Host | 承载业务数据请求            |
+| `XNotePageScaffold`      | 页面骨架、安全区域、Header、Progressive blur | 承载业务数据请求            |
 | `XNoteHeader`            | 二级页面返回、标题和右侧操作                         | 页面自定义高度或返回图标       |
 | `LiquidButton`          | 官方 catalog 悬浮按钮材质与共享交互                  | 页面私有玻璃参数               |
 | `XNoteButton`           | 内容区普通按钮材质、12 dp 圆角与共享交互             | 复制按压动画、背景折射         |
@@ -388,7 +388,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `XNoteLiquidGlassPanel` | 官方 catalog 没有 Panel 时的浮动工具栏与面板适配     | 内容卡片套玻璃、重复实现 Lens  |
 | `XNoteDialog`            | 阻断式确认、危险操作、关键说明                       | 承载长表单或多级导航           |
 | `XNoteDrawer`            | 长内容、选择器、辅助工作流                           | 替代简单确认弹窗               |
-| `XNoteToastHost`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
+| `XNoteToastProvider`         | 短时、非阻断反馈                                     | 承载需要用户决策的信息         |
 | `XNotePopup`             | 锚定提示、预览和轻量操作                             | 承载破坏性确认                 |
 | `XNoteSelectField` / `XNoteSelectMenu` | 可搜索、可滚动的单选下拉框，复用公共锚定菜单 | 业务自行实现下拉浮层 |
 | `XNoteDropdownMenu`      | 与锚点相关的离散操作列表                             | 展示复杂表单或无限层级         |
@@ -423,7 +423,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 | 删除、覆盖等必须确认的操作，以及新建或重命名笔记本等短表单 | `XNoteDialog`                |
 | 手机端长选择流程、筛选与表单 | `XNoteDrawer` 底部形态       |
 | 平板端辅助面板或长选择流程             | `XNoteDrawer` 侧边或锚定形态 |
-| 保存成功、已恢复、网络中断等短反馈     | `XNoteToastHost`             |
+| 保存成功、已恢复、网络中断等短反馈     | `XNoteToastProvider`             |
 | 针对某个控件的说明或轻量预览           | `XNotePopup`                 |
 | 排序、更多、单组选项等锚定操作         | `XNoteDropdownMenu`          |
 

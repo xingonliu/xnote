@@ -48,7 +48,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
     val defaultSnapshot = remember { defaultBackground }
     val context = LocalContext.current
     val backdrop = rememberLayerBackdrop()
-    val toast = rememberXNoteToastHostState()
+    val toast = LocalXNoteToast.current
     val scope = rememberCoroutineScope()
     val owner = remember { "export-${UUID.randomUUID()}" }
     var note by remember { mutableStateOf<Note?>(null) }
@@ -124,7 +124,6 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                 CompositionLocalProvider(LocalDensity provides initialDensity) {
                     XNotePageScaffold(
                         backdrop = backdrop,
-                        toastHostState = toast,
                         scrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         alwaysVisibleScrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
                         content = {
@@ -159,7 +158,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                                     stringResource(R.string.export_share), {
                                         try {
                                             context.startActivity(Intent.createChooser(exportShareIntent(context, files), shareLabel))
-                                        } catch (_: Exception) { scope.launch { toast.showSnackbar(errorMessage) } }
+                                        } catch (_: Exception) { toast.show(errorMessage) }
                                     }, enabled = ready && !saving)), modifier = Modifier.align(Alignment.TopCenter))
                             Column(Modifier.align(Alignment.BottomCenter).onSizeChanged { controlsHeight = it.height }.navigationBarsPadding().padding(horizontal = horizontal, vertical = 8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -179,9 +178,9 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                                         try {
                                             saveExportToGallery(context, files)
                                             saved = true
-                                            toast.showSnackbar(savedMessage)
+                                            toast.show(savedMessage)
                                         } catch (error: CancellationException) { throw error }
-                                        catch (_: Exception) { toast.showSnackbar(errorMessage) }
+                                        catch (_: Exception) { toast.show(errorMessage) }
                                         finally { saving = false }
                                     }
                                 }, backdrop = backdrop, enabled = ready && !saving && !saved,

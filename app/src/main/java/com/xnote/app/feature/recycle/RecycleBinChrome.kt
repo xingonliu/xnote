@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
+import com.xnote.app.design.XNoteToastState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,7 +47,7 @@ fun BoxScope.RecycleBinChrome(
     library: NoteLibrary,
     backdrop: Backdrop,
     isTablet: Boolean,
-    toastHostState: SnackbarHostState,
+    toastHostState: XNoteToastState,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -103,7 +103,7 @@ fun BoxScope.RecycleBinChrome(
                 scope.launch {
                     library.restoreNotes(ids)
                     ui.finishSelection()
-                    toastHostState.showSnackbar(restoredMessage)
+                    toastHostState.show(restoredMessage)
                 }
             },
             onPermanentlyDelete = {

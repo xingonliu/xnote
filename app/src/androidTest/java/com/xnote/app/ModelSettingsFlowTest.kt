@@ -33,7 +33,7 @@ class ModelSettingsFlowTest {
     @After fun cleanup() { runBlocking { store.list().forEach { store.delete(it.id) } }; database.close() }
 
     @Test fun addEditTestAndDeleteModelProfile() {
-        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, ModelCatalog { emptyList() }) {} } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(store, client, ModelCatalog { emptyList() }) {} } } }
         compose.onNodeWithTag("model-add").performClick()
         compose.onNodeWithTag("model-add").assertDoesNotExist()
         compose.onNodeWithTag("model-custom").performClick()
@@ -71,7 +71,7 @@ class ModelSettingsFlowTest {
             if (loads > 1) throw java.io.IOException("offline")
             listOf(entry)
         }
-        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, catalog) {} } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(store, client, catalog) {} } } }
         compose.onNodeWithTag("model-add").performClick()
         compose.onNodeWithTag("model-picker").assertTextContains(entry.name)
         compose.onNodeWithTag("model-name").assertDoesNotExist()
@@ -105,7 +105,7 @@ class ModelSettingsFlowTest {
             CatalogModel("test-small", "Small Test", "2026-09-22", 64000, 2048, fresh),
         ) + (1..50).map { index -> CatalogModel("test-$index", "Model $index", "2026-09-23", 64000, 2048,
             CatalogProvider("provider-$index", "厂商 $index", ModelProtocol.OpenAI, "https://provider-$index.example/v1")) }
-        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, ModelCatalog { entries }) {} } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(store, client, ModelCatalog { entries }) {} } } }
         compose.onNodeWithTag("model-add").performClick()
         compose.onNodeWithTag("model-provider").assertTextContains("Anthropic")
         compose.onNodeWithTag("model-key").performScrollTo().performTextInput("wrong-provider-key")
@@ -135,7 +135,7 @@ class ModelSettingsFlowTest {
     @Test fun catalogFailureCanRetryAndCancelCustomWithoutSaving() {
         var attempts = 0
         val catalog = ModelCatalog { attempts++; throw java.io.IOException("untrusted response") }
-        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, catalog) {} } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(store, client, catalog) {} } } }
         compose.onNodeWithTag("model-add").performClick()
         compose.onNodeWithText("模型列表获取失败，请重试或使用自定义配置").assertIsDisplayed()
         compose.onNodeWithText("重试").performClick()
@@ -161,7 +161,7 @@ class ModelSettingsFlowTest {
         val failingStore = ModelProfileStore(database, credentials)
         val entry = CatalogModel("test-model", "测试模型", "", 128000, 4096,
             CatalogProvider("openai", "OpenAI", ModelProtocol.OpenAI, "https://api.openai.com/v1"))
-        compose.setContent { XNoteTheme { ModelSettingsScreen(failingStore, client, ModelCatalog { listOf(entry) }) {} } }
+        compose.setContent { XNoteTheme { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(failingStore, client, ModelCatalog { listOf(entry) }) {} } } }
         compose.onNodeWithTag("model-add").performTouchInput { click() }
         compose.onNodeWithTag("model-save").performScrollTo().performTouchInput { click() }
         compose.onNodeWithText("请填写 API Key").assertIsDisplayed()
@@ -174,6 +174,7 @@ class ModelSettingsFlowTest {
         compose.runOnIdle { failWrite = false }
         compose.onNodeWithTag("model-save").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         compose.waitUntil(5000) { runBlocking { failingStore.list().size == 1 } }
+        compose.waitUntil(5000) { compose.onAllNodesWithText("配置已保存").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("配置已保存").assertIsDisplayed()
         val profile = runBlocking { failingStore.list().single() }
         org.junit.Assert.assertEquals("local-test-key", runBlocking { failingStore.credential(profile) })
@@ -182,7 +183,7 @@ class ModelSettingsFlowTest {
     @Test fun invalidAdvancedCapacityShowsToastAndKeepsForm() {
         val entry = CatalogModel("test-model", "测试模型", "", 128000, 4096,
             CatalogProvider("openai", "OpenAI", ModelProtocol.OpenAI, "https://api.openai.com/v1"))
-        compose.setContent { XNoteTheme(reduceMotion = true) { ModelSettingsScreen(store, client, ModelCatalog { listOf(entry) }) {} } }
+        compose.setContent { XNoteTheme(reduceMotion = true) { com.xnote.app.design.XNoteToastProvider { ModelSettingsScreen(store, client, ModelCatalog { listOf(entry) }) {} } } }
         compose.onNodeWithTag("model-add").performClick()
         compose.onNodeWithTag("model-key").performTextInput("local-test-key")
         compose.onNodeWithTag("model-advanced").performScrollTo().performClick()

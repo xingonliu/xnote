@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,7 +36,7 @@ fun CutoutScreen(file: File, library: NoteLibrary, owner: String, onBack: () -> 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val engine = remember { CutoutEngine(context) }
-    val toast = remember { SnackbarHostState() }
+    val toast = com.xnote.app.design.LocalXNoteToast.current
     var source by remember(file) { mutableStateOf<Bitmap?>(null) }
     var alpha by remember(file) { mutableStateOf<IntArray?>(null) }
     var revision by remember { mutableIntStateOf(0) }
@@ -87,14 +86,14 @@ fun CutoutScreen(file: File, library: NoteLibrary, owner: String, onBack: () -> 
                 if (insert) onInsert?.invoke(attachment)
                 else {
                     library.saveSticker(attachment.id, name)
-                    if (close) onBack() else toast.showSnackbar("已保存到贴纸库")
+                    if (close) onBack() else toast.show("已保存到贴纸库")
                 }
             } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { toast.showSnackbar("保存失败，请重试") }
+            catch (_: Exception) { toast.show("保存失败，请重试") }
             finally { saving = false }
         }
     }
-    CreativePage("图片编辑", onBack, toast, actions = listOf(com.xnote.app.design.XNoteHeaderAction(
+    CreativePage("图片编辑", onBack, actions = listOf(com.xnote.app.design.XNoteHeaderAction(
         com.xnote.app.R.drawable.ic_keyline_stroke_check, "完成", { save(onInsert != null, close = true) },
         enabled = mask != null && !busy && !saving && name.isNotBlank(),
     ))) {

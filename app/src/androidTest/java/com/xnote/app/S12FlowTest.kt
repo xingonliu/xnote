@@ -217,7 +217,9 @@ class S12FlowTest {
             ))))
         }
         compose.setContent { XNoteTheme(darkTheme = false, reduceMotion = true) {
-            com.xnote.app.feature.export.ExportScreen(note.id, library, defaultBackgroundKey(), {})
+            com.xnote.app.design.XNoteToastProvider {
+                com.xnote.app.feature.export.ExportScreen(note.id, library, defaultBackgroundKey(), {})
+            }
         } }
         compose.waitUntil(20_000) { compose.onAllNodesWithTag("xnote-export-preview").fetchSemanticsNodes().isNotEmpty() }
         val directories = File(context.cacheDir, "exports").listFiles().orEmpty().filter { it !in before }

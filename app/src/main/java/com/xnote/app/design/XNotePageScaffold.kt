@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -59,8 +58,6 @@ fun XNotePageScaffold(
     scrollEdgeState: XNoteScrollEdgeState = XNoteScrollEdgeState(),
     scrollEdges: Set<XNoteScrollEdge> = setOf(XNoteScrollEdge.Top),
     alwaysVisibleScrollEdges: Set<XNoteScrollEdge> = emptySet(),
-    bottomOverlayHeight: Dp = 0.dp,
-    toastHostState: SnackbarHostState? = null,
     pageState: XNotePageState = XNotePageState.Content,
     onPageStateAction: (() -> Unit)? = null,
     pageBackground: (@Composable BoxScope.() -> Unit)? = null,
@@ -128,17 +125,6 @@ fun XNotePageScaffold(
 
         // Overlay glass samples the complete page; inline controls retain the background-only source.
         overlay(scrollBackdrop)
-
-        if (toastHostState != null) {
-            XNoteToastHost(
-                hostState = toastHostState,
-                backdrop = backdrop,
-                dismissLabel = stringResource(R.string.toast_dismiss),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = bottomOverlayHeight),
-            )
-        }
     }
 }
 

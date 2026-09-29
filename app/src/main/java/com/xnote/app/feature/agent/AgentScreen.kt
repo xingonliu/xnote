@@ -48,7 +48,7 @@ import kotlinx.coroutines.flow.first
 // -- Functions
 
 @Composable
-fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, toastHostState: androidx.compose.material3.SnackbarHostState, modifier: Modifier = Modifier,
+fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, toastHostState: com.xnote.app.design.XNoteToastState, modifier: Modifier = Modifier,
     onModalVisible: (Boolean) -> Unit = {}, onOpenModels: () -> Unit) {
     // -- State
 
@@ -121,10 +121,9 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
     // -- Functions
 
-    fun showNotice(message: String) { scope.launch {
-        toastHostState.currentSnackbarData?.dismiss()
-        toastHostState.showSnackbar(message)
-    } }
+    fun showNotice(message: String) {
+        toastHostState.show(message)
+    }
     fun action(block: suspend () -> Unit) { scope.launch {
         try { block() }
         catch (cancelled: CancellationException) { throw cancelled }

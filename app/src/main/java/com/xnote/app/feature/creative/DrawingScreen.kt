@@ -6,7 +6,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -34,7 +33,7 @@ import kotlinx.coroutines.withContext
 fun DrawingScreen(library: NoteLibrary, owner: String, initial: DrawingBlock?, onBack: () -> Unit, onSave: suspend (DrawingBlock) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val toast = remember { SnackbarHostState() }
+    val toast = com.xnote.app.design.LocalXNoteToast.current
     val blockId = remember { initial?.id ?: newNoteId() }
     var strokes by remember { mutableStateOf(initial?.strokes.orEmpty()) }
     var live by remember { mutableStateOf<DrawingStroke?>(null) }
@@ -59,11 +58,11 @@ fun DrawingScreen(library: NoteLibrary, owner: String, initial: DrawingBlock?, o
                 val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Drawing, owner) } finally { bitmap.recycle() }
                 onSave(DrawingBlock(blockId, attachment.id, DrawingWidth.toFloat(), DrawingHeight.toFloat(), savedStrokes))
             } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { toast.showSnackbar("画板保存失败，请重试") }
+            catch (_: Exception) { toast.show("画板保存失败，请重试") }
             finally { busy = false }
         }
     }
-    CreativePage("画板", onBack, toast, actions = listOf(com.xnote.app.design.XNoteHeaderAction(
+    CreativePage("画板", onBack, actions = listOf(com.xnote.app.design.XNoteHeaderAction(
         com.xnote.app.R.drawable.ic_keyline_stroke_check, "完成", ::saveDrawing, enabled = !busy && live == null,
     ))) {
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {

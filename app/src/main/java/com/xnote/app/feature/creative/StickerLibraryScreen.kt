@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,7 +39,7 @@ import kotlinx.coroutines.launch
 fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (suspend (StickerEntity) -> Unit)? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val toast = remember { SnackbarHostState() }
+    val toast = com.xnote.app.design.LocalXNoteToast.current
     val owner = remember { "sticker-library:${newNoteId()}" }
     val entries by remember(library) { library.observeStickers() }.collectAsState(emptyList())
     var search by rememberSaveable { mutableStateOf("") }
@@ -63,7 +62,7 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
                 val attachment = importNoteImage(context, library, uri, owner)
                 cutout = library.attachmentFile(attachment)
             } catch (error: CancellationException) { throw error }
-            catch (_: Exception) { toast.showSnackbar("图片读取失败，请重试") }
+            catch (_: Exception) { toast.show("图片读取失败，请重试") }
             finally { busy = false; temporary?.let { cameraFile(context, it).delete() } }
         }
     }
@@ -83,14 +82,14 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
         scope.launch {
             try { block() }
             catch (error: CancellationException) { throw error }
-            catch (_: Exception) { toast.showSnackbar("操作失败，请重试") }
+            catch (_: Exception) { toast.show("操作失败，请重试") }
             finally { busy = false }
         }
     }
-    CreativePage("贴纸库", { if (selected != null) { selected = null; deleting = false } else onBack() }, toast,
+    CreativePage("贴纸库", { if (selected != null) { selected = null; deleting = false } else onBack() },
         actions = listOf(com.xnote.app.design.XNoteHeaderAction(com.xnote.app.R.drawable.ic_keyline_stroke_plus, "添加", {
             try { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-            catch (_: Exception) { scope.launch { toast.showSnackbar("相册不可用") } }
+            catch (_: Exception) { toast.show("相册不可用") }
         }, enabled = !busy)), overlay = { backdrop ->
         XNoteDialog(visible = deleting, onDismissRequest = { deleting = false }, title = "删除贴纸", backdrop = backdrop,
             confirmAction = XNoteDialogAction("删除", enabled = !busy, destructive = true, onClick = {
@@ -105,7 +104,7 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
             BasicTextField(name, { name = it }, Modifier.fillMaxWidth().padding(12.dp).testTag("xnote-sticker-rename"),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface), singleLine = true)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                XNoteButton({ action { library.renameSticker(entry.id, name); selected = entry.copy(name = name.trim()); toast.showSnackbar("已重命名") } }, enabled = !busy && name.isNotBlank()) { Text("重命名") }
+                XNoteButton({ action { library.renameSticker(entry.id, name); selected = entry.copy(name = name.trim()); toast.show("已重命名") } }, enabled = !busy && name.isNotBlank()) { Text("重命名") }
                 XNoteButton({ deleting = true }, enabled = !busy) { Text("删除") }
                 if (onInsert != null) XNoteButton({ action { onInsert(entry) } }, enabled = !busy) { Text("插入笔记") }
                 XNoteButton({ selected = null; deleting = false }, enabled = !busy) { Text("返回列表") }
@@ -130,7 +129,7 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
                 XNoteButton({ sortByName = !sortByName }, enabled = !busy) { Text(if (sortByName) "按名称" else "最近创建") }
                 XNoteButton({
                     try { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-                    catch (_: Exception) { scope.launch { toast.showSnackbar("相册不可用") } }
+                    catch (_: Exception) { toast.show("相册不可用") }
                 }, enabled = !busy) { Text("相册创建") }
                 XNoteButton({
                     try {
@@ -138,7 +137,7 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
                         cameraName = temporary
                         cameraFile(context, temporary).parentFile?.mkdirs()
                         camera.launch(cameraUri(context, temporary))
-                    } catch (_: Exception) { scope.launch { toast.showSnackbar("相机不可用") } }
+                    } catch (_: Exception) { toast.show("相机不可用") }
                 }, enabled = !busy) { Text("拍照创建") }
             }
         }

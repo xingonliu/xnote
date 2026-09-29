@@ -78,7 +78,6 @@ fun ReaderScreen(
             backdrop = backdrop,
             scrollEdges = edges,
             alwaysVisibleScrollEdges = edges,
-            bottomOverlayHeight = 96.dp,
             pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), rememberBackgroundImage(background, library)) },
             content = {
                 Box(Modifier.fillMaxSize().padding(top = top, bottom = bottom, start = horizontal, end = horizontal),

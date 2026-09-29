@@ -72,7 +72,7 @@ fun TabletNotesWorkspace(
     val outerBackdrop = rememberLayerBackdrop()
     val listBackdrop = rememberLayerBackdrop()
     val editorBackdrop = rememberLayerBackdrop()
-    val toast = rememberXNoteToastHostState()
+    val toast = LocalXNoteToast.current
     val listAnchor = rememberXNotePopupAnchor()
     val editorAnchor = rememberXNotePopupAnchor()
     val editorUi = remember { NotesUiState() }
@@ -117,7 +117,6 @@ fun TabletNotesWorkspace(
                 XNotePageScaffold(listBackdrop, modifier = listModifier.testTag("xnote-tablet-note-list"),
                     scrollEdges = listEdges, alwaysVisibleScrollEdges = listEdges,
                     scrollEdgeState = rememberXNoteScrollEdgeState(if (navigation.isSearchOpen) searchListState else listState),
-                    toastHostState = toast,
                     content = {
                         val padding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 48.dp,
                             bottom = if (navigation.isSearchOpen) insets.calculateBottomPadding() + 24.dp

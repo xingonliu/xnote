@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +64,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
@@ -84,7 +86,9 @@ import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
 import com.xnote.app.design.rememberXNoteScrollEdgeState
 import com.xnote.app.design.rememberXNotePopupAnchor
-import com.xnote.app.design.rememberXNoteToastHostState
+import com.xnote.app.design.XNoteToastProvider
+import com.xnote.app.design.XNoteToastState
+import com.xnote.app.design.LocalXNoteToast
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
 import com.xnote.app.design.liquidglass.LiquidButton
@@ -152,6 +156,22 @@ fun XNoteApp(
     modelClient: com.xnote.app.data.agent.ModelClient = com.xnote.app.data.agent.HttpModelClient(),
     agentTimeline: com.xnote.app.data.agent.AgentTimeline? = null,
 ) {
+    val (toastBottomInset, setToastBottomInset) = remember { mutableStateOf(0.dp) }
+    XNoteToastProvider(bottomInset = toastBottomInset) {
+        XNoteAppContent(noteLibrary, searchHistory, settings, modelProfiles, modelClient, agentTimeline, setToastBottomInset)
+    }
+}
+
+@Composable
+private fun XNoteAppContent(
+    noteLibrary: NoteLibrary,
+    searchHistory: SearchHistoryRepository,
+    settings: AppSettingsRepository?,
+    modelProfiles: com.xnote.app.data.agent.ModelProfileStore?,
+    modelClient: com.xnote.app.data.agent.ModelClient,
+    agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
+    onToastBottomInsetChanged: (Dp) -> Unit,
+) {
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
@@ -183,7 +203,7 @@ fun XNoteApp(
         )
     }
     val backdrop = rememberLayerBackdrop()
-    val toastHostState = rememberXNoteToastHostState()
+    val toastHostState = LocalXNoteToast.current
     val sortMenuAnchor = rememberXNotePopupAnchor()
     val notesListState = rememberLazyListState()
     val notebookListState = rememberLazyListState()
@@ -278,7 +298,7 @@ fun XNoteApp(
                 newState.isSearchOpen != navigationState.isSearchOpen) {
                 editorSession?.flushSave()
                 if (editorSession?.saveStatus == EditorSaveStatus.Error) {
-                    toastHostState.showSnackbar("保存失败，请重试后再切换")
+                    toastHostState.show("保存失败，请重试后再切换")
                     return@launch
                 }
             }
@@ -326,7 +346,7 @@ fun XNoteApp(
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
-                toastHostState.showSnackbar(failure.message ?: "暂时无法携带笔记，请重试。")
+                toastHostState.show(failure.message ?: "暂时无法携带笔记，请重试。")
             }
         }
     }
@@ -410,6 +430,14 @@ fun XNoteApp(
         }
     }
 
+    val showsReader = navigationState.destination == AppDestination.Notes &&
+        navigationState.notesRoute is NotesRoute.Reader
+    val showsExport = navigationState.destination == AppDestination.Notes &&
+        navigationState.notesRoute is NotesRoute.Export
+    if (profilePage != null || showsReader || showsExport) {
+        SideEffect { onToastBottomInsetChanged(if (profilePage == null && showsReader) 96.dp else 0.dp) }
+    }
+
     profilePage?.let { page ->
         if (page == "记忆与画像" && agentTimeline != null) {
             com.xnote.app.feature.agent.AgentMemoryScreen(agentTimeline, onBack = { profilePage = null })
@@ -462,6 +490,7 @@ fun XNoteApp(
         val usesWorkspace = maxWidth.value >= 840 * maxOf(1f, density.fontScale) &&
             navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
         if (usesWorkspace) {
+            SideEffect { onToastBottomInsetChanged(XNoteBottomNavigationHeight) }
             TabletNotesWorkspace(
                 settings = settingsRepository, appSettings = appSettings,
                 navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes, homeUi = homeUi,
@@ -526,6 +555,7 @@ fun XNoteApp(
                 XNoteCreateNoteButtonSize + XNoteSpacingSmall
             else -> 0.dp
         }
+        SideEffect { onToastBottomInsetChanged(bottomOverlayHeight) }
         val contentStartPadding = when {
             isTablet && showsPrimaryChrome -> 112.dp
             isTablet -> 24.dp
@@ -590,8 +620,6 @@ fun XNoteApp(
                 scrollEdgeState = scrollEdgeState,
                 scrollEdges = scrollEdges,
                 alwaysVisibleScrollEdges = alwaysVisibleScrollEdges,
-                bottomOverlayHeight = bottomOverlayHeight,
-                toastHostState = toastHostState,
                 pageBackground = if (isEditor) {
                     {
                         XNoteNoteSurface(
@@ -835,7 +863,7 @@ private fun DestinationContent(
     trashedNotes: List<Note>,
     recycleBinUiState: RecycleBinUiState,
     sortMenuAnchor: XNotePopupAnchor,
-    toastHostState: androidx.compose.material3.SnackbarHostState,
+    toastHostState: XNoteToastState,
     onOpenNote: (String) -> Unit,
     onOpenNotebook: (String) -> Unit,
     onOpenCollection: (NoteCollection) -> Unit,
@@ -874,7 +902,7 @@ private fun DestinationContent(
             onRestore = { id ->
                 scope.launch {
                     noteLibrary.restoreNotes(listOf(id))
-                    toastHostState.showSnackbar(restoredMessage)
+                    toastHostState.show(restoredMessage)
                 }
             },
             onPermanentlyDelete = { id ->

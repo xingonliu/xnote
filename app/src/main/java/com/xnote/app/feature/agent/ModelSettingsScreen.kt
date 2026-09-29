@@ -10,8 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
-import com.xnote.app.R
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.data.agent.*
@@ -34,7 +32,7 @@ fun ModelSettingsScreen(
 ) {
     // -- State and Variables
 
-    val toast = rememberXNoteToastHostState()
+    val toast = LocalXNoteToast.current
     val focus = LocalFocusManager.current
     val profiles by store.profiles.collectAsState(emptyList())
     val scope = rememberCoroutineScope()
@@ -52,17 +50,13 @@ fun ModelSettingsScreen(
     // -- Functions
 
     fun notify(message: String) {
-        scope.launch {
-            toast.currentSnackbarData?.dismiss()
-            toast.showSnackbar(message)
-        }
+        toast.show(message)
     }
 
     fun back() {
         if (saving) return
         selectState.dismiss()
         job?.cancel()
-        toast.currentSnackbarData?.dismiss()
         if (editing != null) editing = null else onBack()
     }
     // -- Listeners
@@ -75,12 +69,12 @@ fun ModelSettingsScreen(
                 start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
                 bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (selected == null) {
-                    XNoteButton({ toast.currentSnackbarData?.dismiss(); editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI, modelId = "", isDefault = profiles.isEmpty()) }, modifier = Modifier.fillMaxWidth().testTag("model-add")) { Text("新增配置") }
+                    XNoteButton({ editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI, modelId = "", isDefault = profiles.isEmpty()) }, modifier = Modifier.fillMaxWidth().testTag("model-add")) { Text("新增配置") }
                     if (profiles.isEmpty()) Text("还没有模型配置")
                     profiles.forEach { profile ->
                         XNoteGroupCard(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                XNoteButton({ toast.currentSnackbarData?.dismiss(); editing = profile },
+                                XNoteButton({ editing = profile },
                                     modifier = Modifier.fillMaxWidth().testTag("model-profile-${profile.id}")) {
                                     Text(profile.name + if (profile.isDefault) " · 默认" else "")
                                 }
@@ -148,8 +142,6 @@ fun ModelSettingsScreen(
             XNoteHeader(if (selected == null) "模型与服务商" else if (saved == null) "新增配置" else "编辑配置",
                 backdrop, onBack = { back() }, modifier = Modifier.align(Alignment.TopCenter))
             XNoteSelectMenu(selectState, backdrop)
-            XNoteToastHost(toast, backdrop, Modifier.align(Alignment.BottomCenter).imePadding(),
-                dismissLabel = stringResource(R.string.toast_dismiss))
         })
     }
 }

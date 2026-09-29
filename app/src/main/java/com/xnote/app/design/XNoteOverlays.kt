@@ -49,8 +49,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -140,9 +138,6 @@ data class XNoteDropdownMenuItem(
 )
 
 // -- State
-
-@Composable
-fun rememberXNoteToastHostState(): SnackbarHostState = remember { SnackbarHostState() }
 
 @Composable
 fun rememberXNotePopupAnchor(): XNotePopupAnchor = remember { XNotePopupAnchor() }
@@ -526,72 +521,6 @@ fun BoxScope.XNoteDropdownMenu(
             Box(Modifier.matchParentSize()) {
                 XNoteProgressiveBlur(scrollBackdrop, rememberXNoteScrollEdgeState(scrollState),
                     setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom))
-            }
-        }
-    }
-}
-
-@Composable
-fun XNoteToastHost(
-    hostState: SnackbarHostState,
-    backdrop: Backdrop,
-    modifier: Modifier = Modifier,
-    dismissLabel: String,
-) {
-    SnackbarHost(
-        hostState = hostState,
-        modifier = modifier
-            .windowInsetsPadding(
-                WindowInsets.safeDrawing.only(
-                    WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-                ),
-            )
-            .padding(XNoteSpacingMedium),
-    ) { data ->
-        XNoteLiquidGlassPanel(
-            backdrop = backdrop,
-            shape = XNoteSmoothCornerShape(XNoteRadiusMedium),
-            modifier = Modifier
-                .widthIn(max = 560.dp)
-                .fillMaxWidth(),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = data.visuals.message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f),
-                )
-                data.visuals.actionLabel?.let { label ->
-                    LiquidButton(
-                        onClick = data::performAction,
-                        backdrop = backdrop,
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = LocalContentColor.current,
-                        )
-                    }
-                }
-                if (data.visuals.withDismissAction) {
-                    LiquidButton(
-                        onClick = data::dismiss,
-                        backdrop = backdrop,
-                    ) {
-                        Text(
-                            text = dismissLabel,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = LocalContentColor.current,
-                        )
-                    }
-                }
             }
         }
     }
