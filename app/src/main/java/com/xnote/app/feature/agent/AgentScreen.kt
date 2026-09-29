@@ -245,8 +245,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton({ toolPreview = request }) { Text("查看请求") }
                                 LiquidButton({ permissionRequest = request }, backdrop, enabled = !state.running,
-                                    modifier = Modifier.testTag("agent-authorize")) { Text(if (request.name == "create") "选择归属并授权创建" else "授权本次操作") }
-                                TextButton({ action { timeline.answerPermission(request.runId, request.callId, null) } }, enabled = !state.running) { Text("拒绝") }
+                                    modifier = Modifier.testTag("agent-authorize")) { Text("审批本次调用") }
+                                TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
                             }
                         }
                     }
@@ -341,17 +341,13 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, backdrop: Backdro
         if (attachDialog) AgentAttachNotesDialog(availableNotes, selectedNotes, backdrop, { attachDialog = false }) { ids ->
             action { timeline.selectDraftNotes(ids); attachDialog = false }
         }
-        if (permissionRequest?.name == "create") AgentCreationDialog(notebooks, backdrop, onDismiss = { permissionRequest = null }) { target ->
-            val request = requireNotNull(permissionRequest)
-            action { timeline.answerCreation(request.runId, request.callId, target); permissionRequest = null }
+        if (permissionDialog) AgentPermissionDialog(permission, backdrop,
+            onDismiss = { permissionDialog = false }) { choice ->
+            action { timeline.savePermission(choice); permissionDialog = false }
         }
-        if (permissionDialog || (permissionRequest != null && permissionRequest?.name != "create")) AgentPermissionDialog(permission, notebooks, backdrop, permissionRequest != null,
-            requiredLevel = if (permissionRequest?.name in setOf("write", "delete")) AgentPermissionLevel.Edit else AgentPermissionLevel.Read,
-            onDismiss = { permissionDialog = false; permissionRequest = null }) { choice, always ->
-            val request = permissionRequest
-            action {
-                if (request == null) timeline.savePermission(choice) else timeline.answerPermission(request.runId, request.callId, choice, always)
-                permissionDialog = false; permissionRequest = null
+        permissionRequest?.let { request ->
+            AgentApprovalDialog(request, backdrop, onDismiss = { permissionRequest = null }) { approved ->
+                action { timeline.answerPermission(request.runId, request.callId, approved, request.argumentsJson); permissionRequest = null }
             }
         }
         snapshotPreview?.let { AgentSnapshotDialog(it, backdrop) { snapshotPreview = null } }

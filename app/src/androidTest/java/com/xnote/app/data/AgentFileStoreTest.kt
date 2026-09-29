@@ -152,6 +152,7 @@ class AgentFileStoreTest {
 
     @Test fun outputFileIsPersistedExactlyOnceAndNeverBecomesANote() = runBlocking {
         fixture { db, profiles, files, scope ->
+            AgentPermissionStore(db).saveFromUser(AgentPermission())
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             val call = ModelToolCall("file", "output_file", Json.encodeToJsonElement(AgentOutputFileArguments("计划.md", "# 安排\n周六出发")).jsonObject)
             var calls = 0
@@ -165,6 +166,11 @@ class AgentFileStoreTest {
                 }
             }, scope, fileStore = files)
             timeline.send("生成Markdown文件")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertTrue(db.agentFiles().all().isEmpty())
+            val waiting = db.agent().unfinishedRuns().single()
+            assertEquals(AgentRunStatus.WaitingPermission, waiting.status)
+            timeline.answerPermission(waiting.id, call.id, true, call.arguments.toString())
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             val output = db.agentFiles().all().single()
             assertEquals("output", output.origin); assertEquals("# 安排\n周六出发", files.file(output.attachmentId).readText())
@@ -196,6 +202,7 @@ class AgentFileStoreTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val profiles = ModelProfileStore(db, AndroidModelCredentialStore(context))
         try {
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             profiles.save(ModelProfile("profile", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
             block(db, profiles, AgentFileStore(db, context, directory), scope)
         } finally {

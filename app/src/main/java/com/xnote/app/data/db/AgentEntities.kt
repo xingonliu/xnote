@@ -39,6 +39,7 @@ data class AgentMessageEntity(
     val createdAtEpochMs: Long,
     val sourcesJson: String = "[]",
     @ColumnInfo(defaultValue = "NULL") val modelJson: String? = null,
+    @ColumnInfo(defaultValue = "0") val contextPermissionRevision: Long = 0,
 )
 
 @Entity(tableName = "agent_runs", indices = [Index(value = ["status"])])
@@ -51,7 +52,6 @@ data class AgentRunEntity(
     val status: AgentRunStatus,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    val grantJson: String? = null,
     val errorCode: String? = null,
     val inputTokens: Long? = null,
     val outputTokens: Long? = null,

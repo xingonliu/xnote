@@ -181,6 +181,7 @@ class AgentEpisodeStoreTest {
         val db = XNoteDatabase.createInMemory(context)
         val profiles = ModelProfileStore(db, AndroidModelCredentialStore(context))
         try {
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             profiles.save(ModelProfile("profile", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
             block(db, profiles)
         } finally {

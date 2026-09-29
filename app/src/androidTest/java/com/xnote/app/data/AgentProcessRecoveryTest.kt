@@ -43,7 +43,7 @@ class AgentProcessRecoveryTest {
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("终止前正文"))))).encodeToJson()
             db.notes().upsert(NoteEntity("process-note", null, "进程测试", document, null, 0, 0, 0, "终止前正文", 1, 1, null, null))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             var requests = 0
             var createdNoteId = ""
             val model = object : ModelClient {

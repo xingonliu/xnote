@@ -24,31 +24,13 @@ import kotlinx.serialization.json.Json
 // -- Functions
 
 @Composable
-fun AgentCreationDialog(notebooks: List<NotebookEntity>, backdrop: Backdrop, onDismiss: () -> Unit, onCreate: (AgentCreateTarget) -> Unit) {
-    var selected by remember { mutableStateOf<AgentCreateTarget?>(null) }
-    XNoteDialog(true, onDismiss, "选择新笔记归属", backdrop,
-        confirmAction = XNoteDialogAction("授权本次创建", { selected?.let(onCreate) }, selected?.let { it.notebookId == null || notebooks.any { book -> book.id == it.notebookId } } == true),
-        dismissAction = XNoteDialogAction("取消", onDismiss)) {
-        Text("仅授权这一次创建。新笔记在本次任务内可继续编辑；笔记本里的其他内容仍遵守原有权限。")
-        LazyColumn(Modifier.heightIn(max = 300.dp)) {
-            item { LiquidButton({ selected = AgentCreateTarget(null) }, backdrop, modifier = Modifier.testTag("agent-create-unfiled")) { Text((if (selected == AgentCreateTarget(null)) "✓ " else "") + "未归档") } }
-            items(notebooks, key = { it.id }) { book ->
-                LiquidButton({ selected = AgentCreateTarget(book.id) }, backdrop, modifier = Modifier.testTag("agent-create-${book.id}")) {
-                    Text((if (selected?.notebookId == book.id) "✓ " else "") + book.name)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, backdrop: Backdrop, onDismiss: () -> Unit, onConfirm: (List<String>) -> Unit) {
     var selection by remember { mutableStateOf(selected.toSet()) }
     var query by remember { mutableStateOf("") }
     XNoteDialog(true, onDismiss, "附加笔记", backdrop,
         confirmAction = XNoteDialogAction("确认 ${selection.size} 篇", { onConfirm(selection.toList()) }, selection.size <= AgentNoteLimits.MaxAttachedNotes),
         dismissAction = XNoteDialogAction("取消", onDismiss)) {
-        Text("发送时保存正文快照，每条最多 8 篇。一级权限仅可临时读取该快照。", style = MaterialTheme.typography.bodySmall)
+        Text("发送时保存正文快照，每条最多 8 篇。读取快照同样遵守当前权限；请求批准模式下每次读取都需批准。", style = MaterialTheme.typography.bodySmall)
         XNoteTextField(query, { query = it }, placeholder = "搜索笔记标题")
         LazyColumn(Modifier.heightIn(max = 300.dp).testTag("agent-note-picker")) {
             items(notes.filter { it.title.contains(query, ignoreCase = true) }, key = { it.id }) { note ->
@@ -65,34 +47,32 @@ fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, back
 }
 
 @Composable
-fun AgentPermissionDialog(permission: AgentPermission, notebooks: List<NotebookEntity>, backdrop: Backdrop, authorizing: Boolean,
-    requiredLevel: AgentPermissionLevel = AgentPermissionLevel.Read, onDismiss: () -> Unit, onSave: (AgentPermission, Boolean) -> Unit) {
-    var choice by remember { mutableStateOf(permission.copy(level = if (authorizing && permission.level < requiredLevel) requiredLevel else permission.level)) }
-    var always by remember { mutableStateOf(false) }
-    XNoteDialog(true, onDismiss, if (authorizing) "授权本次工具调用" else "Agent 权限与范围", backdrop,
-        confirmAction = XNoteDialogAction(if (authorizing) "允许并继续" else "保存", { onSave(choice, always) }, !authorizing || choice.level >= requiredLevel),
-        dismissAction = XNoteDialogAction("取消", onDismiss)) {
+fun AgentPermissionDialog(permission: AgentPermission, backdrop: Backdrop, onDismiss: () -> Unit, onSave: (AgentPermission) -> Unit) {
+    var choice by remember { mutableStateOf(permission) }
+    XNoteDialog(true, onDismiss, "Agent 权限", backdrop,
+        confirmAction = XNoteDialogAction("保存", { onSave(choice) }), dismissAction = XNoteDialogAction("取消", onDismiss)) {
+        AgentPermissionMode.entries.forEach { mode ->
+            LiquidButton({ choice = choice.copy(mode = mode) }, backdrop, modifier = Modifier.testTag("agent-permission-${mode.name}")) {
+                Text((if (choice.mode == mode) "✓ " else "") + mode.permissionLabel())
+            }
+        }
+        Text(when (choice.mode) {
+            AgentPermissionMode.Private -> "禁用全部工具与自动记忆读取。你主动发送的文字和文件仍会发送给模型服务。"
+            AgentPermissionMode.RequestApproval -> "默认模式。每次工具调用须先批准，批准仅对本次调用及其固定参数有效。"
+            AgentPermissionMode.FullAccess -> "工具可自动读取和修改应用数据，无需逐次批准。"
+        }, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+fun AgentApprovalDialog(event: AgentToolEventEntity, backdrop: Backdrop, onDismiss: () -> Unit, onAnswer: (Boolean) -> Unit) {
+    XNoteDialog(true, onDismiss, "批准工具调用", backdrop,
+        confirmAction = XNoteDialogAction("批准本次", { onAnswer(true) }),
+        dismissAction = XNoteDialogAction("拒绝本次", { onAnswer(false) })) {
         Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("操作权限", style = MaterialTheme.typography.labelLarge)
-            AgentPermissionLevel.entries.forEach { level ->
-                LiquidButton({ choice = choice.copy(level = level) }, backdrop, modifier = Modifier.testTag("agent-permission-${level.name}")) {
-                    Text((if (choice.level == level) "✓ " else "") + level.permissionLabel())
-                }
-            }
-            Text("数据范围（提高等级不会改变范围）", style = MaterialTheme.typography.labelLarge)
-            AgentScope.entries.forEach { scope ->
-                LiquidButton({ choice = choice.copy(scope = scope) }, backdrop, modifier = Modifier.testTag("agent-scope-${scope.name}")) {
-                    Text((if (choice.scope == scope) "✓ " else "") + scope.scopeLabel())
-                }
-            }
-            if (choice.scope == AgentScope.Notebooks) notebooks.forEach { book ->
-                Text((if (book.id in choice.notebookIds) "✓ " else "○ ") + book.name,
-                    Modifier.fillMaxWidth().clickable { choice = choice.copy(notebookIds = if (book.id in choice.notebookIds) choice.notebookIds - book.id else choice.notebookIds + book.id) }.padding(12.dp))
-            }
-            if (authorizing) {
-                LiquidButton({ always = !always }, backdrop) { Text(if (always) "✓ 始终允许：保存为全局权限" else "仅本次运行允许") }
-                Text("缩小全局范围或降低权限后，本次授权也会失效。", style = MaterialTheme.typography.bodySmall)
-            }
+            Text("工具：${event.name}", style = MaterialTheme.typography.titleMedium)
+            Text("批准后执行以下固定参数；读取、写入和后续调用均需分别批准。关闭窗口保持等待。")
+            Text("完整参数：\n${event.argumentsJson}", modifier = Modifier.testTag("agent-approval-arguments"))
         }
     }
 }
@@ -116,12 +96,8 @@ fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue:
             if (decisions.isEmpty()) Text("此历史调用未保存授权依据。", style = MaterialTheme.typography.bodySmall)
             decisions.forEach { decision ->
                 Text("${java.util.Date(decision.atEpochMs)} · ${decision.reason}")
-                Text("当时权限：${decision.permission.level.permissionLabel()} · ${decision.permission.scope.scopeLabel()} · 版本 ${decision.permission.revision}")
-                if (decision.permission.scope == AgentScope.Notebooks) Text("笔记本：${decision.permission.notebookIds.joinToString().ifEmpty { "未选择" }}")
+                Text("当时权限：${decision.permission.mode.permissionLabel()} · 版本 ${decision.permission.revision}")
                 Text("当时主动附加：${decision.attachedNoteIds.size} 篇")
-                decision.grant?.let { Text("本次运行授权：${it.level.permissionLabel()} · ${it.noteIds.size} 篇；仅在当时权限版本内有效。") }
-                decision.grant?.takeIf { it.createdNoteIds.isNotEmpty() }?.let { Text("本次新建并可继续编辑：${it.createdNoteIds.size} 篇。") }
-                decision.createTarget?.let { Text("本次创建归属：${it.notebookId ?: "未归档"}；此选择只绑定当前调用。") }
             }
             Text("参数：${event.argumentsJson}")
             Text("结果：${event.resultJson ?: "等待执行或授权"}")
@@ -135,20 +111,14 @@ fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue:
     }
 }
 
-fun AgentPermissionLevel.permissionLabel(): String = when (this) {
-    AgentPermissionLevel.None -> "一级 · 不可查看"
-    AgentPermissionLevel.Read -> "二级 · 可查看"
-    AgentPermissionLevel.Edit -> "三级 · 可编辑"
-}
-
-fun AgentScope.scopeLabel(): String = when (this) {
-    AgentScope.Attached -> "仅主动附加笔记"
-    AgentScope.Unfiled -> "未归档笔记"
-    AgentScope.Notebooks -> "指定笔记本"
-    AgentScope.All -> "全部笔记"
+fun AgentPermissionMode.permissionLabel(): String = when (this) {
+    AgentPermissionMode.Private -> "完全隐私"
+    AgentPermissionMode.RequestApproval -> "请求批准"
+    AgentPermissionMode.FullAccess -> "完全访问"
 }
 
 fun AgentToolStatus.toolStatusLabel(): String = when (this) {
+    AgentToolStatus.Approved -> "已批准本次调用"
     AgentToolStatus.Requested -> "等待授权或执行"
     AgentToolStatus.Denied -> "未获允许"
     AgentToolStatus.Executing -> "正在执行"

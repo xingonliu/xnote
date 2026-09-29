@@ -1,7 +1,6 @@
 package com.xnote.app.data.db
 
 import android.content.Context
-import androidx.room3.AutoMigration
 import androidx.room3.Database
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
@@ -45,8 +44,7 @@ import kotlinx.coroutines.Dispatchers
         AgentNoteMemoryFtsEntity::class,
         AgentFileEntity::class,
     ],
-    version = 15,
-    autoMigrations = [AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 10, to = 11), AutoMigration(from = 11, to = 12), AutoMigration(from = 12, to = 13), AutoMigration(from = 13, to = 14), AutoMigration(from = 14, to = 15)],
+    version = 16,
     exportSchema = true,
 )
 abstract class XNoteDatabase : RoomDatabase() {
@@ -70,6 +68,7 @@ abstract class XNoteDatabase : RoomDatabase() {
 
         fun createInMemory(context: Context): XNoteDatabase {
             return Room.inMemoryDatabaseBuilder(context.applicationContext, XNoteDatabase::class.java)
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
                 .build()
@@ -77,6 +76,7 @@ abstract class XNoteDatabase : RoomDatabase() {
 
         private fun newBuilder(context: Context, name: String): Builder<XNoteDatabase> {
             return Room.databaseBuilder(context, XNoteDatabase::class.java, name)
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
         }

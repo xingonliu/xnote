@@ -46,7 +46,7 @@ class AgentWriteFlowTest {
         val note = runBlocking {
             profiles.save(ModelProfile("write-ui", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val created = library.createNote(null)
             library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "周末计划", document = document("先整理笔记，再写总结。")))
         }

@@ -52,7 +52,7 @@ class AgentLiveAcceptanceTest {
             episodes.process(profiles, client)
             assertTrue("真实片段摘要必须成功发布", database.memory().episodes().isNotEmpty())
             println("LIVE: strict structured episode summary passed")
-            AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val body = "项目验收计划：周一核对需求，周二运行回归，周三整理验收证据。负责人按记录逐项核对。".repeat(50)
             database.notes().upsert(NoteEntity("live-note", null, "项目验收计划", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun(body))))).encodeToJson(), null, 0, 0, 0, body, 1, 1, null, null))
             var clock = System.currentTimeMillis()

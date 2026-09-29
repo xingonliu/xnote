@@ -71,10 +71,11 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
     })
 
     private suspend fun input(job: AgentEpisodeJobEntity, accessRun: AgentRunEntity? = null): EpisodeInput? {
+        if (accessRun == null && AgentPermissionStore(database).current().mode != AgentPermissionMode.FullAccess) return null
         val ids = Json.decodeFromString<List<String>>(job.messageIdsJson)
         val messages = eligible(job.segmentId).filter { it.id in ids }
         if (messages.map { it.id } != ids || fingerprint(messages) != job.sourceHash) return null
-        val sourceRun = accessRun ?: database.agent().run(requireNotNull(messages.last().runId))?.copy(segmentId = "derived-memory", grantJson = null) ?: return null
+        val sourceRun = accessRun ?: database.agent().run(requireNotNull(messages.last().runId))?.copy(segmentId = "derived-memory") ?: return null
         val safe = mutableListOf<AgentMessageEntity>()
         val sources = mutableListOf<AgentMessageSource>()
         for (message in messages) {
@@ -110,6 +111,7 @@ class AgentEpisodeStore(private val database: XNoteDatabase, private val clock: 
 
     /** Returns true when work remains retryable; calls and reservations survive cancellation and crashes. */
     suspend fun process(profiles: ModelProfileStore, client: ModelClient): Boolean = processor.withLock {
+        if (AgentPermissionStore(database).current().mode != AgentPermissionMode.FullAccess) return@withLock false
         sweep()
         var retry = false
         for (segment in database.memory().closedSegments()) {

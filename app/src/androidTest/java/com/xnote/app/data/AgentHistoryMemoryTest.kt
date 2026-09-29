@@ -117,6 +117,7 @@ class AgentHistoryMemoryTest {
     private suspend fun fixture(block: suspend (XNoteDatabase, AgentRunEntity) -> Unit) {
         val db = XNoteDatabase.createInMemory(ApplicationProvider.getApplicationContext<Context>())
         try {
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             db.agent().saveSegment(AgentSegmentEntity("old", 1))
             db.agent().saveRun(AgentRunEntity("old-run", "old", "user", "profile", 1, AgentRunStatus.Complete, 1, 3))
             db.agent().insertMessage(AgentMessageEntity(id = "user", segmentId = "old", runId = "old-run", role = AgentMessageRole.User,

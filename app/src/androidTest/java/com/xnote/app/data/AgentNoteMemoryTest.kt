@@ -80,7 +80,7 @@ class AgentNoteMemoryTest {
             AgentPermissionStore(db).saveFromUser(AgentPermission())
             assertTrue(store.search(reader(), "高铁").isEmpty())
             store.sweep(profiles); assertTrue(db.noteMemory().all().isEmpty())
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             store.sweep(profiles)
             db.notes().upsert(note("高铁").copy(deletedAtEpochMs = 9))
             assertTrue(store.search(reader(), "高铁").isEmpty()); assertTrue(db.noteMemory().all().isEmpty())
@@ -101,7 +101,7 @@ class AgentNoteMemoryTest {
             })
             assertNotEquals("complete", db.noteMemory().get("note")!!.status)
             store.sweep(profiles)
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             store.sweep(profiles); now += AgentNoteMemoryLimits.StableMs
             var calls = 0
             val model = client { calls++; throw ModelException(ModelError.Authentication) }
@@ -123,7 +123,7 @@ class AgentNoteMemoryTest {
         val profiles = ModelProfileStore(db, AndroidModelCredentialStore(context))
         try {
             profiles.save(ModelProfile("profile", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             block(db, profiles)
         } finally { profiles.delete("profile"); db.close() }
     }

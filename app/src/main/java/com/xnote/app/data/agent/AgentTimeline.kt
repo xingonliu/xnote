@@ -129,14 +129,17 @@ class AgentTimeline(
         mutex.withLock {
             if (mutableState.value.running) { interrupt("permission_changed"); runningJob?.join() }
             noteStore.savePermissionFromUser(value)
+            database.agent().unfinishedRuns().filter { it.status == AgentRunStatus.WaitingPermission }.forEach { run ->
+                database.agent().saveRun(run.copy(status = AgentRunStatus.Interrupted, errorCode = "permission_changed", updatedAtEpochMs = now()))
+            }
         }
     }
 
-    suspend fun answerPermission(runId: String, callId: String, choice: AgentPermission?, always: Boolean = false) {
+    suspend fun answerPermission(runId: String, callId: String, approved: Boolean, expectedArguments: String? = null) {
         awaitReady()
         mutex.withLock {
             if (mutableState.value.running) throw ModelException(ModelError.Busy)
-            if (choice == null) noteStore.denyFromUser(runId, callId) else noteStore.grantFromUser(runId, choice, always)
+            if (!approved) noteStore.denyFromUser(runId, callId) else noteStore.approveFromUser(runId, callId, requireNotNull(expectedArguments))
             val run = requireNotNull(database.agent().run(runId))
             val resumed = run.copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
             database.agent().saveRun(resumed)
@@ -150,19 +153,6 @@ class AgentTimeline(
             if (mutableState.value.running) throw ModelException(ModelError.Busy)
             val resumed = transaction {
                 noteStore.replanConflictFromUser(runId, callId)
-                requireNotNull(database.agent().run(runId)).copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
-                    .also { database.agent().saveRun(it) }
-            }
-            launchRun(resumed)
-        }
-    }
-
-    suspend fun answerCreation(runId: String, callId: String, target: AgentCreateTarget) {
-        awaitReady()
-        mutex.withLock {
-            if (mutableState.value.running) throw ModelException(ModelError.Busy)
-            val resumed = transaction {
-                noteStore.authorizeCreationFromUser(runId, callId, target)
                 requireNotNull(database.agent().run(runId)).copy(status = AgentRunStatus.Running, updatedAtEpochMs = now())
                     .also { database.agent().saveRun(it) }
             }
@@ -303,7 +293,10 @@ class AgentTimeline(
         mutex.withLock {
             if (mutableState.value.running) throw ModelException(ModelError.Busy)
             transaction {
-                database.agent().unfinishedRuns().forEach { database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now(), grantJson = null)) }
+                database.agent().unfinishedRuns().forEach {
+                    noteStore.cancelPendingFromUser(it.id)
+                    database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now()))
+                }
                 database.agent().messages().filter { it.runId != null && it.status == AgentMessageStatus.Pending }.forEach {
                     database.agent().updateMessage(it.sequence, it.text, AgentMessageStatus.Cancelled)
                 }
@@ -332,7 +325,10 @@ class AgentTimeline(
             stopRequested = true
             runningJob?.cancelAndJoin()
             transaction {
-                database.agent().unfinishedRuns().forEach { database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now(), grantJson = null)) }
+                database.agent().unfinishedRuns().forEach {
+                    noteStore.cancelPendingFromUser(it.id)
+                    database.agent().saveRun(it.copy(status = AgentRunStatus.Cancelled, updatedAtEpochMs = now()))
+                }
                 database.agent().pendingQueue().forEach { database.agent().deleteQueueItem(it.id) }
                 database.agent().messages().mapNotNull { it.runId }.distinct().forEach { database.agent().deleteToolEvents(it) }
                 database.agent().messages().map { it.segmentId }.distinct().forEach { episodeStore.invalidate(it) }
@@ -513,7 +509,7 @@ class AgentTimeline(
                         database.agent().updateMessage(checkNotNull(sequence), text, AgentMessageStatus.Complete)
                         val pending = database.agent().messages().any { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }
                         if (!pending) {
-                            run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now(), grantJson = database.agent().run(run.id)?.grantJson)
+                            run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now())
                             database.agent().saveRun(run)
                         }
                         pending
@@ -568,7 +564,8 @@ class AgentTimeline(
                 database.agent().updateMessageContext(reply.id, sourcesJson, reply.modelJson)
                 database.agent().insertMessage(AgentMessageEntity(id = "tool-results:${reply.id}", segmentId = run.segmentId, runId = run.id,
                     role = AgentMessageRole.Tool, text = results.joinToString("\n") { it.name + "：" + it.content }, status = AgentMessageStatus.Complete,
-                    createdAtEpochMs = now(), sourcesJson = sourcesJson, modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = results))))
+                    createdAtEpochMs = now(), sourcesJson = sourcesJson, modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = results)),
+                    contextPermissionRevision = AgentPermissionStore(database).current().revision))
                 AgentMemoryProvenance(database).save("tool-results:${reply.id}", memorySources)
             }
         }
@@ -578,7 +575,8 @@ class AgentTimeline(
     private suspend fun persistStopped(run: AgentRunEntity, sequence: Long?, text: String, status: AgentMessageStatus) {
         transaction {
             sequence?.let { database.agent().updateMessage(it, text, status) }
-            database.agent().saveRun(run.copy(updatedAtEpochMs = now(), grantJson = if (run.status == AgentRunStatus.Cancelled) null else database.agent().run(run.id)?.grantJson))
+            if (run.status == AgentRunStatus.Cancelled) noteStore.cancelPendingFromUser(run.id)
+            database.agent().saveRun(run.copy(updatedAtEpochMs = now()))
             pauseQueue()
         }
     }
@@ -606,7 +604,7 @@ class AgentTimeline(
 
     private suspend fun insertMessage(run: AgentRunEntity, role: AgentMessageRole, text: String, status: AgentMessageStatus = AgentMessageStatus.Complete): Long =
         database.agent().insertMessage(AgentMessageEntity(id = id(), segmentId = run.segmentId, runId = run.id, role = role,
-            text = text, status = status, createdAtEpochMs = now()))
+            text = text, status = status, createdAtEpochMs = now(), contextPermissionRevision = AgentPermissionStore(database).current().revision))
 
     private suspend fun removeMessage(id: String) {
         database.agent().deleteSnapshotRefs(id)

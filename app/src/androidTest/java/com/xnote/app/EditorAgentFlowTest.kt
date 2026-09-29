@@ -80,7 +80,7 @@ class EditorAgentFlowTest {
         val note = runBlocking {
             profiles.save(ModelProfile("polish-ui", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val created = library.createNote(null)
             library.saveNote(created.copy(title = "润色验收", document = document("前原文后")))
         }
@@ -134,7 +134,7 @@ class EditorAgentFlowTest {
         val note = runBlocking {
             db.agent().saveSegment(AgentSegmentEntity("segment", 1))
             db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val created = library.createNote(null)
             library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "并行编辑验收", document = document("原始正文")))
         }

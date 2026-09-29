@@ -167,7 +167,7 @@ class EditorAgentSaveTest {
     private suspend fun prepare(): com.xnote.app.domain.model.Note {
         db.agent().saveSegment(AgentSegmentEntity("segment", 1))
         db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
-        AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+        AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val note = library.createNote(null)
         return library.saveNote(requireNotNull(library.getNote(note.id)).copy(title = "标题", document = document("abcdef")))
     }

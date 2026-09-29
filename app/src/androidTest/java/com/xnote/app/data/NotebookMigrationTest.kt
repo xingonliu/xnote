@@ -10,14 +10,14 @@ import com.xnote.app.domain.document.encodeToJson
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 // -- Tests
 
 class NotebookMigrationTest {
     @Test
-    fun versionTwoUpgradePreservesNotebooksAndNoteContents() = runTest {
+    fun versionTwoDatabaseIsRecreated() = runTest {
         val context: Context = ApplicationProvider.getApplicationContext()
         val name = "notebook-migration-${System.nanoTime()}.db"
         val documentJson = emptyNoteDocument().encodeToJson()
@@ -48,16 +48,8 @@ class NotebookMigrationTest {
             }
             val migrated = XNoteDatabase.create(context, name)
             try {
-                val book = migrated.notebooks().get("book")
-                assertNotNull(book)
-                assertEquals("升级前笔记本", book?.name)
-                assertEquals(7L, book?.sortIndex)
-                assertEquals("gold", book?.color)
-                assertEquals("notebook", book?.icon)
-                val note = migrated.notes().get("note")
-                assertEquals("升级前标题", note?.title)
-                assertEquals("book", note?.notebookId)
-                assertEquals(documentJson, note?.documentJson)
+                assertNull(migrated.notebooks().get("book"))
+                assertNull(migrated.notes().get("note"))
             } finally { migrated.close() }
         } finally { context.deleteDatabase(name) }
     }

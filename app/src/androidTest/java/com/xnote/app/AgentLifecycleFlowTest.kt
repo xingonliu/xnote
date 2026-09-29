@@ -54,7 +54,7 @@ class AgentLifecycleFlowTest {
             override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
                 if (++requests == 1) {
                     val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("记录这次旅行的见闻。")))))
-                    emit(ModelEvent.ToolCall(ModelToolCall("create", "create", Json.encodeToJsonElement(AgentCreateArguments("旅行计划", document.encodeToJson())).jsonObject)))
+                    emit(ModelEvent.ToolCall(ModelToolCall("create", "create", Json.encodeToJsonElement(AgentCreateArguments("旅行计划", document.encodeToJson(), AgentCreateTarget("book"))).jsonObject)))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                 } else { emit(ModelEvent.Text("已创建旅行计划，可以审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
             }
@@ -65,10 +65,9 @@ class AgentLifecycleFlowTest {
         runBlocking { timeline.send("新建旅行计划") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
         compose.onNodeWithTag("agent-authorize").performClick()
-        compose.onNodeWithText("授权本次创建").assertIsNotEnabled()
-        compose.onNodeWithTag("agent-create-book").performClick()
+        compose.onNodeWithTag("agent-approval-arguments").assertTextContains("book", substring = true)
         screenshot("creation-target")
-        compose.onNodeWithText("授权本次创建").performClick()
+        compose.onNodeWithText("批准本次").performClick()
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().isEmpty() } }
         val note = runBlocking { db.notes().getAll().single() }
         assertEquals("book", note.notebookId)
@@ -86,7 +85,7 @@ class AgentLifecycleFlowTest {
         val note = runBlocking {
             profiles.save(ModelProfile("delete-ui", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val created = library.createNote(null)
             library.saveNote(requireNotNull(library.getNote(created.id)).copy(title = "可以恢复的笔记", document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("删除后仍保留正文。")))))))
         }

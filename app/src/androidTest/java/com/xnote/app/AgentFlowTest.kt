@@ -85,7 +85,7 @@ class AgentFlowTest {
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
     }
 
-    @Test fun attachSnapshotAndChangePermissionScopeThroughUi() {
+    @Test fun attachSnapshotAndChangePermissionModeThroughUi() {
         val note = runBlocking {
             profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key")
             val created = library.createNote(null)
@@ -111,10 +111,12 @@ class AgentFlowTest {
         screenshot("agent-snapshot-preview")
         compose.onNodeWithText("关闭").performClick()
         compose.onNodeWithTag("agent-permission-settings").performClick()
-        compose.onNodeWithTag("agent-permission-Read").performScrollTo().performClick()
-        compose.onNodeWithTag("agent-scope-All").performScrollTo().performClick()
+        compose.onNodeWithTag("agent-permission-Private").assertExists()
+        compose.onNodeWithTag("agent-permission-RequestApproval").assertExists()
+        screenshot("agent-permission-modes")
+        compose.onNodeWithTag("agent-permission-FullAccess").performClick()
         compose.onNodeWithText("保存").performClick()
-        compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.level == AgentPermissionLevel.Read && it.scope == AgentScope.All } } }
+        compose.waitUntil(5000) { runBlocking { AgentPermissionStore(database).current().let { it.mode == AgentPermissionMode.FullAccess } } }
     }
 
     @Test fun composerMenusAndReviewDrawerKeepTheDraftAndAttachment() {
@@ -222,15 +224,16 @@ class AgentFlowTest {
         hideKeyboard()
         compose.waitUntil(5000) { compose.onAllNodes(hasTestTag("agent-authorize") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("agent-authorize").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
-        compose.onNodeWithTag("agent-scope-Unfiled").performScrollTo().performClick()
-        compose.onNodeWithText("允许并继续").performClick()
+        compose.onNodeWithTag("agent-approval-arguments").assertTextContains(note.id, substring = true)
+        screenshot("agent-call-approval")
+        compose.onNodeWithText("批准本次").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
         compose.onNodeWithText("read · 已完成").performClick()
         compose.onNodeWithText("我的").assertDoesNotExist()
         compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
-        compose.onAllNodesWithText("当时权限：一级 · 不可查看 · 仅主动附加笔记 · 版本 0")[0].assertExists()
-        compose.onNodeWithText("本次运行授权：二级 · 可查看 · 1 篇；仅在当时权限版本内有效。").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("当时权限：请求批准 · 版本 0")[0].assertExists()
+        compose.onAllNodesWithText("用户批准本次函数调用及其固定参数。", substring = true)[0].performScrollTo().assertIsDisplayed()
         screenshot("agent-tool-decision")
         compose.onNodeWithTag("agent-tool-continue").performScrollTo().performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.text == "继续任务已完成" } } }
@@ -250,7 +253,7 @@ class AgentFlowTest {
             timeline.awaitReady()
             profiles.save(ModelProfile("stop-tool", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(database).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             library.createNote(null)
         }
         var requests = 0
@@ -301,6 +304,7 @@ class AgentFlowTest {
     private fun screenshot(name: String) {
         val directory = File(context.getExternalFilesDir(null), "s11-screenshots").apply { mkdirs() }
         compose.waitForIdle()
+        android.os.SystemClock.sleep(300)
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
             File(directory, "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         }

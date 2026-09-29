@@ -68,14 +68,12 @@ class AgentReviewStore(private val database: XNoteDatabase, private val now: () 
         val run = requireNotNull(database.agent().run(runId))
         require(run.status == AgentRunStatus.Running)
         val notes = AgentNoteStore(database)
-        if (notes.creationDecision(run, callId, target) != AgentCreateDecision.Allowed(target)) return@transaction AgentReviewResult.PermissionRequired
+        if (notes.creationDecision(run, target) != AgentCreateDecision.Allowed(target)) return@transaction AgentReviewResult.PermissionRequired
         database.agent().committedChange(runId, callId)?.let { return@transaction AgentReviewResult.Applied(Json.decodeFromString(it.afterNoteJson), requireNotNull(it.reviewId)) }
         require(validateAgentEdit(NoteDocument(), content.document, "new", "new") == AgentEditValidation.Valid) { "新建内容包含非法结构或媒体。" }
         val timestamp = now()
         val saved = saveContent(NoteEntity(id(), target.notebookId, content.title, content.document.encodeToJson(), null,
             timestamp, 0, 0, "", timestamp, timestamp, null, null), content)
-        val grant = notes.access(run).grantCreatedNote(saved.id)
-        database.agent().saveRun(run.copy(grantJson = Json.encodeToString(grant), updatedAtEpochMs = timestamp))
         recordChange(runId, callId, null, saved, AgentChangeKind.Create)
     }
 

@@ -51,7 +51,7 @@ val AgentNoteTools = listOf(
         putJsonArray("required") { add("key"); add("value"); add("quote") }
         put("additionalProperties", false)
     }),
-    ModelTool("create", "三级权限新建笔记并实时保存，进入单篇审阅。仅可新建文字/表格，不添加媒体或设置背景。document_json 与 read/write 格式相同。用户明确指定归属时传 target（notebookId 为笔记本 ID，null 为未归档）；未指定时省略 target，应用会使用唯一可写目标或暂停请用户选择并授权。本次新建不会扩大整个笔记本权限。", buildJsonObject {
+    ModelTool("create", "新建笔记并实时保存，进入单篇审阅。仅可新建文字/表格，不添加媒体或设置背景。document_json 与 read/write 格式相同。用户明确指定归属时传 target（notebookId 为笔记本 ID，null 为未归档）；未指定时省略 target，默认归入未归档。请求批准模式下，本次创建及后续每次调用均需单独批准。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("title") { put("type", "string") }
@@ -66,7 +66,7 @@ val AgentNoteTools = listOf(
         putJsonArray("required") { add("title"); add("document_json") }
         put("additionalProperties", false)
     }),
-    ModelTool("delete", "三级权限将笔记移入回收站，可从单篇审阅拒绝并恢复。先 read 或使用已附加快照的版本作为 base_version；正文或设置已变化时暂停，不删除用户的新内容。不会永久删除。", buildJsonObject {
+    ModelTool("delete", "将笔记移入回收站，可从单篇审阅拒绝并恢复。先 read 或使用已附加快照的版本作为 base_version；正文或设置已变化时暂停，不删除用户的新内容。不会永久删除。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("note_id") { put("type", "string") }
@@ -87,7 +87,7 @@ val AgentNoteTools = listOf(
         putJsonArray("required") {}
         put("additionalProperties", false)
     }),
-    ModelTool("note_search", "在当前授权范围内检索笔记标题和正文，返回有限页及是否还有结果；无权访问的数据不会参与结果。", buildJsonObject {
+    ModelTool("note_search", "按 query 检索笔记标题和正文，返回有限页及是否还有结果；请求批准模式下每次检索均需批准。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("query") { put("type", "string"); put("maxLength", AgentNoteLimits.MaxQueryCharacters) }
@@ -97,7 +97,7 @@ val AgentNoteTools = listOf(
         putJsonArray("required") { add("query") }
         put("additionalProperties", false)
     }),
-    ModelTool("write", "三级权限修改笔记，实时保存并进入单篇审阅。base_version 必须来自当前话题的 read 或发送快照；先完整读取并拼接 document_json，保持结构和块 ID。title 与 document_json 为拟应用的完整标题和正文；正文格式与 read 相同，新增文本块使用 type=text、id 和 inlines（含 text）。不得改变媒体、背景或归属。用户并行编辑由应用合并，重叠冲突暂停等待用户。每次写后继续改动应重新 read。", buildJsonObject {
+    ModelTool("write", "修改笔记，实时保存并进入单篇审阅。base_version 必须来自当前话题的 read 或发送快照；先完整读取并拼接 document_json，保持结构和块 ID。title 与 document_json 为拟应用的完整标题和正文；正文格式与 read 相同，新增文本块使用 type=text、id 和 inlines（含 text）。不得改变媒体、背景或归属。用户并行编辑由应用合并，重叠冲突暂停等待用户。每次写后继续改动应重新 read。", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             putJsonObject("note_id") { put("type", "string") }

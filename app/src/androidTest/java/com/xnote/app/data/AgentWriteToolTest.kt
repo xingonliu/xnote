@@ -137,7 +137,7 @@ class AgentWriteToolTest {
             db.agent().deleteUnusedSnapshots()
             assertNotNull(db.agent().snapshot(snapshot.id))
             assertEquals(listOf("file"), db.agent().referencedAttachmentIds())
-            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Attached))
+            store.savePermissionFromUser(AgentPermission())
             assertTrue(store.access(db.agent().run("run")!!).attachedNoteIds.isEmpty())
             assertTrue(store.toolExecutor.execute("run", write("outside", base, "x")) is AgentToolResult.PermissionRequired)
             db.agent().deleteToolEvents("run")
@@ -149,10 +149,10 @@ class AgentWriteToolTest {
     }
 
     @Test fun lowerLevelsCannotWriteEvenWithAnAttachedSnapshot() = runBlocking {
-        for (level in listOf(AgentPermissionLevel.None, AgentPermissionLevel.Read)) fixture { db, store ->
+        for (level in listOf(AgentPermissionMode.RequestApproval)) fixture { db, store ->
             val base = db.notes().get("note")!!
             store.capture("user", listOf("note"))
-            store.savePermissionFromUser(AgentPermission(level, AgentScope.All))
+            store.savePermissionFromUser(AgentPermission(level))
             assertTrue(store.toolExecutor.execute("run", write("denied", base, "A middle end")) is AgentToolResult.PermissionRequired)
             assertEquals(base, db.notes().get("note"))
             assertTrue(db.agent().noteChanges("note").isEmpty())
@@ -244,7 +244,7 @@ class AgentWriteToolTest {
         db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
         db.agent().insertMessage(AgentMessageEntity(id = "user", segmentId = "segment", runId = "run", role = AgentMessageRole.User,
             text = "修改笔记", status = AgentMessageStatus.Complete, createdAtEpochMs = 1))
-        AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+        AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
     }
     private suspend fun fixture(block: suspend (XNoteDatabase, AgentNoteStore) -> Unit) {
         val db = XNoteDatabase.createInMemory(ApplicationProvider.getApplicationContext<Context>())

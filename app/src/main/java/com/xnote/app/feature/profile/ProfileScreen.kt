@@ -39,7 +39,7 @@ fun ProfileScreen(
             Column(verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(vertical = 16.dp)) {
                 listOf(
                     "贴纸库" to "将在图片抠图与贴纸功能完成后开放。",
-                    "Agent 权限" to "Agent 笔记工具尚未接入，暂不申请笔记操作权限。",
+                    "Agent 权限" to "在 Agent 对话页选择完全隐私、请求批准或完全访问；默认每次工具调用都需要批准。",
                     "Skill 管理" to "将在 Agent 扩展能力完成后开放。",
                     "MCP 管理" to "尚未接入外部工具服务器。",
                     "Linux 环境" to "尚未安装本地 Linux 环境。",

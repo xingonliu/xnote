@@ -21,7 +21,7 @@ class AgentPermissionStore(private val database: XNoteDatabase) {
         Json.decodeFromString<AgentPermission>(it.permissionJson)
     } ?: AgentPermission()
 
-    /** Only user settings call this; every change invalidates older run and snapshot grants. */
+    /** Only user settings call this; every change invalidates pending approvals and cached tool results. */
     suspend fun saveFromUser(value: AgentPermission): AgentPermission = database.useWriterConnection { connection ->
         connection.immediateTransaction {
             val saved = value.copy(revision = current().revision + 1)

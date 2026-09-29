@@ -21,7 +21,7 @@ import java.io.File
 
 class AgentLifecycleToolTest {
     @Test fun rejectingCreationAndDeletionKeepsTheOriginalRecycleBinDeadline() = runBlocking { fixture { db, store, _ ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         var clock = 100L
         val reviews = AgentReviewStore(db) { clock }
         val created = (reviews.applyCreate("run", "create", AgentCreateTarget(null), AgentEditableContent("新建", document("正文"))) as AgentReviewResult.Applied).note
@@ -35,12 +35,12 @@ class AgentLifecycleToolTest {
     } }
 
     @Test fun lowerPermissionsCannotCreateOrDeleteWithoutUserAuthorization() = runBlocking {
-        for (level in listOf(AgentPermissionLevel.None, AgentPermissionLevel.Read)) fixture { db, store, _ ->
+        for (level in listOf(AgentPermissionMode.RequestApproval)) fixture { db, store, _ ->
             val original = note("existing", null)
             db.notes().upsert(original)
-            store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             store.toolExecutor.execute("run", read("read", original.id))
-            store.savePermissionFromUser(AgentPermission(level, AgentScope.All))
+            store.savePermissionFromUser(AgentPermission(level))
             assertTrue(store.toolExecutor.execute("run", delete("delete", original)) is AgentToolResult.PermissionRequired)
             assertEquals(original, db.notes().get(original.id))
             resume(db)
@@ -50,7 +50,7 @@ class AgentLifecycleToolTest {
     }
 
     @Test fun soleWritableTargetCreatesOnceAndRejectMovesToTrash() = runBlocking { fixture { db, store, _ ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val call = create("create")
         val first = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
         assertEquals(first, store.toolExecutor.execute("run", call))
@@ -64,56 +64,38 @@ class AgentLifecycleToolTest {
         assertEquals(AgentReviewStatus.Rejected, db.agent().reviews(note.id).single().status)
     } }
 
-    @Test fun explicitTargetAndMultipleTargetsFollowSelectionRules() = runBlocking { fixture { db, store, _ ->
+    @Test fun explicitCreationAndDefaultTargetUseTheSameApprovalBoundary() = runBlocking { fixture { db, store, _ ->
         books(db)
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Notebooks, setOf("one", "two")))
-        val explicit = store.toolExecutor.execute("run", create("explicit", AgentCreateTarget("two"))) as AgentToolResult.Finished
-        assertEquals("two", db.notes().get(explicit.noteId())!!.notebookId)
-        assertTrue(store.toolExecutor.execute("run", create("choose")) is AgentToolResult.PermissionRequired)
-        assertEquals(1, db.notes().getAll().size)
-        store.authorizeCreationFromUser("run", "choose", AgentCreateTarget("one"))
-        resume(db)
-        val chosen = store.toolExecutor.execute("run", create("choose")) as AgentToolResult.Finished
-        assertEquals("one", db.notes().get(chosen.noteId())!!.notebookId)
-    } }
-
-    @Test fun oneTimeCreationNeverUpgradesReadGrantOrAuthorizesAnotherCreation() = runBlocking { fixture { db, store, _ ->
-        books(db)
-        db.notes().upsert(note("read-only", "one"))
-        db.agent().saveRun(db.agent().run("run")!!.copy(grantJson = Json.encodeToString(AgentRunGrant("run", 0, AgentPermissionLevel.Read, setOf("read-only")))))
-        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
-        store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
-        resume(db)
-        val created = store.toolExecutor.execute("run", create("once")) as AgentToolResult.Finished
-        val access = store.access(db.agent().run("run")!!)
-        assertTrue(access.canEdit(AgentNoteAccess(created.noteId(), "one")))
-        assertTrue(access.canReadCurrent(AgentNoteAccess("read-only", "one")))
-        assertFalse(access.canEdit(AgentNoteAccess("read-only", "one")))
-        assertEquals(AgentPermission(), access.permission)
-        assertTrue(store.toolExecutor.execute("run", create("next", AgentCreateTarget("one"))) is AgentToolResult.PermissionRequired)
-        db.agent().saveRun(db.agent().run("run")!!.copy(id = "other", status = AgentRunStatus.Running))
-        assertFalse(store.access(db.agent().run("other")!!).canEdit(AgentNoteAccess(created.noteId(), "one")))
-        store.savePermissionFromUser(AgentPermission())
-        assertFalse(store.access(db.agent().run("run")!!).canEdit(AgentNoteAccess(created.noteId(), "one")))
-    } }
-
-    @Test fun approvalExpiresWithPermissionRevisionOrMissingNotebook() = runBlocking { fixture { db, store, _ ->
-        books(db)
-        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
-        store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
-        store.savePermissionFromUser(AgentPermission())
-        resume(db)
-        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
+        val call = create("once", AgentCreateTarget("one"))
+        assertTrue(store.toolExecutor.execute("run", call) is AgentToolResult.PermissionRequired)
         assertTrue(db.notes().getAll().isEmpty())
-        store.authorizeCreationFromUser("run", "once", AgentCreateTarget("one"))
+        store.approveFromUser("run", call.id, call.arguments.toString())
+        resume(db)
+        val created = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
+        assertEquals("one", db.notes().get(created.noteId())!!.notebookId)
+        assertFalse(store.access(db.agent().run("run")!!).canEdit(AgentNoteAccess(created.noteId(), "one")))
+        assertTrue(store.toolExecutor.execute("run", create("next")) is AgentToolResult.PermissionRequired)
+    } }
+
+    @Test fun approvalExpiresWithPermissionRevisionAndMissingTargetCannotBroadenIt() = runBlocking { fixture { db, store, _ ->
+        books(db)
+        val call = create("once", AgentCreateTarget("one"))
+        assertTrue(store.toolExecutor.execute("run", call) is AgentToolResult.PermissionRequired)
+        store.approveFromUser("run", call.id, call.arguments.toString())
+        store.savePermissionFromUser(AgentPermission())
+        resume(db)
+        assertTrue(store.toolExecutor.execute("run", call) is AgentToolResult.PermissionRequired)
+        assertTrue(db.notes().getAll().isEmpty())
+        store.approveFromUser("run", call.id, call.arguments.toString())
         db.notebooks().deleteById("one")
         resume(db)
-        assertTrue(store.toolExecutor.execute("run", create("once")) is AgentToolResult.PermissionRequired)
+        val result = store.toolExecutor.execute("run", call) as AgentToolResult.Finished
+        assertTrue(result.result.content.contains("resource_unavailable"))
         assertTrue(db.notes().getAll().isEmpty())
     } }
 
     @Test fun createdNoteWithUserContentBlocksWholeBatchRejection() = runBlocking { fixture { db, store, library ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val created = store.toolExecutor.execute("run", create("create")) as AgentToolResult.Finished
         val original = db.notes().get(created.noteId())!!
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 后续正文")))
@@ -125,7 +107,7 @@ class AgentLifecycleToolTest {
     } }
 
     @Test fun deletionRequiresLatestVersionAndRejectRestoresWithoutLosingContent() = runBlocking { fixture { db, store, library ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val original = note("note", null)
         db.notes().upsert(original)
         store.toolExecutor.execute("run", read("read", original.id))
@@ -147,7 +129,7 @@ class AgentLifecycleToolTest {
 
     @Test fun rejectDeletionKeepsUserRestorationAndFallsBackToUnfiled() = runBlocking { fixture { db, store, library ->
         books(db)
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val original = note("note", "one")
         db.notes().upsert(original)
         store.toolExecutor.execute("run", read("read", original.id)); store.toolExecutor.execute("run", delete("delete", original))
@@ -165,7 +147,7 @@ class AgentLifecycleToolTest {
     } }
 
     @Test fun editThenDeletionRejectIsAtomicWhenEarlierEditConflicts() = runBlocking { fixture { db, store, library ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val original = note("note", null)
         db.notes().upsert(original)
         AgentReviewStore(db).applyEdit("run", "edit", original.editBase(), AgentEditableContent(original.title, document("Agent 正文")))
@@ -179,7 +161,7 @@ class AgentLifecycleToolTest {
     } }
 
     @Test fun acceptedCreationAndDeletionCanBeUndoneAndPermanentDeletionIsUnrecoverable() = runBlocking { fixture { db, store, library ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val id = (store.toolExecutor.execute("run", create("create")) as AgentToolResult.Finished).noteId()
         val reviews = AgentReviewStore(db)
         reviews.accept(id); reviews.undoAccepted(id)
@@ -194,8 +176,8 @@ class AgentLifecycleToolTest {
         assertTrue(db.agent().noteChanges(id).isEmpty())
     } }
 
-    @Test fun creationRollbackIncludesRunGrantToolResultAndReview() = runBlocking { fixture { db, store, _ ->
-        store.savePermissionFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.Unfiled))
+    @Test fun creationRollbackIncludesToolResultAndReview() = runBlocking { fixture { db, store, _ ->
+        store.savePermissionFromUser(AgentPermission(AgentPermissionMode.FullAccess))
         val run = db.agent().run("run")!!
         try { db.useWriterConnection { it.immediateTransaction {
             store.toolExecutor.execute("run", create("rollback")); error("before outer commit")

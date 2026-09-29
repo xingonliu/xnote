@@ -10,13 +10,29 @@ import java.util.UUID
 
 // -- Type Definitions
 
-/** All providers share durable call identity, permission rechecks and atomic local commits. */
+/** Every provider crosses the same durable approval boundary before its handler is called. */
 class AgentToolExecutor(private val database: XNoteDatabase, private val notes: AgentNoteStore, private val registry: AgentToolRegistry) {
     // -- Functions
 
     suspend fun execute(runId: String, call: ModelToolCall): AgentToolResult =
         if (registry.mode(call.name) == AgentToolExecutionMode.External) executeExternal(runId, call)
-        else executeLocal(runId, call)
+        else transaction {
+            val run = requireNotNull(database.agent().run(runId))
+            require(run.status == AgentRunStatus.Running)
+            val event = event(run, call)
+            replay(run, call, event)?.let { return@transaction it }
+            gate(run, call, event)?.let { return@transaction it }
+            val executing = event.copy(status = AgentToolStatus.Executing, permissionRevision = AgentPermissionStore(database).current().revision)
+            database.agent().saveToolEvent(executing)
+            val result = try {
+                withContext(AgentCallExecution(run.id, call.id, executing.permissionRevision)) {
+                    registry.execute(notes.toolContext(run), call)
+                }
+            } catch (_: IllegalArgumentException) {
+                error(call, "invalid_arguments")
+            }
+            finish(run, call, executing, result)
+        }
 
     suspend fun reconcilePending(runId: String) {
         for (event in database.agent().toolEvents(runId).filter { it.status in setOf(AgentToolStatus.Executing, AgentToolStatus.Unknown) }) {
@@ -26,113 +42,118 @@ class AgentToolExecutor(private val database: XNoteDatabase, private val notes: 
     }
 
     private suspend fun executeExternal(runId: String, call: ModelToolCall, recovering: Boolean = false): AgentToolResult {
+        var immediate: AgentToolResult? = null
         var fresh = false
-        val context = transaction {
+        val prepared = transaction {
             val run = requireNotNull(database.agent().run(runId))
             require(recovering || run.status == AgentRunStatus.Running)
-            val old = database.agent().toolEvent(runId, call.id)
-            require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments))
-            if (old?.status in setOf(AgentToolStatus.Committed, AgentToolStatus.Denied, AgentToolStatus.Failed)) return@transaction null
-            val context = notes.toolContext(run)
-            if (!registry.authorized(context, call)) {
-                require(old?.status !in setOf(AgentToolStatus.Executing, AgentToolStatus.Unknown)) { "外部工具授权已撤销，原调用结果尚未核实。" }
-                val denied = old ?: AgentToolEventEntity(id(), runId, call.id, call.name, call.arguments.toString(), null,
-                    AgentToolStatus.Requested, context.access.permission.revision, now())
-                database.agent().saveToolEvent(denied.copy(status = AgentToolStatus.Denied, committedAtEpochMs = now(),
-                    resultJson = "{\"error\":\"external_permission_required\"}", decisionsJson = decisions(denied, run, "外部工具独立授权不足，未执行。")))
-                return@transaction null
+            val event = event(run, call)
+            immediate = replay(run, call, event)
+            if (immediate != null) return@transaction null
+            fresh = event.status !in setOf(AgentToolStatus.Executing, AgentToolStatus.Unknown)
+            if (fresh) {
+                require(!recovering)
+                immediate = gate(run, call, event)
+                if (immediate != null) return@transaction null
+            } else {
+                // Reconciliation also performs external I/O and cannot run after a permission change.
+                require(event.permissionRevision == AgentPermissionStore(database).current().revision &&
+                    AgentPermissionStore(database).current().mode != AgentPermissionMode.Private) { "权限已变化，外部调用结果待核实。" }
             }
-            fresh = old == null || old.status == AgentToolStatus.Requested
-            require(!recovering || !fresh)
-            database.agent().saveToolEvent((old ?: AgentToolEventEntity(id(), runId, call.id, call.name, call.arguments.toString(), null,
-                AgentToolStatus.Requested, context.access.permission.revision, now())).copy(status = AgentToolStatus.Executing))
-            context
-        } ?: return executeLocal(runId, call, allowInactive = recovering)
+            val executing = event.copy(status = AgentToolStatus.Executing, permissionRevision = AgentPermissionStore(database).current().revision)
+            database.agent().saveToolEvent(executing)
+            run to executing
+        } ?: return requireNotNull(immediate)
+        val (run, event) = prepared
         try {
-            // External I/O never holds a database transaction. Providers use runId + callId as their operation identity.
-            val result = if (fresh) registry.execute(context, call) else registry.reconcile(context, call)
-            require(result is AgentToolResult.Finished) { "外部工具结果尚未核实，保留调用记录，不能重复执行。" }
-            return withContext(NonCancellable) {
-                executeLocal(runId, call, result, allowInactive = true)
+            val result = withContext(AgentCallExecution(run.id, call.id, event.permissionRevision)) {
+                val context = notes.toolContext(run)
+                require(context.access.canAccessData()) { "权限已变化，停止外部派发。" }
+                if (fresh) registry.execute(context, call) else registry.reconcile(context, call)
             }
+            require(result is AgentToolResult.Finished) { "外部工具结果尚未核实，不能重复执行。" }
+            return withContext(NonCancellable) { transaction {
+                val current = AgentPermissionStore(database).current()
+                finish(run, call, event, if (current.revision == event.permissionRevision) result else error(call, "external_result_unavailable"))
+            } }
         } catch (failure: Exception) {
             withContext(NonCancellable) { transaction {
-                val event = requireNotNull(database.agent().toolEvent(runId, call.id))
-                if (event.status == AgentToolStatus.Executing) database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Unknown))
+                database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Unknown))
             } }
             throw failure
         }
     }
 
-    private suspend fun executeLocal(runId: String, call: ModelToolCall, externalResult: AgentToolResult.Finished? = null,
-        allowInactive: Boolean = false): AgentToolResult = transaction {
+    private suspend fun event(run: AgentRunEntity, call: ModelToolCall): AgentToolEventEntity {
         currentCoroutineContext().ensureActive()
-        val run = requireNotNull(database.agent().run(runId))
-        require(allowInactive || run.status == AgentRunStatus.Running) { "运行已暂停或停止，不能继续派发工具。" }
-        val old = database.agent().toolEvent(runId, call.id)
-        require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments)) { "工具调用 ID 不能复用为不同操作。" }
-        if (old?.status in setOf(AgentToolStatus.Committed, AgentToolStatus.Denied, AgentToolStatus.Failed)) {
-            val sources = Json.decodeFromString<List<AgentMessageSource>>(checkNotNull(old).sourcesJson)
-            return@transaction if (registry.authorized(notes.toolContext(run), call) && old.permissionRevision == AgentPermissionStore(database).current().revision && notes.canUseSources(run, sources) && AgentMemoryProvenance(database).canUse(old.id, run)) AgentToolResult.Finished(
-                ModelToolResult(call.id, call.name, checkNotNull(old.resultJson)), sources, database.memory().sourceIds(old.id),
-            ) else unavailable(call)
+        val old = database.agent().toolEvent(run.id, call.id)
+        require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments)) {
+            "工具调用 ID 不能复用为不同操作。"
         }
+        return old ?: AgentToolEventEntity(UUID.randomUUID().toString(), run.id, call.id, call.name,
+            call.arguments.toString(), null, AgentToolStatus.Requested, AgentPermissionStore(database).current().revision,
+            System.currentTimeMillis()).also { database.agent().saveToolEvent(it) }
+    }
+
+    private suspend fun replay(run: AgentRunEntity, call: ModelToolCall, event: AgentToolEventEntity): AgentToolResult? {
+        if (event.status !in setOf(AgentToolStatus.Committed, AgentToolStatus.Denied, AgentToolStatus.Failed)) return null
+        if (event.status != AgentToolStatus.Committed) return AgentToolResult.Finished(
+            ModelToolResult(call.id, call.name, requireNotNull(event.resultJson)), emptyList())
+        val sources = Json.decodeFromString<List<AgentMessageSource>>(event.sourcesJson)
         val permission = AgentPermissionStore(database).current()
-        val event = old ?: AgentToolEventEntity(id(), runId, call.id, call.name, call.arguments.toString(), null,
-            AgentToolStatus.Requested, permission.revision, now())
-        database.agent().saveToolEvent(event)
-        val result = try {
-            if (externalResult != null) {
-                if (registry.authorized(notes.toolContext(run), call) && notes.canUseSources(run, externalResult.sources)) externalResult
-                else finished(call, buildJsonObject { put("error", "external_result_unavailable"); put("executed", true) })
-            } else registry.execute(notes.toolContext(run), call)
-        } catch (_: IllegalArgumentException) {
-            finished(call, buildJsonObject { put("error", "invalid_arguments") })
+        return if (permission.mode != AgentPermissionMode.Private && event.permissionRevision == permission.revision &&
+            registry.authorized(notes.toolContext(run), call) && notes.canUseSources(run, sources) && AgentMemoryProvenance(database).canUse(event.id, run))
+            AgentToolResult.Finished(ModelToolResult(call.id, call.name, requireNotNull(event.resultJson)), sources, database.memory().sourceIds(event.id))
+        else error(call, "unavailable_under_current_permission")
+    }
+
+    private suspend fun gate(run: AgentRunEntity, call: ModelToolCall, event: AgentToolEventEntity): AgentToolResult? {
+        val permission = AgentPermissionStore(database).current()
+        registry.validationError(call)?.let { return finish(run, call, event, error(call, it)) }
+        if (permission.mode == AgentPermissionMode.Private) return finish(run, call, event, error(call, "private_mode"))
+        val context = notes.toolContext(run)
+        if (context.selection != null && !registry.allowedInSelection(call.name)) return finish(run, call, event, error(call, "selection_scope"))
+        if (!registry.authorized(context, call)) return finish(run, call, event, error(call, "tool_unavailable"))
+        if (permission.mode == AgentPermissionMode.RequestApproval &&
+            (event.status != AgentToolStatus.Approved || event.permissionRevision != permission.revision)) {
+            database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Requested, permissionRevision = permission.revision,
+                resultJson = null, decisionsJson = decisions(event, permission, "等待用户批准本次函数调用及其固定参数。")))
+            database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingPermission, updatedAtEpochMs = System.currentTimeMillis()))
+            return AgentToolResult.PermissionRequired(call.id)
         }
-        if (result is AgentToolResult.Finished) {
-            AgentMemoryProvenance(database).save(event.id, result.sourceMessageIds)
-            val error = Json.parseToJsonElement(result.result.content).jsonObject["error"]?.jsonPrimitive?.content
-            val reason = when (error) {
-                "invalid_arguments" -> "参数未通过结构或范围校验，未执行操作。"
-                "read_required" -> "当前话题没有该版本的读取基线，须先读取再修改。"
-                "selection_scope" -> "选区润色只能修改用户选中的文字，不能创建、删除或修改其他笔记。"
-                "unsupported_tool" -> "该工具未开放，未执行操作。"
-                "unavailable_under_current_permission" -> "指定快照不存在、已失效或当前权限不允许读取，未替换为当前正文。"
-                else -> registry.reason(call.name)
+        return null
+    }
+
+    private suspend fun finish(run: AgentRunEntity, call: ModelToolCall, event: AgentToolEventEntity, result: AgentToolResult): AgentToolResult {
+        val permission = AgentPermissionStore(database).current()
+        val now = System.currentTimeMillis()
+        when (result) {
+            is AgentToolResult.Finished -> {
+                AgentMemoryProvenance(database).save(event.id, result.sourceMessageIds)
+                val failure = Json.parseToJsonElement(result.result.content).jsonObject["error"]?.jsonPrimitive?.content
+                database.agent().saveToolEvent(event.copy(resultJson = result.result.content, sourcesJson = Json.encodeToString(result.sources),
+                    status = if (failure == null) AgentToolStatus.Committed else AgentToolStatus.Denied,
+                    decisionsJson = decisions(event, permission, failure ?: registry.reason(call.name)), committedAtEpochMs = now))
             }
-            database.agent().saveToolEvent(event.copy(resultJson = result.result.content,
-                sourcesJson = Json.encodeToString(result.sources), status = when (error) {
-                    null -> AgentToolStatus.Committed
-                    "invalid_arguments" -> AgentToolStatus.Failed
-                    else -> AgentToolStatus.Denied
-                }, decisionsJson = decisions(event, requireNotNull(database.agent().run(run.id)), reason),
-                permissionRevision = permission.revision, committedAtEpochMs = now()))
-        } else if (result is AgentToolResult.Conflict) {
-            database.agent().saveToolEvent(event.copy(permissionRevision = permission.revision,
-                resultJson = buildJsonObject { put("error", "edit_conflict"); put("location", result.location); put("next_step", "read_current_and_replan") }.toString(),
-                sourcesJson = Json.encodeToString(listOf(AgentMessageSource(call.arguments.getValue("note_id").jsonPrimitive.content))),
-                decisionsJson = decisions(event, run, "写入与当前内容冲突，正文未改变；等待用户后重新读取并调整。")))
-            database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingConflict, updatedAtEpochMs = now()))
-        } else {
-            database.agent().saveToolEvent(event.copy(permissionRevision = permission.revision,
-                decisionsJson = decisions(event, run, "当前权限与范围不足以执行请求，等待用户授权；队列不继续。")))
-            database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingPermission, updatedAtEpochMs = now()))
+            is AgentToolResult.Conflict -> {
+                database.agent().saveToolEvent(event.copy(status = AgentToolStatus.Requested,
+                    resultJson = buildJsonObject { put("error", "edit_conflict"); put("location", result.location) }.toString(),
+                    decisionsJson = decisions(event, permission, "写入冲突，正文未改变；须重新读取并提出新调用。")))
+                database.agent().saveRun(run.copy(status = AgentRunStatus.WaitingConflict, updatedAtEpochMs = now))
+            }
+            is AgentToolResult.PermissionRequired -> {
+                // The global approval has already passed; a resource failure must never broaden it.
+                return finish(run, call, event, error(call, "resource_unavailable"))
+            }
         }
-        result
+        return result
     }
 
-    private suspend fun decisions(event: AgentToolEventEntity, run: AgentRunEntity, reason: String): String {
-        val access = notes.access(run)
-        val grant = access.grant?.takeIf { it.runId == run.id && it.permissionRevision == access.permission.revision }
-        return Json.encodeToString(Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson) +
-            AgentToolDecision(now(), access.permission, grant, access.attachedNoteIds, reason))
-    }
+    private fun decisions(event: AgentToolEventEntity, permission: AgentPermission, reason: String): String =
+        Json.encodeToString(Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson) +
+            AgentToolDecision(System.currentTimeMillis(), permission, emptySet(), reason))
 
-    private fun unavailable(call: ModelToolCall) = AgentToolResult.Finished(
-        ModelToolResult(call.id, call.name, "{\"error\":\"unavailable_under_current_permission\"}"), emptyList())
-
-    private fun finished(call: ModelToolCall, value: JsonObject) = AgentToolResult.Finished(ModelToolResult(call.id, call.name, value.toString()), emptyList())
+    private fun error(call: ModelToolCall, code: String) = AgentToolResult.Finished(
+        ModelToolResult(call.id, call.name, buildJsonObject { put("error", code) }.toString()), emptyList())
     private suspend fun <T> transaction(block: suspend () -> T): T = database.useWriterConnection { it.immediateTransaction { block() } }
-    private fun id(): String = UUID.randomUUID().toString()
-    private fun now(): Long = System.currentTimeMillis()
 }

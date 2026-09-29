@@ -5,26 +5,12 @@ import kotlinx.serialization.Serializable
 // -- Type Definitions
 
 @Serializable
-enum class AgentPermissionLevel { None, Read, Edit }
-
-@Serializable
-enum class AgentScope { Attached, Unfiled, Notebooks, All }
+enum class AgentPermissionMode { Private, RequestApproval, FullAccess }
 
 @Serializable
 data class AgentPermission(
-    val level: AgentPermissionLevel = AgentPermissionLevel.None,
-    val scope: AgentScope = AgentScope.Attached,
-    val notebookIds: Set<String> = emptySet(),
+    val mode: AgentPermissionMode = AgentPermissionMode.RequestApproval,
     val revision: Long = 0,
-)
-
-@Serializable
-data class AgentRunGrant(
-    val runId: String,
-    val permissionRevision: Long,
-    val level: AgentPermissionLevel,
-    val noteIds: Set<String> = emptySet(),
-    val createdNoteIds: Set<String> = emptySet(),
 )
 
 @Serializable
@@ -41,19 +27,11 @@ data class AgentAccessContext(
     val runId: String,
     val segmentId: String,
     val attachedNoteIds: Set<String> = emptySet(),
-    val grant: AgentRunGrant? = null,
-)
-
-data class AgentSnapshotAccess(
-    val noteId: String,
-    val segmentId: String,
-    val permissionRevision: Long,
-    val segmentOpen: Boolean,
+    val executingApprovedCall: Boolean = false,
 )
 
 sealed interface AgentCreateDecision {
     data class Allowed(val target: AgentCreateTarget) : AgentCreateDecision
-    data class Choose(val targets: Set<AgentCreateTarget>) : AgentCreateDecision
     data object RequiresAuthorization : AgentCreateDecision
 }
 
@@ -70,7 +48,7 @@ enum class AgentRunStatus { Pending, Running, WaitingPermission, WaitingConflict
 enum class AgentQueueStatus { Waiting, Paused, Dispatched }
 
 @Serializable
-enum class AgentToolStatus { Requested, Denied, Executing, Committed, Failed, Unknown }
+enum class AgentToolStatus { Requested, Approved, Denied, Executing, Committed, Failed, Unknown }
 
 @Serializable
 enum class AgentChangeOrigin { User, Agent }

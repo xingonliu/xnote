@@ -19,8 +19,6 @@ import androidx.compose.ui.unit.dp
 import com.xnote.app.R
 import com.xnote.app.design.*
 import com.xnote.app.domain.agent.AgentPermission
-import com.xnote.app.domain.agent.AgentPermissionLevel
-import com.xnote.app.domain.agent.AgentScope
 
 // -- Type Definitions
 
@@ -47,16 +45,7 @@ fun AgentComposer(
 ) {
     // -- Derived Values
 
-    val permissionSummary = when (permission.level) {
-        AgentPermissionLevel.None -> "不可查看"
-        AgentPermissionLevel.Read -> "可查看"
-        AgentPermissionLevel.Edit -> "可编辑"
-    } + " · " + when (permission.scope) {
-        AgentScope.Attached -> "附加笔记"
-        AgentScope.Unfiled -> "未归档"
-        AgentScope.Notebooks -> "指定笔记本"
-        AgentScope.All -> "全部笔记"
-    }
+    val permissionSummary = permission.mode.permissionLabel()
 
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
         XNoteSmoothCornerShape(24.dp)).padding(8.dp).testTag("agent-composer")) {
@@ -98,7 +87,7 @@ fun AgentComposer(
                 Icon(painterResource(R.drawable.ic_keyline_stroke_plus), "添加附件", Modifier.size(22.dp))
             }
             TextButton(onPermission, Modifier.weight(1f).testTag("agent-permission-settings")
-                .semantics { contentDescription = "权限与范围" }) {
+                .semantics { contentDescription = "Agent 权限" }) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(permissionSummary,
                         Modifier.weight(1f, fill = false), style = MaterialTheme.typography.labelMedium,

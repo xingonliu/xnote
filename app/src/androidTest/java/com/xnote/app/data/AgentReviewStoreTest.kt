@@ -92,11 +92,11 @@ class AgentReviewStoreTest {
     @Test fun permissionMediaAndIdempotencyBoundariesAreEnforced() = runBlocking {
         fixture { db, store, _ ->
             val base = db.notes().get("note")!!
-            for (level in listOf(AgentPermissionLevel.None, AgentPermissionLevel.Read)) {
-                AgentPermissionStore(db).saveFromUser(AgentPermission(level, AgentScope.All))
+            for (level in listOf(AgentPermissionMode.Private, AgentPermissionMode.RequestApproval)) {
+                AgentPermissionStore(db).saveFromUser(AgentPermission(level))
                 assertEquals(AgentReviewResult.PermissionRequired, store.applyEdit("run", "denied", base.editBase(), content("Agent")))
             }
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val first = store.applyEdit("run", "once", base.editBase(), content("A middle end"))
             assertEquals(first, store.applyEdit("run", "once", base.editBase(), content("A middle end")))
             assertEquals(1, db.agent().noteChanges("note").size)
@@ -150,7 +150,7 @@ class AgentReviewStoreTest {
             val note = NoteEntity("note", null, "", document("start middle end").encodeToJson(), null, 0, 0, 0, "", 1, 1, null, null)
             db.notes().upsert(note)
             db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             AgentReviewStore(db).applyEdit("run", "durable", note.editBase(), content("A middle end"))
             db.close()
             db = XNoteDatabase.create(context, name)
@@ -220,7 +220,7 @@ class AgentReviewStoreTest {
         try {
             db.notes().upsert(NoteEntity("note", null, "", document("start middle end").encodeToJson(), null, 0, 0, 0, "", 1, 1, null, null))
             db.agent().saveRun(AgentRunEntity("run", "segment", "user", "profile", 1, AgentRunStatus.Running, 1, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             block(db, AgentReviewStore(db, clock::nowMs), library)
         } finally { db.close() }
     }

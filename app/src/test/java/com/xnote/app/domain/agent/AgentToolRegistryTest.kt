@@ -19,7 +19,7 @@ class AgentToolRegistryTest {
             AgentToolResult.Finished(ModelToolResult(call.id, call.name, "{}"), emptyList())
         }, auditReason = "独立服务权限")) }
         val registry = AgentToolRegistry(listOf(provider))
-        val context = AgentToolContext(AgentAccessContext(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All), "run", "segment"))
+        val context = AgentToolContext(AgentAccessContext(AgentPermission(AgentPermissionMode.FullAccess), "run", "segment"))
         assertEquals(listOf(definition), registry.definitions(context))
         allowed = false
         assertTrue(registry.execute(context, ModelToolCall("call", definition.name, buildJsonObject {})) is AgentToolResult.PermissionRequired)

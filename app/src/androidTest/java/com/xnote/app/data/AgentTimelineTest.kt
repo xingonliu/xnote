@@ -19,7 +19,7 @@ class AgentTimelineTest {
         withFixture { db, profiles, scope ->
             seedReadableNote(db)
             assertFalse(profiles.active().capabilities.tools)
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             var requests = 0
             val timeline = AgentTimeline(db, profiles, client { request ->
                 requests++
@@ -105,7 +105,7 @@ class AgentTimelineTest {
             timeline.send("用户输入")
             withTimeout(5000) { timeline.messages.first { it.any { message -> message.text == "部分回复" } } }
             assertEquals(AgentMessageStatus.Streaming, db.agent().messages().last().status)
-            assertEquals(setOf("memory_remember", "memory_search", "memory_read"), captured.single().tools.map { it.name }.toSet())
+            assertEquals(setOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read"), captured.single().tools.map { it.name }.toSet())
             release.complete(Unit)
             withTimeout(5000) { timeline.runs.first { it.lastOrNull()?.status == AgentRunStatus.Complete } }
             assertEquals("部分回复，完成", db.agent().messages().last().text)
@@ -177,6 +177,7 @@ class AgentTimelineTest {
 
     @Test fun newTopicPreservesHistoryWithMarkedPendingSummaryTail() = runBlocking {
         withFixture { db, profiles, scope ->
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val requests = mutableListOf<ModelRequest>()
             val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("回答")); emit(ModelEvent.Finished(ModelFinish.Complete)) }, scope)
             timeline.send("旧话题")
@@ -383,7 +384,7 @@ class AgentTimelineTest {
             seedReadableNote(db)
             val profile = profiles.active()
             profiles.recordCapabilities(profile, ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Read, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
             val timeline = AgentTimeline(db, profiles, client { request ->
                 requests += request
@@ -398,7 +399,7 @@ class AgentTimelineTest {
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("read", "note_search", "memory_remember", "memory_search", "memory_read"), requests.first().tools.map { it.name })
+            assertEquals(listOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read"), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
             val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
@@ -438,7 +439,7 @@ class AgentTimelineTest {
             val reopened = AgentTimeline(db, profiles, model, scope)
             reopened.awaitReady()
             assertEquals(1, requests.size)
-            reopened.answerPermission(waiting.id, "authorize", AgentPermission(AgentPermissionLevel.Read, AgentScope.Unfiled))
+            reopened.answerPermission(waiting.id, "authorize", true, db.agent().toolEvent(waiting.id, "authorize")!!.argumentsJson)
             withTimeout(5000) { reopened.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
             assertTrue(requests.last().messages.last().results.single().content.contains("受保护正文"))
@@ -463,7 +464,7 @@ class AgentTimelineTest {
             }, scope)
             timeline.send("需要授权")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
-            timeline.answerPermission(db.agent().unfinishedRuns().single().id, "denied", null)
+            timeline.answerPermission(db.agent().unfinishedRuns().single().id, "denied", false)
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             val result = requests.last().messages.last().results.single()
             assertTrue(result.content.contains("user_denied"))
@@ -503,7 +504,7 @@ class AgentTimelineTest {
         withFixture { db, profiles, scope ->
             seedReadableNote(db)
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
             val reachedWrite = CompletableDeferred<Unit>()
             val releaseWrite = CompletableDeferred<Unit>()
@@ -557,7 +558,7 @@ class AgentTimelineTest {
         }
     }
 
-    @Test fun createdNoteGrantSurvivesModelUsageAndCompletionWithoutExpandingGlobalPermission() = runBlocking {
+    @Test fun creationApprovalDoesNotAuthorizeFollowingRead() = runBlocking {
         withFixture { db, profiles, scope ->
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
             var requests = 0
@@ -580,16 +581,18 @@ class AgentTimelineTest {
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             val waiting = db.agent().unfinishedRuns().single()
             assertEquals(AgentRunStatus.WaitingPermission, waiting.status)
-            timeline.answerCreation(waiting.id, "create", AgentCreateTarget(null))
+            timeline.answerPermission(waiting.id, "create", true, db.agent().toolEvent(waiting.id, "create")!!.argumentsJson)
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            assertEquals(2, requests)
+            assertEquals(AgentRunStatus.WaitingPermission, db.agent().run(waiting.id)!!.status)
+            timeline.answerPermission(waiting.id, "read", true, db.agent().toolEvent(waiting.id, "read")!!.argumentsJson)
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(3, requests)
             assertEquals(AgentPermission(), AgentPermissionStore(db).current())
             val completed = db.agent().run(waiting.id)!!
             assertEquals(AgentRunStatus.Complete, completed.status)
             assertEquals(5L, completed.inputTokens)
-            val grant = Json.decodeFromString<AgentRunGrant>(completed.grantJson!!)
-            assertEquals(setOf(createdId), grant.createdNoteIds)
-            assertTrue(grant.noteIds.isEmpty())
+            assertFalse(timeline.noteStore.access(completed).canEdit(AgentNoteAccess(createdId, null)))
             timeline.reviewStore.reject(createdId)
             assertNotNull(db.notes().get(createdId)!!.deletedAtEpochMs)
         }
@@ -599,7 +602,7 @@ class AgentTimelineTest {
         withFixture { db, profiles, scope ->
             seedReadableNote(db)
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
-            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionLevel.Edit, AgentScope.All))
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val original = db.notes().get("readable")!!
             val requests = mutableListOf<ModelRequest>()
             val timeline = AgentTimeline(db, profiles, client { request ->
