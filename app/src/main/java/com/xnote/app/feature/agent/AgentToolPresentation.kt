@@ -1,8 +1,13 @@
 package com.xnote.app.feature.agent
 
+import com.xnote.app.domain.agent.AgentToolStatus
 import kotlinx.serialization.json.*
 
 // -- Functions
+
+internal fun agentToolSummary(name: String, target: String, status: AgentToolStatus): String =
+    listOfNotNull(agentToolTitle(name), status.takeIf { it != AgentToolStatus.Committed }?.toolStatusLabel(),
+        target.replace(Regex("\\s+"), " ").trim().takeIf { it.isNotBlank() }).joinToString(" · ")
 
 internal fun agentToolTitle(name: String): String = when (name) {
     "read" -> "读取笔记"

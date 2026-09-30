@@ -43,7 +43,7 @@ class AgentLifecycleFlowTest {
         db.close()
     }
 
-    @Test fun explicitlyAuthorizeCreationThenOpenItsReviewFromTimelineCard() {
+    @Test fun explicitlyAuthorizeCreationThenOpenItsReviewFromExpandedTool() {
         runBlocking {
             profiles.save(ModelProfile("lifecycle-ui", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
@@ -73,6 +73,8 @@ class AgentLifecycleFlowTest {
         val note = runBlocking { db.notes().getAll().single() }
         assertEquals("book", note.notebookId)
         assertEquals(AgentPermission(), runBlocking { AgentPermissionStore(db).current() })
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("新建笔记", substring = true))
+        compose.onNodeWithText("新建笔记", substring = true).performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasTestTag("agent-review-receipt-${note.id}"))
         compose.onNodeWithTag("agent-review-receipt-${note.id}").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-review-reject").fetchSemanticsNodes().isNotEmpty() }
@@ -82,7 +84,7 @@ class AgentLifecycleFlowTest {
         assertEquals(AgentReviewStatus.Rejected, runBlocking { db.agent().reviews(note.id).single().status })
     }
 
-    @Test fun deletionCardOpensTheReviewAndRejectionRestoresTheNote() {
+    @Test fun expandedDeletionToolOpensTheReviewAndRejectionRestoresTheNote() {
         val note = runBlocking {
             profiles.save(ModelProfile("delete-ui", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
             profiles.recordCapabilities(profiles.active(), ModelCapabilities(true, true, 1))
@@ -104,6 +106,8 @@ class AgentLifecycleFlowTest {
         compose.onNodeWithText("Agent").performClick()
         runBlocking { timeline.selectDraftNotes(listOf(note.id)); timeline.send("删除这篇笔记") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.notes().get(note.id)!!.deletedAtEpochMs != null } }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("删除笔记", substring = true))
+        compose.onNodeWithText("删除笔记", substring = true).performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasTestTag("agent-review-receipt-${note.id}"))
         compose.onNodeWithTag("agent-note-receipt-${note.id}").assertTextContains("已移入回收站", substring = true)
         screenshot("deletion-card")

@@ -21,8 +21,6 @@ import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.text.extractPlainText
 import kotlinx.serialization.json.*
-import java.text.DateFormat
-import java.util.Date
 
 // -- Functions
 
@@ -88,14 +86,13 @@ private fun AgentRequestSummary(event: AgentToolEventEntity, noteTitles: Map<Str
 }
 
 @Composable
-private fun AgentRequestDetails(event: AgentToolEventEntity, tag: String, includeResult: Boolean = false) {
+private fun AgentRequestDetails(event: AgentToolEventEntity, tag: String) {
     var expanded by remember(event.id) { mutableStateOf(agentToolTitle(event.name) == event.name) }
     XNoteButton({ expanded = !expanded }) { Text(if (expanded) "收起详情" else "查看完整请求") }
     if (expanded) {
         SelectionContainer {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(event.argumentsJson, Modifier.testTag(tag), style = MaterialTheme.typography.bodySmall)
-                if (includeResult) Text(event.resultJson ?: "尚无结果", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -107,24 +104,6 @@ fun AgentSnapshotDialog(snapshot: AgentSnapshotEntity, backdrop: Backdrop, onDis
         Text(snapshot.title.ifBlank { "未命名笔记" }, style = MaterialTheme.typography.titleMedium)
         Text(extractPlainText(decodeNoteDocument(snapshot.documentJson)).ifBlank { "暂无正文" },
             Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).testTag("agent-snapshot-body"))
-    }
-}
-
-@Composable
-fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, noteTitles: Map<String, String>, notebookTitles: Map<String, String>,
-    onContinue: (() -> Unit)?, onStop: (() -> Unit)?, onDismiss: () -> Unit) {
-    XNoteDialog(true, onDismiss, "操作详情", backdrop, XNoteDialogAction("关闭", onDismiss)) {
-        Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(event.status.toolStatusLabel(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            AgentRequestSummary(event, noteTitles, notebookTitles)
-            Text(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(event.createdAtEpochMs)),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            val decisions = remember(event.decisionsJson) { runCatching { Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson) }.getOrDefault(emptyList()) }
-            decisions.lastOrNull()?.let { Text("当时的权限：${it.permission.mode.permissionLabel()}", style = MaterialTheme.typography.bodySmall) }
-            AgentRequestDetails(event, "agent-tool-arguments", includeResult = true)
-            if (onStop != null) XNoteButton(onStop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止任务") }
-            if (onContinue != null) XNoteButton(onContinue, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续任务") }
-        }
     }
 }
 

@@ -289,12 +289,12 @@ class AgentFlowTest {
         screenshot("agent-call-approval")
         compose.onNodeWithText("允许本次").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记"))
-        compose.onNodeWithText("读取笔记").performClick()
-        compose.onNodeWithText("我的").assertDoesNotExist()
-        compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
-        compose.onAllNodesWithText("当时权限：请求批准 · 版本 0")[0].assertExists()
-        compose.onNodeWithText("当时的权限：请求批准", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记", substring = true))
+        compose.onNodeWithText("读取笔记", substring = true).performClick()
+        compose.onNodeWithText("我的").assertExists()
+        compose.onNodeWithText("调用参数").assertExists()
+        compose.onNodeWithText("执行结果").assertExists()
+        compose.onAllNodesWithText("当时的权限：请求批准")[0].performScrollTo().assertIsDisplayed()
         screenshot("agent-tool-decision")
         compose.onNodeWithTag("agent-tool-continue").performScrollTo().performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.text == "继续任务已完成" } } }
@@ -334,8 +334,8 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scroll-to-bottom").assertIsDisplayed()
         compose.onNodeWithTag("agent-running-dots").assertExists()
         compose.onNodeWithTag("agent-scroll-arrow").assertDoesNotExist()
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记"))
-        compose.onNodeWithText("读取笔记").performClick()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记", substring = true))
+        compose.onNodeWithText("读取笔记", substring = true).performClick()
         compose.onNodeWithTag("agent-tool-stop").performScrollTo().performClick()
         compose.waitUntil(5000) { !running.state.value.running }
         runBlocking {

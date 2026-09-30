@@ -73,7 +73,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val density = LocalDensity.current
     var permissionRequest by remember { mutableStateOf<AgentToolEventEntity?>(null) }
     var snapshotPreview by remember { mutableStateOf<AgentSnapshotEntity?>(null) }
-    var toolPreview by remember { mutableStateOf<AgentToolEventEntity?>(null) }
     val context = LocalContext.current
     var notificationsEnabled by remember { mutableStateOf(context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -105,7 +104,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val fileCards = fileHistory.orEmpty()
     val historyLoaded = state.ready && composerHeight > 0.dp && messageHistory != null && runHistory != null &&
         queuedHistory != null && toolHistory != null && fileHistory != null
-    val modalVisible = attachDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
+    val modalVisible = attachDialog || permissionRequest != null || snapshotPreview != null || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
     val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
@@ -191,7 +190,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("此任务需要你的授权", style = MaterialTheme.typography.titleMedium)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton({ toolPreview = request }) { Text("查看请求") }
                                 XNoteButton({ permissionRequest = request }, enabled = !state.running,
                                     modifier = Modifier.testTag("agent-authorize")) { Text("查看并允许") }
                                 TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
@@ -215,8 +213,16 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                     Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(chronologicalIndex - 1), item)) 3.dp else 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         when (item) {
-                            is AgentTimelineItem.Tool -> AgentToolHistoryRow(item.event, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
-                                onPreview = { toolPreview = item.event }, onOpenReviews = ::openReviews)
+                            is AgentTimelineItem.Tool -> {
+                                val event = item.event
+                                val run = runs.find { it.id == event.runId }
+                                val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" &&
+                                    run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
+                                AgentToolHistoryRow(event, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
+                                    onOpenReviews = ::openReviews,
+                                    onContinue = if (canContinue) ({ action { timeline.continueRun(event.runId) } }) else null,
+                                    onStop = if (state.running && run?.status == AgentRunStatus.Running) timeline::stop else null)
+                            }
                             is AgentTimelineItem.Message -> {
                                 val message = item.message
                                 val run = runs.find { it.id == message.runId }
@@ -417,14 +423,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             }
         }
         snapshotPreview?.let { AgentSnapshotDialog(it, backdrop) { snapshotPreview = null } }
-        toolPreview?.let { event ->
-            val run = runs.find { it.id == event.runId }
-            val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
-            AgentToolDialog(event, backdrop, (availableNotes + trashedNotes).associate { it.id to it.title }, notebooks.associate { it.id to it.name },
-                onContinue = if (canContinue) ({ action { timeline.continueRun(event.runId); toolPreview = null } }) else null,
-                onStop = if (state.running && run?.status == AgentRunStatus.Running) timeline::stop else null,
-                onDismiss = { toolPreview = null })
-        }
 
     }
 }
