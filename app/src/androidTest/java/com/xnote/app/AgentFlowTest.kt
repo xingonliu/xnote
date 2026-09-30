@@ -113,14 +113,14 @@ class AgentFlowTest {
         assertTrue(attachmentBounds.bottom <= tabsBounds.top)
         compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
-        compose.onNodeWithText("确认 1 篇").performClick()
+        compose.onNodeWithText("添加 1 篇").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
         compose.onNodeWithTag("agent-input").performTextInput("总结这篇笔记")
         compose.onNodeWithTag("agent-send").performClick()
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Assistant && it.status == AgentMessageStatus.Complete } } }
         hideKeyboard()
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("发送快照 · 测试笔记"))
-        compose.onNodeWithText("发送快照 · 测试笔记").performClick()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("发送时的笔记 · 测试笔记"))
+        compose.onNodeWithText("发送时的笔记 · 测试笔记").performClick()
         compose.onNodeWithTag("agent-snapshot-body").assertTextContains("发送时正文")
         screenshot("agent-snapshot-preview")
         compose.onNodeWithText("关闭").performClick()
@@ -173,7 +173,7 @@ class AgentFlowTest {
         screenshot("agent-attachment-menu")
         compose.onNode(hasText("笔记") and hasAnyAncestor(hasTestTag("agent-attachment-menu"))).performClick()
         compose.onNodeWithTag("agent-attach-${note.id}").performClick()
-        compose.onNodeWithText("确认 1 篇").performClick()
+        compose.onNodeWithText("添加 1 篇").performClick()
         compose.waitUntil(5000) { timeline.draftNotes.value == listOf(note.id) }
         compose.onNodeWithTag("agent-draft-note-${note.id}").performClick()
         compose.onNodeWithText("关闭").performClick()
@@ -251,16 +251,17 @@ class AgentFlowTest {
         hideKeyboard()
         compose.waitUntil(5000) { compose.onAllNodes(hasTestTag("agent-authorize") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("agent-authorize").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        compose.onNodeWithText("查看完整请求").performClick()
         compose.onNodeWithTag("agent-approval-arguments").assertTextContains(note.id, substring = true)
         screenshot("agent-call-approval")
-        compose.onNodeWithText("批准本次").performClick()
+        compose.onNodeWithText("允许本次").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
         compose.onNodeWithText("read · 已完成").performClick()
         compose.onNodeWithText("我的").assertDoesNotExist()
         compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
         compose.onAllNodesWithText("当时权限：请求批准 · 版本 0")[0].assertExists()
-        compose.onAllNodesWithText("用户批准本次函数调用及其固定参数。", substring = true)[0].performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("当时的权限：请求批准", substring = true).performScrollTo().assertIsDisplayed()
         screenshot("agent-tool-decision")
         compose.onNodeWithTag("agent-tool-continue").performScrollTo().performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.text == "继续任务已完成" } } }

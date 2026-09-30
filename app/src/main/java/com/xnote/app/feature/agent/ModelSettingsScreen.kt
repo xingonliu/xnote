@@ -8,13 +8,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.xnote.app.R
 import com.xnote.app.data.agent.*
 import com.xnote.app.design.*
-import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -41,107 +41,127 @@ fun ModelSettingsScreen(
     var editing by remember { mutableStateOf<ModelProfile?>(null) }
     var testing by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
+
     // -- Derived Values
 
     val selected = editing
     val saved = profiles.find { it.id == selected?.id }
-    val edges = setOf(XNoteScrollEdge.Top)
-    // -- Functions
 
-    fun notify(message: String) {
-        toast.show(message)
-    }
+    // -- Functions
 
     fun back() {
         if (saving) return
+        focus.clearFocus()
         selectState.dismiss()
         job?.cancel()
         if (editing != null) editing = null else onBack()
     }
+    fun test(attachments: Boolean) {
+        val profile = saved ?: return
+        testing = true
+        job = scope.launch {
+            try {
+                if (attachments) toast.show(ModelAttachmentCapabilityTest(client, store).test(profile).detail)
+                else toast.show(ModelCapabilityTest(client, store).test(profile).detail)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { toast.show(safeModelError(failure)) }
+            finally { testing = false }
+        }
+    }
+
     // -- Listeners
 
     BackHandler { back() }
     key(selected?.id) {
-        XNotePageScaffold(backdrop = backdrop, scrollEdges = edges, alwaysVisibleScrollEdges = edges, content = {
+        val scrollState = rememberScrollState()
+        XNotePageScaffold(backdrop, scrollEdgeState = rememberXNoteScrollEdgeState(scrollState), content = {
             val insets = WindowInsets.safeDrawing.asPaddingValues()
-            Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(
-                start = 24.dp, end = 24.dp, top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
-                bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.align(Alignment.TopCenter).widthIn(max = 760.dp).fillMaxSize().imePadding().verticalScroll(scrollState)
+                .padding(start = 16.dp, end = 16.dp,
+                    top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
+                    bottom = insets.calculateBottomPadding() + 24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 if (selected == null) {
-                    XNoteButton({ editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI, modelId = "", isDefault = profiles.isEmpty()) }, modifier = Modifier.fillMaxWidth().testTag("model-add")) { Text("新增配置") }
-                    if (profiles.isEmpty()) Text("还没有模型配置")
-                    profiles.forEach { profile ->
-                        XNoteGroupCard(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                XNoteButton({ editing = profile },
-                                    modifier = Modifier.fillMaxWidth().testTag("model-profile-${profile.id}")) {
-                                    Text(profile.name + if (profile.isDefault) " · 默认" else "")
-                                }
-                                Text("${profile.modelId} · ${if (profile.enabled) "已启用" else "已停用"}")
-                            }
+                    XNoteSettingsSection("模型配置") {
+                        if (profiles.isEmpty()) XNoteSettingsRow("还没有模型配置", summary = "添加模型，让 Agent 帮你整理笔记。")
+                        profiles.forEachIndexed { index, profile ->
+                            if (index > 0) XNoteInsetDivider()
+                            XNoteSettingsRow(profile.name + if (profile.isDefault) " · 默认" else "",
+                                Modifier.testTag("model-profile-${profile.id}"),
+                                summary = profile.modelId + if (!profile.enabled) " · 已停用" else "", onClick = { editing = profile })
                         }
+                        if (profiles.isNotEmpty()) XNoteInsetDivider()
+                        XNoteSettingsRow("新增配置", Modifier.testTag("model-add"), icon = R.drawable.ic_keyline_stroke_plus,
+                            onClick = { editing = ModelProfile(UUID.randomUUID().toString(), name = "", protocol = ModelProtocol.OpenAI,
+                                modelId = "", isDefault = profiles.isEmpty()) })
                     }
                 } else {
-                    ModelProfileForm(selected, saved == null, catalog, selectState, saving || testing, saving, onNotice = ::notify, onCancel = { back() }) { profile, secret ->
+                    ModelProfileForm(selected, saved == null, catalog, selectState, saving || testing, saving,
+                        onNotice = toast::show) { profile, secret ->
                         focus.clearFocus()
                         saving = true
                         scope.launch {
-                            try { store.save(profile.copy(isDefault = saved?.isDefault ?: profile.isDefault), secret); editing = null; notify("配置已保存") }
+                            try { store.save(profile.copy(isDefault = saved?.isDefault ?: profile.isDefault), secret); editing = null; toast.show("配置已保存") }
                             catch (cancelled: CancellationException) { throw cancelled }
-                            catch (failure: Exception) { notify(safeModelError(failure)) }
+                            catch (failure: Exception) { toast.show(safeModelError(failure)) }
                             finally { saving = false }
                         }
                     }
                     if (saved != null) {
-                        HorizontalDivider()
-                        Text("连接测试仅检查模型可用性，工具按权限默认启用。测试可能产生费用。", style = MaterialTheme.typography.bodySmall)
-                        XNoteButton({
-                            testing = true
-                            job = scope.launch {
-                                try { notify(ModelCapabilityTest(client, store).test(saved).detail) }
-                                catch (cancelled: CancellationException) { throw cancelled }
-                                catch (failure: Exception) { notify(safeModelError(failure)) }
-                                finally { testing = false }
+                        XNoteSettingsSection("连接与支持", description = "测试会向服务商发送请求，可能产生费用。") {
+                            XNoteSettingsRow("连接状态", value = if (saved.capabilities.testedAtEpochMs == null) "未测试"
+                                else if (saved.capabilities.textStreaming) "可用" else "连接失败")
+                            XNoteInsetDivider()
+                            XNoteSettingsRow("图片", value = if (saved.capabilities.images) "已验证" else "未验证")
+                            XNoteInsetDivider()
+                            XNoteSettingsRow("PDF", value = if (saved.capabilities.pdf) "已验证" else "未验证")
+                            XNoteInsetDivider()
+                            XNoteSettingsRow("测试连接", showsDisclosure = false, enabled = !testing && !saving && saved.enabled, onClick = { test(false) })
+                            XNoteInsetDivider()
+                            XNoteSettingsRow("验证图片与 PDF", showsDisclosure = false, enabled = !testing && !saving && saved.enabled, onClick = { test(true) })
+                            if (testing) {
+                                LinearProgressIndicator(Modifier.fillMaxWidth())
+                                XNoteSettingsRow("取消测试", showsDisclosure = false, onClick = { job?.cancel(); toast.show("测试已取消") })
                             }
-                        }, enabled = !testing && !saving && saved.enabled) { Text(if (testing) "测试中…" else "测试连接") }
-                        Text("连接：${if (saved.capabilities.testedAtEpochMs == null) "未测试" else if (saved.capabilities.textStreaming) "可用" else "测试失败"}", style = MaterialTheme.typography.bodySmall)
-                        Text("图片：${if (saved.capabilities.images) "已验证" else "未验证"} · PDF 原生输入：${if (saved.capabilities.pdf) "已验证" else "未验证"}", style = MaterialTheme.typography.bodySmall)
-                        XNoteButton({
-                            testing = true
-                            job = scope.launch {
-                                try { notify(ModelAttachmentCapabilityTest(client, store).test(saved).detail) }
-                                catch (cancelled: CancellationException) { throw cancelled }
-                                catch (failure: Exception) { notify(safeModelError(failure)) }
-                                finally { testing = false }
-                            }
-                        }, enabled = !testing && !saving && saved.enabled) { Text("验证图片与 PDF（两次请求）") }
-                        if (testing) XNoteButton({ job?.cancel(); notify("测试已取消") }) { Text("取消测试") }
-                        XNoteButton({
-                            saving = true
-                            scope.launch {
-                                try { store.save(saved.copy(isDefault = true), null); notify("已设为默认配置") }
-                                catch (cancelled: CancellationException) { throw cancelled }
-                                catch (failure: Exception) { notify(safeModelError(failure)) }
-                                finally { saving = false }
-                            }
-                        }, enabled = !saving && !testing && saved.enabled && !saved.isDefault) { Text("设为默认") }
-                        XNoteButton({
-                            saving = true
-                            scope.launch {
-                                try { store.delete(saved.id); editing = null; notify("配置已删除") }
-                                catch (cancelled: CancellationException) { throw cancelled }
-                                catch (failure: Exception) { notify(safeModelError(failure)) }
-                                finally { saving = false }
-                            }
-                        }, enabled = !saving && !testing) { Text("删除") }
+                        }
+                        XNoteSettingsSection("管理") {
+                            XNoteSettingsRow(if (saved.isDefault) "当前默认模型" else "设为默认", showsDisclosure = false, enabled = !saving && !testing && saved.enabled && !saved.isDefault,
+                                onClick = {
+                                    saving = true
+                                    scope.launch {
+                                        try { store.save(saved.copy(isDefault = true), null); toast.show("已设为默认配置") }
+                                        catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (failure: Exception) { toast.show(safeModelError(failure)) }
+                                        finally { saving = false }
+                                    }
+                                })
+                            XNoteInsetDivider()
+                            XNoteSettingsRow("删除配置", Modifier.testTag("model-delete"), destructive = true,
+                                enabled = !saving && !testing, onClick = { deleting = true })
+                        }
                     }
                 }
             }
-        }, overlay = {
+        }, overlay = { glass ->
             XNoteHeader(if (selected == null) "模型与服务商" else if (saved == null) "新增配置" else "编辑配置",
-                backdrop, onBack = { back() }, modifier = Modifier.align(Alignment.TopCenter))
-            XNoteSelectMenu(selectState, backdrop)
+                glass, onBack = ::back, modifier = Modifier.align(Alignment.TopCenter))
+            XNoteSelectMenu(selectState, glass)
+            XNoteDialog(deleting, { if (!saving) deleting = false }, "删除模型配置？", glass,
+                XNoteDialogAction("删除", {
+                    saved?.let { profile ->
+                        saving = true
+                        scope.launch {
+                            try { store.delete(profile.id); deleting = false; editing = null; toast.show("配置已删除") }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { toast.show(safeModelError(failure)) }
+                            finally { saving = false }
+                        }
+                    }
+                }, enabled = !saving, destructive = true),
+                dismissAction = XNoteDialogAction("取消", { deleting = false }, enabled = !saving)) {
+                Text("“${saved?.name.orEmpty()}”及其密钥将被移除，聊天记录会保留。")
+            }
         })
     }
 }

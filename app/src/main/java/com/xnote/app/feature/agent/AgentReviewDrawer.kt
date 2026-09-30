@@ -62,7 +62,7 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
         finally { busy = false }
     } }
     fun report(result: AgentReviewResult) { onNotice(when (result) {
-        is AgentReviewResult.Conflict -> "整篇回退已暂停：${result.location}。当前内容未改变。"
+        is AgentReviewResult.Conflict -> "这次撤回与当前笔记冲突，已保留你的内容。"
         AgentReviewResult.Unrecoverable -> "笔记已永久删除，无法恢复。"
         else -> "改动已撤回，用户编辑已保留。"
     }) }
@@ -80,7 +80,7 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
     LaunchedEffect(visible, selected, reviews, notes, refresh) { detail = if (visible) selected?.let { store.detail(it) } else null }
     LaunchedEffect(visible, selected, (current?.rollback as? AgentContentMerge.Conflict)?.location) {
         if (visible) (current?.rollback as? AgentContentMerge.Conflict)?.let {
-            onNotice("回退与当前内容冲突：${it.location}。全部拒绝不会部分写入。")
+            onNotice("你的笔记已有其他编辑，请保留当前内容或让 Agent 重新调整。")
         }
     }
     XNoteDrawer(visible, onDismiss, "笔记改动", backdrop, XNoteDrawerPlacement.Bottom,
@@ -97,22 +97,23 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                 if (reviews.isEmpty()) Text("暂无笔记改动")
                 reviews.groupBy { it.noteId }.forEach { (noteId, batches) ->
                     val pending = batches.any { it.status in setOf(AgentReviewStatus.Pending, AgentReviewStatus.Conflict) }
-                    XNoteButton({ selected = noteId }, modifier = Modifier.fillMaxWidth().testTag("agent-review-$noteId")) {
-                        Text((notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记") + if (pending) " · 待审阅" else " · 已审阅")
+                    XNoteGroupCard {
+                        XNoteSettingsRow(notes.find { it.id == noteId }?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记",
+                            Modifier.testTag("agent-review-$noteId"), summary = if (pending) "待审阅" else "已审阅",
+                            onClick = { selected = noteId })
                     }
                 }
             } else if (current == null) Text("正在读取改动…") else {
                 Text(current.current?.title?.ifBlank { "未命名笔记" } ?: "已永久删除的笔记", style = MaterialTheme.typography.titleLarge)
                 Text("来源：Agent · ${current.changes.size} 次累计改动", style = MaterialTheme.typography.bodySmall)
-                current.changes.firstOrNull()?.let { first -> Text("版本 ${first.beforeVersion?.take(12) ?: "新建"} → ${current.changes.last().afterVersion.take(12)}", style = MaterialTheme.typography.bodySmall) }
-                Text("红色删除 · 绿色新增；用户后续编辑保留。", style = MaterialTheme.typography.bodySmall)
+                Text("红色为删除，绿色为新增。你的后续编辑会保留。", style = MaterialTheme.typography.bodySmall)
                 val rollback = current.rollback
                 val note = current.current
                 val created = current.changes.any { it.kind == AgentChangeKind.Create }
                 val deleted = current.changes.any { it.kind == AgentChangeKind.Trash }
-                if (created) Text("本批包含新建笔记。整篇拒绝会将其移入回收站；存在用户内容时会暂停。")
+                if (created) Text("这是 Agent 新建的笔记。拒绝改动会将其移入最近删除；你已编辑的内容会受到保护。")
                 if (deleted && note != null) Text(if (note.deletedAtEpochMs == null) "笔记已恢复，将保留当前恢复状态。"
-                    else if (created) "本批新建的笔记目前在回收站。" else "笔记已移入回收站。拒绝删除可恢复；原笔记本不存在时恢复到未归档。")
+                    else if (created) "这篇新建笔记目前在最近删除中。" else "笔记已删除。拒绝这次改动可恢复笔记。")
                 when {
                     note == null -> Text("笔记已永久删除，改动无法恢复。")
                     rollback is AgentContentMerge.Merged -> {
@@ -121,7 +122,7 @@ fun AgentReviewDrawer(visible: Boolean, timeline: AgentTimeline, library: NoteLi
                         else if (!deleted || rollback.content != actual) AgentCumulativeDiff(rollback.content, actual)
                     }
                     rollback is AgentContentMerge.Conflict -> {
-                        Text("以下为已保存的 Agent 改动记录：")
+                        Text("Agent 的改动：")
                         current.changes.forEach { change ->
                             val before = change.beforeNoteJson?.let { Json.decodeFromString<NoteEntity>(it) }
                             val after = Json.decodeFromString<NoteEntity>(change.afterNoteJson)
@@ -161,7 +162,7 @@ private fun AgentCumulativeDiff(before: AgentEditableContent, after: AgentEditab
     val old = before.document.blocks.associateBy { it.id }
     val latest = after.document.blocks.associateBy { it.id }
     val changed = (before.document.blocks.map { it.id } + after.document.blocks.map { it.id }).distinct().filter { old[it] != latest[it] }
-    if (changed.isEmpty() && before.title == after.title && before.document.blocks.map { it.id } == after.document.blocks.map { it.id }) Text("当前没有需要回退的内容差异。")
+    if (changed.isEmpty() && before.title == after.title && before.document.blocks.map { it.id } == after.document.blocks.map { it.id }) Text("当前没有可撤回的内容改动。")
     if (before.document.blocks.map { it.id } != after.document.blocks.map { it.id }) {
         Text("段落顺序", style = MaterialTheme.typography.labelLarge)
         fun outline(document: NoteDocument) = document.blocks.mapIndexed { index, block ->

@@ -65,9 +65,10 @@ class AgentLifecycleFlowTest {
         runBlocking { timeline.send("新建旅行计划") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
         compose.onNodeWithTag("agent-authorize").performClick()
+        compose.onNodeWithText("查看完整请求").performClick()
         compose.onNodeWithTag("agent-approval-arguments").assertTextContains("book", substring = true)
         screenshot("creation-target")
-        compose.onNodeWithText("批准本次").performClick()
+        compose.onNodeWithText("允许本次").performClick()
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().isEmpty() } }
         val note = runBlocking { db.notes().getAll().single() }
         assertEquals("book", note.notebookId)

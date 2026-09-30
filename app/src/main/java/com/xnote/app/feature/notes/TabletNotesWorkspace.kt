@@ -52,6 +52,7 @@ fun TabletNotesWorkspace(
     query: String,
     searchNotebookId: String?,
     results: List<NoteSearchResult>,
+    searching: Boolean, searchFailed: Boolean,
     recentQueries: List<String>,
     onQueryChange: (String) -> Unit,
     onSearch: (String) -> Unit,
@@ -87,8 +88,8 @@ fun TabletNotesWorkspace(
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     val top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight)
     val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
-    val listEdges = if (navigation.isSearchOpen) setOf(XNoteScrollEdge.Top) else edges
-    val editorEdges = if (editor == null) setOf(XNoteScrollEdge.Top) else edges
+    val listEdges = if (navigation.isSearchOpen) emptySet() else edges
+    val editorEdges = if (editor == null) emptySet() else edges
     var notebookWasPresent by remember(notebookId) { mutableStateOf(false) }
     LaunchedEffect(notebooks, notebookId) {
         val exists = notebooks.any { it.id == notebookId }
@@ -115,16 +116,16 @@ fun TabletNotesWorkspace(
                 }
                 val listModifier = if (full || editor != null) Modifier.width(320.dp) else Modifier.weight(1f)
                 XNotePageScaffold(listBackdrop, modifier = listModifier.testTag("xnote-tablet-note-list"),
-                    scrollEdges = listEdges, alwaysVisibleScrollEdges = listEdges,
+                    scrollEdges = listEdges,
                     scrollEdgeState = rememberXNoteScrollEdgeState(if (navigation.isSearchOpen) searchListState else listState),
                     content = {
-                        val padding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 48.dp,
+                        val padding = PaddingValues(start = 16.dp, end = 16.dp, top = if (navigation.isSearchOpen) insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp else top + 48.dp,
                             bottom = if (navigation.isSearchOpen) insets.calculateBottomPadding() + 24.dp
                             else xNoteScrollEdgePadding(insets.calculateBottomPadding() +
                                 if (ui.selectedIds.isNotEmpty()) with(density) { selectionHeight.toDp() } else 72.dp))
                         if (navigation.isSearchOpen) {
                             SearchScreen(query, searchNotebookId, results, recentQueries, notebooks, listBackdrop, padding,
-                                searchListState, onQueryChange, onSearch, onSearchNotebook, onOpenNote)
+                                searchListState, onQueryChange, onSearch, onSearchNotebook, onOpenNote, searching = searching, searchFailed = searchFailed)
                         } else {
                             NoteCollectionScreen(library, scope, notebooks, listBackdrop, padding, listState,
                                 if (notebookId != null) ui.notebookSort else ui.collectionSort, ui.selectedIds, onOpenNote,

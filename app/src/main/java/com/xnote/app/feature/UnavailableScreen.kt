@@ -20,7 +20,7 @@ import com.xnote.app.design.XNoteMaximumContentWidth
 // -- Functions
 
 @Composable
-fun PlaceholderScreen(
+fun UnavailableScreen(
     @StringRes titleRes: Int,
     @StringRes descriptionRes: Int,
     @DrawableRes iconRes: Int,

@@ -1,25 +1,28 @@
 package com.xnote.app.feature.agent
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.db.*
 import com.xnote.app.design.*
-import com.xnote.app.design.XNoteButton
 import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.document.decodeNoteDocument
 import com.xnote.app.domain.text.extractPlainText
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
+import java.text.DateFormat
+import java.util.Date
 
 // -- Functions
 
@@ -27,68 +30,100 @@ import kotlinx.serialization.json.Json
 fun AgentAttachNotesDialog(notes: List<NoteEntity>, selected: List<String>, backdrop: Backdrop, onDismiss: () -> Unit, onConfirm: (List<String>) -> Unit) {
     var selection by remember { mutableStateOf(selected.toSet()) }
     var query by remember { mutableStateOf("") }
+    val filtered = notes.filter { it.title.contains(query, ignoreCase = true) }
     XNoteDialog(true, onDismiss, "附加笔记", backdrop,
-        confirmAction = XNoteDialogAction("确认 ${selection.size} 篇", { onConfirm(selection.toList()) }, selection.size <= AgentNoteLimits.MaxAttachedNotes),
+        confirmAction = XNoteDialogAction("添加 ${selection.size} 篇", { onConfirm(selection.toList()) }, selection.size <= AgentNoteLimits.MaxAttachedNotes),
         dismissAction = XNoteDialogAction("取消", onDismiss)) {
-        Text("发送时保存正文快照，每条最多 8 篇。读取快照同样遵守当前权限；请求批准模式下每次读取都需批准。", style = MaterialTheme.typography.bodySmall)
+        Text("最多选择 ${AgentNoteLimits.MaxAttachedNotes} 篇，读取内容仍需遵守你选择的权限。", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         XNoteTextField(query, { query = it }, placeholder = "搜索笔记标题")
         LazyColumn(Modifier.heightIn(max = 300.dp).testTag("agent-note-picker")) {
-            items(notes.filter { it.title.contains(query, ignoreCase = true) }, key = { it.id }) { note ->
-                Text((if (note.id in selection) "✓ " else "○ ") + note.title.ifBlank { "未命名笔记" },
-                    Modifier.fillMaxWidth().clickable { selection = if (note.id in selection) selection - note.id else selection + note.id }
-                        .padding(vertical = 14.dp).testTag("agent-attach-${note.id}"))
+            items(filtered, key = { it.id }) { note ->
+                val checked = note.id in selection
+                Row(Modifier.fillMaxWidth().toggleable(checked,
+                    enabled = checked || selection.size < AgentNoteLimits.MaxAttachedNotes, role = Role.Checkbox,
+                    onValueChange = { selection = if (it) selection + note.id else selection - note.id })
+                    .padding(vertical = 12.dp).testTag("agent-attach-${note.id}"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Checkbox(checked, onCheckedChange = null)
+                    Text(note.title.ifBlank { "未命名笔记" }, Modifier.weight(1f))
+                }
             }
         }
         selection.filter { selectedId -> notes.none { it.id == selectedId } }.forEach { missing ->
-            XNoteButton({ selection = selection - missing }) { Text("移除已删除的附加笔记") }
+            XNoteButton({ selection = selection - missing }) { Text("移除已删除的笔记") }
         }
-        if (notes.isEmpty()) Text("暂无可附加的笔记")
+        if (filtered.isEmpty()) Text(if (query.isBlank()) "暂无可附加的笔记" else "没有找到笔记")
     }
 }
 
 @Composable
-fun AgentApprovalDialog(event: AgentToolEventEntity, backdrop: Backdrop, onDismiss: () -> Unit, onAnswer: (Boolean) -> Unit) {
-    XNoteDialog(true, onDismiss, "批准工具调用", backdrop,
-        confirmAction = XNoteDialogAction("批准本次", { onAnswer(true) }),
-        dismissAction = XNoteDialogAction("拒绝本次", { onAnswer(false) })) {
-        Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("工具：${event.name}", style = MaterialTheme.typography.titleMedium)
-            Text("批准后执行以下固定参数；读取、写入和后续调用均需分别批准。关闭窗口保持等待。")
-            Text("完整参数：\n${event.argumentsJson}", modifier = Modifier.testTag("agent-approval-arguments"))
+fun AgentApprovalDialog(event: AgentToolEventEntity, backdrop: Backdrop, noteTitles: Map<String, String>, notebookTitles: Map<String, String>,
+    onDismiss: () -> Unit, onAnswer: (Boolean) -> Unit) {
+    XNoteDialog(true, onDismiss, "允许这次操作？", backdrop,
+        confirmAction = XNoteDialogAction("允许本次", { onAnswer(true) }),
+        dismissAction = XNoteDialogAction("不允许", { onAnswer(false) })) {
+        Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AgentRequestSummary(event, noteTitles, notebookTitles)
+            Text("仅允许这次操作，之后的请求会再次询问。", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AgentRequestDetails(event, "agent-approval-arguments")
+        }
+    }
+}
+
+@Composable
+private fun AgentRequestSummary(event: AgentToolEventEntity, noteTitles: Map<String, String>, notebookTitles: Map<String, String>) {
+    val arguments = remember(event.argumentsJson) { runCatching { Json.parseToJsonElement(event.argumentsJson) as? JsonObject }.getOrNull() }
+    Text(agentToolTitle(event.name), style = MaterialTheme.typography.titleMedium)
+    if (arguments != null) {
+        Text(agentToolDescription(event.name, arguments, noteTitles, notebookTitles))
+        val content = (arguments["document_json"] as? JsonPrimitive)?.contentOrNull?.let {
+            runCatching { extractPlainText(decodeNoteDocument(it)) }.getOrNull()
+        } ?: (arguments["content"] as? JsonPrimitive)?.contentOrNull
+        if (!content.isNullOrBlank()) XNoteGroupCard {
+            SelectionContainer { Text(content, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium) }
+        }
+    } else Text("请求暂时无法预览，请查看完整请求。")
+}
+
+@Composable
+private fun AgentRequestDetails(event: AgentToolEventEntity, tag: String, includeResult: Boolean = false) {
+    var expanded by remember(event.id) { mutableStateOf(agentToolTitle(event.name) == event.name) }
+    XNoteButton({ expanded = !expanded }) { Text(if (expanded) "收起详情" else "查看完整请求") }
+    if (expanded) {
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(event.argumentsJson, Modifier.testTag(tag), style = MaterialTheme.typography.bodySmall)
+                if (includeResult) Text(event.resultJson ?: "尚无结果", style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
 
 @Composable
 fun AgentSnapshotDialog(snapshot: AgentSnapshotEntity, backdrop: Backdrop, onDismiss: () -> Unit) {
-    XNoteDialog(true, onDismiss, "发送时快照", backdrop, XNoteDialogAction("关闭", onDismiss)) {
+    XNoteDialog(true, onDismiss, "发送时的笔记", backdrop, XNoteDialogAction("关闭", onDismiss)) {
         Text(snapshot.title.ifBlank { "未命名笔记" }, style = MaterialTheme.typography.titleMedium)
-        Text("版本 ${snapshot.version.take(12)} · 此处保留发送时内容", style = MaterialTheme.typography.bodySmall)
-        Text(extractPlainText(decodeNoteDocument(snapshot.documentJson)), Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).testTag("agent-snapshot-body"))
+        Text(extractPlainText(decodeNoteDocument(snapshot.documentJson)).ifBlank { "暂无正文" },
+            Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).testTag("agent-snapshot-body"))
     }
 }
 
 @Composable
-fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, onContinue: (() -> Unit)?, onStop: (() -> Unit)?, onDismiss: () -> Unit) {
-    XNoteDialog(true, onDismiss, "工具调用详情", backdrop, XNoteDialogAction("关闭", onDismiss)) {
-        Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${event.name} · ${event.status.toolStatusLabel()}")
-            Text("运行 ${event.runId.take(8)} · 权限版本 ${event.permissionRevision}", style = MaterialTheme.typography.bodySmall)
-            val decisions = Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson)
-            if (decisions.isEmpty()) Text("此历史调用未保存授权依据。", style = MaterialTheme.typography.bodySmall)
-            decisions.forEach { decision ->
-                Text("${java.util.Date(decision.atEpochMs)} · ${decision.reason}")
-                Text("当时权限：${decision.permission.mode.permissionLabel()} · 版本 ${decision.permission.revision}")
-                Text("当时主动附加：${decision.attachedNoteIds.size} 篇")
-            }
-            Text("参数：${event.argumentsJson}")
-            Text("结果：${event.resultJson ?: "等待执行或授权"}")
-            Text("开始：${java.util.Date(event.createdAtEpochMs)}\n结束：${event.committedAtEpochMs?.let { java.util.Date(it) } ?: "尚未结束"}", style = MaterialTheme.typography.bodySmall)
-            if (onStop != null) XNoteButton(onStop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止所属任务") }
-            if (onContinue != null) {
-                Text("继续所属任务会保留已提交结果，后续执行重新检查当前权限。", style = MaterialTheme.typography.bodySmall)
-                XNoteButton(onContinue, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续此任务") }
-            }
+fun AgentToolDialog(event: AgentToolEventEntity, backdrop: Backdrop, noteTitles: Map<String, String>, notebookTitles: Map<String, String>,
+    onContinue: (() -> Unit)?, onStop: (() -> Unit)?, onDismiss: () -> Unit) {
+    XNoteDialog(true, onDismiss, "操作详情", backdrop, XNoteDialogAction("关闭", onDismiss)) {
+        Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(event.status.toolStatusLabel(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AgentRequestSummary(event, noteTitles, notebookTitles)
+            Text(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(event.createdAtEpochMs)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val decisions = remember(event.decisionsJson) { runCatching { Json.decodeFromString<List<AgentToolDecision>>(event.decisionsJson) }.getOrDefault(emptyList()) }
+            decisions.lastOrNull()?.let { Text("当时的权限：${it.permission.mode.permissionLabel()}", style = MaterialTheme.typography.bodySmall) }
+            AgentRequestDetails(event, "agent-tool-arguments", includeResult = true)
+            if (onStop != null) XNoteButton(onStop, modifier = Modifier.testTag("agent-tool-stop")) { Text("停止任务") }
+            if (onContinue != null) XNoteButton(onContinue, modifier = Modifier.testTag("agent-tool-continue")) { Text("继续任务") }
         }
     }
 }
@@ -100,11 +135,11 @@ fun AgentPermissionMode.permissionLabel(): String = when (this) {
 }
 
 fun AgentToolStatus.toolStatusLabel(): String = when (this) {
-    AgentToolStatus.Approved -> "已批准本次调用"
-    AgentToolStatus.Requested -> "等待授权或执行"
+    AgentToolStatus.Approved -> "已允许"
+    AgentToolStatus.Requested -> "等待允许或执行"
     AgentToolStatus.Denied -> "未获允许"
     AgentToolStatus.Executing -> "正在执行"
     AgentToolStatus.Committed -> "已完成"
-    AgentToolStatus.Failed -> "失败"
-    AgentToolStatus.Unknown -> "提交结果待核实"
+    AgentToolStatus.Failed -> "未完成"
+    AgentToolStatus.Unknown -> "结果待确认"
 }

@@ -21,6 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.Box
+import com.xnote.app.design.XNoteLoadingState
+import com.xnote.app.design.XNoteErrorState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -73,6 +77,8 @@ fun NoteCollectionScreen(
 
     var notes by remember(library, notesScope) { mutableStateOf<List<Note>>(emptyList()) }
     var notesLoaded by remember(library, notesScope) { mutableStateOf(false) }
+    var loadFailed by remember(library, notesScope) { mutableStateOf(false) }
+    var loadAttempt by remember { mutableIntStateOf(0) }
     var dragging by remember { mutableStateOf(false) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
@@ -89,21 +95,31 @@ fun NoteCollectionScreen(
 
     // -- Lifecycle Hooks
 
-    LaunchedEffect(library, notesScope, sort, dragging) {
+    LaunchedEffect(library, notesScope, sort, dragging, loadAttempt) {
         if (dragging) return@LaunchedEffect
-        when (notesScope) {
-            NotesScope.All -> library.observeAllActiveNotes(sort)
-            NotesScope.Unfiled -> library.observeUnfiledNotes(sort)
-            is NotesScope.Notebook -> library.observeNotesInNotebook(notesScope.id, sort)
-        }.collect {
-            notes = it
-            notesLoaded = true
-        }
+        loadFailed = false
+        try {
+            when (notesScope) {
+                NotesScope.All -> library.observeAllActiveNotes(sort)
+                NotesScope.Unfiled -> library.observeUnfiledNotes(sort)
+                is NotesScope.Notebook -> library.observeNotesInNotebook(notesScope.id, sort)
+            }.collect {
+                notes = it
+                notesLoaded = true
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { loadFailed = true }
     }
 
     // -- UI
 
-    if (!notesLoaded) return
+    if (!notesLoaded || loadFailed) {
+        Box(modifier.fillMaxSize().padding(contentPadding), contentAlignment = Alignment.Center) {
+            if (loadFailed) XNoteErrorState("暂时无法读取笔记", backdrop, actionLabel = "重试", onAction = { loadAttempt++ })
+            else XNoteLoadingState(backdrop)
+        }
+        return
+    }
 
     LazyColumn(
         state = listState,

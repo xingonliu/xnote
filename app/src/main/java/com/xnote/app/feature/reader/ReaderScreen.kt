@@ -57,7 +57,6 @@ fun ReaderScreen(
     val currentPage = pages.getOrNull(pageIndex)
     val currentNote = notes.firstOrNull { it.id == currentPage?.noteId } ?: notes.firstOrNull()
     val background = resolveBackgroundKey(currentNote?.backgroundKey, defaultBackground)
-    val edges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
     fun goTo(index: Int) {
         val first = pages.getOrNull(index)?.units?.firstOrNull() ?: return
         anchorNote = first.noteId
@@ -70,14 +69,13 @@ fun ReaderScreen(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val tablet = maxWidth >= 600.dp
         val insets = WindowInsets.safeDrawing.asPaddingValues()
-        val top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight)
-        val bottom = xNoteScrollEdgePadding(if (controlsHeight > 0) with(density) { controlsHeight.toDp() }
-            else insets.calculateBottomPadding() + 80.dp)
+        val top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp
+        val bottom = (if (controlsHeight > 0) with(density) { controlsHeight.toDp() }
+            else insets.calculateBottomPadding() + 64.dp) + 16.dp
         val horizontal = if (tablet) 24.dp else XNoteSpacingMedium
         XNotePageScaffold(
             backdrop = backdrop,
-            scrollEdges = edges,
-            alwaysVisibleScrollEdges = edges,
+            scrollEdges = emptySet(),
             pageBackground = { XNoteNoteSurface(background, Modifier.fillMaxSize(), rememberBackgroundImage(background, library)) },
             content = {
                 Box(Modifier.fillMaxSize().padding(top = top, bottom = bottom, start = horizontal, end = horizontal),
@@ -111,7 +109,7 @@ fun ReaderScreen(
                     backdrop = backdrop,
                     onBack = onBack,
                     actions = listOf(
-                        XNoteHeaderAction(R.drawable.ic_keyline_stroke_more_horizontal,
+                        XNoteHeaderAction(R.drawable.ic_keyline_stroke_list,
                             stringResource(R.string.reader_contents), { contentsVisible = true }, enabled = notes.isNotEmpty()),
                         XNoteHeaderAction(R.drawable.ic_keyline_stroke_square_pen,
                             stringResource(R.string.reader_edit), { currentNote?.let { onEdit(it.id) } }, enabled = currentNote != null),
@@ -121,12 +119,11 @@ fun ReaderScreen(
                 )
                 Column(Modifier.align(Alignment.BottomCenter).onSizeChanged { controlsHeight = it.height }.navigationBarsPadding().padding(horizontal = horizontal, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.reader_progress, if (pages.isEmpty()) 0 else pageIndex + 1, pages.size,
-                        if (pages.isEmpty()) 0 else (pageIndex + 1) * 100 / pages.size),
-                        style = typography.labelMedium, color = colors.onSurface, modifier = Modifier.testTag("xnote-reader-progress"))
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LiquidButton(onClick = { goTo(pageIndex - 1) }, backdrop = backdrop, enabled = pageIndex > 0,
                             modifier = Modifier.testTag("xnote-reader-previous")) { Text(stringResource(R.string.reader_previous), color = colors.onSurface) }
+                        Text(stringResource(R.string.reader_progress, if (pages.isEmpty()) 0 else pageIndex + 1, pages.size),
+                            style = typography.labelMedium, color = colors.onSurface, modifier = Modifier.testTag("xnote-reader-progress"))
                         LiquidButton(onClick = { goTo(pageIndex + 1) }, backdrop = backdrop, enabled = pageIndex < pages.lastIndex,
                             modifier = Modifier.testTag("xnote-reader-next")) { Text(stringResource(R.string.reader_next), color = colors.onSurface) }
                     }

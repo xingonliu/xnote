@@ -211,7 +211,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                                         val snapshot = snapshots.find { it.id == source.snapshotId }
                                         XNoteButton({ snapshotPreview = snapshot }, enabled = snapshot != null) {
                                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(snapshot?.let { "发送快照 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除 · 快照不可用")
+                                                Text(snapshot?.let { "发送时的笔记 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除，无法查看")
                                                 snapshot?.let { saved ->
                                                     Text(extractPlainText(decodeNoteDocument(saved.documentJson)).ifBlank { "暂无正文" },
                                                         maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
@@ -223,7 +223,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                                         }
                                     }
                                 }
-                                if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("将在下一执行边界补充", style = MaterialTheme.typography.bodySmall)
+                                if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("已收到，将继续处理", style = MaterialTheme.typography.bodySmall)
                                 if (message.role == AgentMessageRole.Assistant) {
                                     if (message.status != AgentMessageStatus.Complete) Text(when (message.status) {
                                         AgentMessageStatus.Complete -> if (message.modelJson != null) "工具调用已记录" else "已完成"
@@ -261,7 +261,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton({ toolPreview = request }) { Text("查看请求") }
                                 XNoteButton({ permissionRequest = request }, enabled = !state.running,
-                                    modifier = Modifier.testTag("agent-authorize")) { Text("审批本次调用") }
+                                    modifier = Modifier.testTag("agent-authorize")) { Text("查看并允许") }
                                 TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
                             }
                         }
@@ -376,7 +376,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             XNoteDialog(true, { draftPreviewId = null }, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用", backdrop,
                 XNoteDialogAction("关闭", { draftPreviewId = null })) {
                 draftSelection?.takeIf { it.noteId == note?.id }?.let { selected ->
-                    Text("仅润色所选文字；发送前会校验笔记版本。", style = MaterialTheme.typography.labelMedium)
+                    Text("仅润色你选择的文字。", style = MaterialTheme.typography.labelMedium)
                     val selectedText = note?.takeIf { it.agentVersion() == selected.selection.version }
                         ?.let { selectedAgentText(decodeNoteDocument(it.documentJson), selected.selection) }
                     Text(selectedText ?: "笔记已变化，请回到编辑器重新选择。", Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState()))
@@ -389,7 +389,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             action { timeline.selectDraftNotes(ids); attachDialog = false }
         }
         permissionRequest?.let { request ->
-            AgentApprovalDialog(request, backdrop, onDismiss = { permissionRequest = null }) { approved ->
+            AgentApprovalDialog(request, backdrop, (availableNotes + trashedNotes).associate { it.id to it.title }, notebooks.associate { it.id to it.name }, onDismiss = { permissionRequest = null }) { approved ->
                 action { timeline.answerPermission(request.runId, request.callId, approved, request.argumentsJson); permissionRequest = null }
             }
         }
@@ -397,7 +397,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         toolPreview?.let { event ->
             val run = runs.find { it.id == event.runId }
             val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
-            AgentToolDialog(event, backdrop,
+            AgentToolDialog(event, backdrop, (availableNotes + trashedNotes).associate { it.id to it.title }, notebooks.associate { it.id to it.name },
                 onContinue = if (canContinue) ({ action { timeline.continueRun(event.runId); toolPreview = null } }) else null,
                 onStop = if (state.running && run?.status == AgentRunStatus.Running) timeline::stop else null,
                 onDismiss = { toolPreview = null })

@@ -2,7 +2,7 @@ package com.xnote.app.feature.search
 
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,6 +28,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -75,6 +77,8 @@ fun SearchScreen(
     onNotebookSelected: (String?) -> Unit,
     onOpenNote: (String) -> Unit,
     modifier: Modifier = Modifier,
+    searching: Boolean = false,
+    searchFailed: Boolean = false,
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -85,42 +89,26 @@ fun SearchScreen(
         keyboardController?.show()
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxHeight()
-            .widthIn(max = 680.dp)
-            .fillMaxWidth(),
-        contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
-    ) {
-        item {
-            XNoteTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = stringResource(R.string.search_field_placeholder),
-                imeAction = ImeAction.Search,
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        onSearch(query)
-                        keyboardController?.hide()
-                    },
-                ),
-                modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .testTag("xnote-search-field"),
-            )
-        }
-
-        item {
-            SearchNotebookFilters(
-                notebooks = notebooks,
-                selectedNotebookId = selectedNotebookId,
-                onNotebookSelected = onNotebookSelected,
-            )
-        }
-
+    val direction = LocalLayoutDirection.current
+    Column(modifier.fillMaxHeight().widthIn(max = 680.dp).fillMaxWidth().imePadding()
+        .padding(start = contentPadding.calculateStartPadding(direction), end = contentPadding.calculateEndPadding(direction),
+            top = contentPadding.calculateTopPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        XNoteTextField(query, onQueryChange, Modifier.focusRequester(focusRequester).testTag("xnote-search-field"),
+            placeholder = stringResource(R.string.search_field_placeholder), imeAction = ImeAction.Search,
+            keyboardActions = KeyboardActions(onSearch = { onSearch(query); keyboardController?.hide() }))
+        SearchNotebookFilters(notebooks, selectedNotebookId, onNotebookSelected)
+        if (searching) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("xnote-search-progress"))
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(top = 4.dp, bottom = contentPadding.calculateBottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium)) {
         when {
+            searching -> item { Text("正在搜索…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            searchFailed -> item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("暂时无法搜索，请重试")
+                    XNoteButton({ onSearch(query) }) { Text("重试") }
+                }
+            }
             query.isBlank() && recentQueries.isEmpty() -> item {
                 XNoteEmptyState(
                     title = stringResource(R.string.search_start_title),
@@ -195,6 +183,7 @@ fun SearchScreen(
                 }
             }
         }
+    }
     }
 }
 

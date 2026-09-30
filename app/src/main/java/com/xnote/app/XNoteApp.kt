@@ -41,6 +41,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -105,7 +106,7 @@ import com.xnote.app.domain.model.NoteSearchResult
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.domain.model.defaultAppSettings
 import com.xnote.app.domain.model.resolveBackgroundKey
-import com.xnote.app.feature.PlaceholderScreen
+import com.xnote.app.feature.UnavailableScreen
 import com.xnote.app.feature.profile.AppearanceScreen
 import com.xnote.app.feature.profile.ProfileDetailScreen
 import com.xnote.app.feature.background.EditorBackgroundTheme
@@ -130,7 +131,6 @@ import com.xnote.app.feature.profile.ProfileScreen
 import com.xnote.app.feature.recycle.RecycleBinChrome
 import com.xnote.app.feature.recycle.RecycleBinScreen
 import com.xnote.app.feature.recycle.RecycleBinUiState
-import com.xnote.app.feature.recycle.XNoteRecycleSelectionHeight
 import com.xnote.app.feature.search.SearchScreen
 import com.xnote.app.navigation.AppDestination
 import com.xnote.app.navigation.NoteCollection
@@ -224,6 +224,11 @@ private fun XNoteAppContent(
     var activeNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var trashedNotes by remember { mutableStateOf<List<Note>>(emptyList()) }
     var searchResults by remember { mutableStateOf<List<NoteSearchResult>>(emptyList()) }
+    var searchLoading by remember { mutableStateOf(false) }
+    var searchFailed by remember { mutableStateOf(false) }
+    var completedSearch by remember { mutableStateOf<Pair<String, String?>?>(null) }
+    var searchAttempt by remember { mutableIntStateOf(0) }
+    val searching = searchQuery.isNotBlank() && (searchLoading || completedSearch != (searchQuery to searchNotebookId))
     var recentQueries by remember { mutableStateOf<List<String>>(emptyList()) }
     var appSettings by remember { mutableStateOf<AppSettings>(defaultAppSettings()) }
     val defaultBackground = resolveBackgroundKey(
@@ -256,13 +261,24 @@ private fun XNoteAppContent(
     LaunchedEffect(editorSession, appSettings.markdownShortcutsEnabled) {
         editorSession?.markdownShortcutsEnabled = appSettings.markdownShortcutsEnabled
     }
-    LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes) {
+    LaunchedEffect(navigationState.isSearchOpen, searchQuery, searchNotebookId, activeNotes, searchAttempt) {
+        searchFailed = false
         if (!navigationState.isSearchOpen || searchQuery.isBlank()) {
             searchResults = emptyList()
+            searchLoading = false
             return@LaunchedEffect
         }
-        delay(120)
-        searchResults = noteLibrary.searchNotes(searchQuery, searchNotebookId)
+        searchLoading = true
+        try {
+            delay(120)
+            searchResults = noteLibrary.searchNotes(searchQuery, searchNotebookId)
+            completedSearch = searchQuery to searchNotebookId
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) {
+            searchResults = emptyList()
+            searchFailed = true
+            completedSearch = searchQuery to searchNotebookId
+        } finally { searchLoading = false }
     }
     LaunchedEffect(notebooks, searchNotebookId) {
         if (searchNotebookId != null && notebooks.none { it.id == searchNotebookId }) {
@@ -373,6 +389,7 @@ private fun XNoteAppContent(
         val normalized = query.trim()
         if (normalized.isEmpty()) return
         searchQuery = normalized
+        if (searchFailed) searchAttempt++
         appScope.launch { searchHistory.record(normalized) }
     }
 
@@ -487,6 +504,7 @@ private fun XNoteAppContent(
         var bottomNavigationHeight by remember { mutableStateOf(0.dp) }
         val density = androidx.compose.ui.platform.LocalDensity.current
         var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
+        var recycleSelectionBarHeight by remember { mutableStateOf(96.dp) }
         val isTablet = maxWidth >= TabletBreakpoint
         val usesWorkspace = maxWidth.value >= 840 * maxOf(1f, density.fontScale) &&
             navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
@@ -500,6 +518,7 @@ private fun XNoteAppContent(
                 ui = uiState, editorSession = editorSession, editorScroll = editorScrollState,
                 listState = notebookListState, searchListState = searchListState, background = editorBackground,
                 query = searchQuery, searchNotebookId = searchNotebookId, results = searchResults, recentQueries = recentQueries,
+                searching = searching, searchFailed = searchFailed,
                 onQueryChange = { searchQuery = it }, onSearch = ::recordSearch, onSearchNotebook = { searchNotebookId = it },
                 onClearHistory = { appScope.launch { searchHistory.clear() } },
                 onSearchVisible = { open -> updateNavigationState(if (open) navigationState.openSearch() else navigationState.closeSearch()) },
@@ -529,13 +548,7 @@ private fun XNoteAppContent(
         val showsBottomNavigation = !isTablet && showsPrimaryChrome
         val showsRecycleSelection = navigationState.isRecycleBinOpen &&
             recycleBinUiState.selectionMode
-        val isSecondaryPage = navigationState.isSearchOpen ||
-            navigationState.isRecycleBinOpen ||
-            navigationState.isAppearanceOpen ||
-            (
-                navigationState.destination == AppDestination.Notes &&
-                    navigationState.notesRoute !is NotesRoute.Home
-            )
+
         val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val navigationBarHeight = WindowInsets.navigationBars.asPaddingValues()
             .calculateBottomPadding()
@@ -545,7 +558,7 @@ private fun XNoteAppContent(
             (navigationState.notesRoute is NotesRoute.Collection || navigationState.notesRoute is NotesRoute.Notebook)
         val bottomOverlayHeight = when {
             showsEditorToolbar -> XNoteEditorToolbarHeight
-            showsRecycleSelection -> XNoteRecycleSelectionHeight
+            showsRecycleSelection -> recycleSelectionBarHeight + XNoteSpacingSmall * 2
             showsNoteSelection -> noteSelectionBarHeight +
                 if (showsBottomNavigation) XNoteBottomNavigationHeight + XNoteSpacingSmall else XNoteSpacingMedium
             showsBottomNavigation && navigationState.destination == AppDestination.Notes ->
@@ -563,7 +576,8 @@ private fun XNoteAppContent(
             else -> XNoteSpacingMedium
         }
         val contentEndPadding = if (isTablet) 24.dp else XNoteSpacingMedium
-        val contentTopPadding = xNoteScrollEdgePadding(statusBarHeight + XNoteHeaderHeight)
+        val contentTopPadding = if (navigationState.isSearchOpen) statusBarHeight + XNoteHeaderHeight + 16.dp
+            else xNoteScrollEdgePadding(statusBarHeight + XNoteHeaderHeight)
         val contentPadding = PaddingValues(
             start = contentStartPadding,
             top = contentTopPadding,
@@ -600,16 +614,12 @@ private fun XNoteAppContent(
             (isEditor || navigationState.notesRoute is NotesRoute.Notebook ||
                 navigationState.notesRoute is NotesRoute.Collection)
         val showsBottomBlur = showsBottomNavigation || showsRecycleSelection || showsNotesBottomControls
-        val scrollEdges = if (showsBottomBlur) {
+        val scrollEdges = if (navigationState.isSearchOpen) emptySet() else if (showsBottomBlur) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
         }
-        val alwaysVisibleScrollEdges = when {
-            !isSecondaryPage -> emptySet()
-            showsBottomBlur -> scrollEdges
-            else -> setOf(XNoteScrollEdge.Top)
-        }
+        val alwaysVisibleScrollEdges = if (isEditor) scrollEdges else emptySet()
 
         EditorBackgroundTheme(
             editorBackground, noteLibrary, appSettings,
@@ -657,6 +667,7 @@ private fun XNoteAppContent(
                         searchQuery = searchQuery,
                         searchNotebookId = searchNotebookId,
                         searchResults = searchResults,
+                        searching = searching, searchFailed = searchFailed,
                         recentQueries = recentQueries,
                         trashedNotes = trashedNotes,
                         recycleBinUiState = recycleBinUiState,
@@ -816,6 +827,7 @@ private fun XNoteAppContent(
                                 recycleBinUiState.finishSelection()
                                 updateNavigationState(navigationState.closeRecycleBin())
                             },
+                            onSelectionBarHeightChanged = { height -> recycleSelectionBarHeight = with(density) { height.toDp() } },
                         )
                     }
 
@@ -860,6 +872,8 @@ private fun DestinationContent(
     searchQuery: String,
     searchNotebookId: String?,
     searchResults: List<NoteSearchResult>,
+    searching: Boolean,
+    searchFailed: Boolean,
     recentQueries: List<String>,
     trashedNotes: List<Note>,
     recycleBinUiState: RecycleBinUiState,
@@ -884,7 +898,6 @@ private fun DestinationContent(
     }
 
     if (navigationState.isRecycleBinOpen) {
-        val restoredMessage = stringResource(R.string.recycle_bin_restored)
         RecycleBinScreen(
             notes = trashedNotes,
             notebooks = notebooks,
@@ -900,14 +913,9 @@ private fun DestinationContent(
                 recycleBinUiState.selectionMode = true
                 recycleBinUiState.selectedIds = setOf(id)
             },
-            onRestore = { id ->
-                scope.launch {
-                    noteLibrary.restoreNotes(listOf(id))
-                    toastHostState.show(restoredMessage)
-                }
-            },
-            onPermanentlyDelete = { id ->
-                recycleBinUiState.pendingPermanentDeleteIds = setOf(id)
+            onOpenActions = { id, anchor ->
+                recycleBinUiState.actionNoteId = id
+                recycleBinUiState.actionAnchor = anchor
             },
             modifier = modifier,
         )
@@ -919,6 +927,7 @@ private fun DestinationContent(
             query = searchQuery,
             selectedNotebookId = searchNotebookId,
             results = searchResults,
+            searching = searching, searchFailed = searchFailed,
             recentQueries = recentQueries,
             notebooks = notebooks,
             backdrop = backdrop,
@@ -980,9 +989,9 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, onAgentModalVisible, onOpenAgentModels) else PlaceholderScreen(
-            titleRes = R.string.agent_placeholder_title,
-            descriptionRes = R.string.agent_placeholder_description,
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, onAgentModalVisible, onOpenAgentModels) else UnavailableScreen(
+            titleRes = R.string.agent_unavailable_title,
+            descriptionRes = R.string.agent_unavailable_description,
             iconRes = R.drawable.ic_keyline_stroke_star,
             backdrop = backdrop,
             contentPadding = contentPadding,

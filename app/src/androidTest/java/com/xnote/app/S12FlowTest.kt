@@ -55,19 +55,20 @@ class S12FlowTest {
         compose.setContent { XNoteTheme(reduceMotion = true) {
             com.xnote.app.feature.creative.CutoutScreen(photo, library, "cutout-ui", {}, { inserted = it })
         } }
-        compose.waitUntil(20_000) { compose.onAllNodesWithText("可在蒙版或结果上涂抹修正").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(20_000) { compose.onAllNodesWithContentDescription("完成").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         compose.onNodeWithText("原图").performClick()
-        compose.onNodeWithText("蒙版").performClick()
+        compose.onNodeWithText("选区").performClick()
         compose.onNodeWithText("擦除").performClick()
         compose.onNodeWithTag("xnote-cutout-preview").performTouchInput { swipe(center, centerRight, 350) }
-        compose.onNodeWithText("撤销修正").performClick()
+        compose.onNodeWithContentDescription("撤销").performClick()
         compose.onNodeWithText("结果").performClick()
-        compose.onNodeWithTag("xnote-sticker-name").performTextReplacement("羊驼贴纸")
         screenshot("s12-cutout")
         compose.onNodeWithText("保存为贴纸").performClick()
+        compose.onNodeWithTag("xnote-sticker-name").performTextReplacement("羊驼贴纸")
+        compose.onNodeWithText("保存").performClick()
         compose.waitUntil(10_000) { runBlocking { library.observeStickers().first() }.any { it.name == "羊驼贴纸" } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("插入笔记").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
-        compose.onNodeWithText("插入笔记").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription("完成").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
+        compose.onNodeWithContentDescription("完成").performClick()
         compose.waitUntil(10_000) { inserted != null }
         val bitmap = android.graphics.BitmapFactory.decodeFile(library.attachmentFile(inserted!!).path)
         assertTrue(bitmap.hasAlpha())
@@ -89,17 +90,21 @@ class S12FlowTest {
             com.xnote.app.feature.creative.StickerLibraryScreen(library, {}, { inserted = true })
         } }
         compose.onNodeWithTag("xnote-sticker-search").performTextReplacement("蓝色")
-        compose.onNodeWithText("最近创建").performClick()
+        compose.onNodeWithContentDescription("排序").performClick()
+        compose.onNodeWithText("按名称").performClick()
         compose.onNodeWithText("蓝色笔迹").performClick()
-        compose.onNodeWithTag("xnote-sticker-rename").performTextReplacement("透明蓝线")
+        compose.onNodeWithContentDescription("管理贴纸").performClick()
         compose.onNodeWithText("重命名").performClick()
+        compose.onNodeWithTag("xnote-sticker-rename").performTextReplacement("透明蓝线")
+        compose.onNodeWithText("保存").performClick()
         compose.waitUntil(10_000) { runBlocking { library.observeStickers().first() }.single().name == "透明蓝线" }
         compose.waitUntil(10_000) { compose.onAllNodesWithText("插入笔记").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         screenshot("s12-sticker-dark")
         compose.onNodeWithText("插入笔记").performClick()
         compose.waitUntil { inserted }
+        compose.onNodeWithContentDescription("管理贴纸").performClick()
+        compose.onNodeWithText("删除贴纸").performClick()
         compose.onNodeWithText("删除").performClick()
-        compose.onAllNodesWithText("删除").onLast().performClick()
         compose.waitUntil(10_000) { runBlocking { library.observeStickers().first() }.isEmpty() }
         assertTrue(library.attachmentFile(runBlocking { library.getAttachment(sticker.attachmentId) }!!).exists())
     }
@@ -138,16 +143,33 @@ class S12FlowTest {
         compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(centerLeft, centerRight, 400) }
         compose.onNodeWithText("橡皮").performClick()
         compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(topCenter, bottomCenter, 400) }
-        compose.onNodeWithText("撤销").performClick()
-        compose.onNodeWithText("重做").performClick()
-        compose.onNodeWithText("清空").performClick()
-        compose.onNodeWithText("撤销").performClick()
+        compose.onNodeWithContentDescription("撤销").performClick()
+        compose.onNodeWithContentDescription("重做").performClick()
+        compose.onNodeWithContentDescription("清空画板").performClick()
+        compose.onNodeWithContentDescription("撤销").performClick()
         compose.onNodeWithContentDescription("完成").performClick()
         compose.waitUntil(10_000) { saved != null }
         assertEquals(2, saved!!.strokes.size)
         assertTrue(saved!!.strokes.last().erase)
         assertTrue(runBlocking { library.getAttachment(saved!!.attachmentId) } != null)
         screenshot("s12-drawing")
+    }
+
+    @Test fun drawingRequiresConfirmationBeforeDiscardingUnsavedInk() {
+        var exited = false
+        var saved = false
+        compose.setContent { XNoteTheme(reduceMotion = true) {
+            DrawingScreen(library, "discard-test", null, { exited = true }, { saved = true })
+        } }
+        compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(centerLeft, centerRight, 300) }
+        compose.onNodeWithContentDescription("返回").performClick()
+        compose.onNodeWithText("放弃这次绘画？").assertIsDisplayed()
+        compose.runOnIdle { assertFalse(exited); assertFalse(saved) }
+        compose.onNodeWithText("继续编辑").performClick()
+        compose.onNodeWithContentDescription("撤销").assertIsEnabled()
+        compose.onNodeWithContentDescription("返回").performClick()
+        compose.onNodeWithText("放弃").performClick()
+        compose.runOnIdle { assertTrue(exited); assertFalse(saved) }
     }
 
     @Test fun editorShowsWrappedStickerAndReopensItsDrawing() {
@@ -168,7 +190,7 @@ class S12FlowTest {
         screenshot("s12-wrap-editor")
         compose.onNodeWithText("编辑画板").performScrollTo().performClick()
         compose.onNodeWithTag("xnote-drawing-canvas").assertIsDisplayed()
-        compose.onNodeWithText("取消").performClick()
+        compose.onNodeWithContentDescription("返回").performClick()
         compose.onNodeWithTag("xnote-editor-title").assertExists()
         compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("打开阅读模式").performClick()

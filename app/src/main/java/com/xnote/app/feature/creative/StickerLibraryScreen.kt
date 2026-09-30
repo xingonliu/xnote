@@ -4,31 +4,31 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.xnote.app.R
 import com.xnote.app.data.db.StickerEntity
 import com.xnote.app.data.files.*
 import com.xnote.app.data.repository.NoteLibrary
-import com.xnote.app.design.XNoteButton
-import com.xnote.app.design.XNoteDialog
-import com.xnote.app.design.XNoteDialogAction
+import com.xnote.app.design.*
 import com.xnote.app.domain.model.newNoteId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -37,20 +37,44 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (suspend (StickerEntity) -> Unit)? = null) {
+    // -- State and Variables
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val toast = com.xnote.app.design.LocalXNoteToast.current
+    val toast = LocalXNoteToast.current
     val owner = remember { "sticker-library:${newNoteId()}" }
-    val entries by remember(library) { library.observeStickers() }.collectAsState(emptyList())
+    val gridState = rememberLazyGridState()
+    val addAnchor = rememberXNotePopupAnchor()
+    val moreAnchor = rememberXNotePopupAnchor()
+    var entries by remember { mutableStateOf<List<StickerEntity>?>(null) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var loadAttempt by remember { mutableIntStateOf(0) }
     var search by rememberSaveable { mutableStateOf("") }
     var sortByName by rememberSaveable { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<StickerEntity?>(null) }
+    var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var name by remember { mutableStateOf("") }
+    var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var addMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var cutout by remember { mutableStateOf<java.io.File?>(null) }
     var cameraName by rememberSaveable { mutableStateOf<String?>(null) }
-    DisposableEffect(library, owner) { onDispose { library.releaseSessionAttachments(owner) } }
+
+    // -- Derived Values
+
+    val selected = entries?.find { it.id == selectedId }
+    val filtered = remember(entries, search, sortByName) {
+        entries.orEmpty().filter { it.name.contains(search, ignoreCase = true) }
+            .let { if (sortByName) it.sortedWith(compareBy<StickerEntity> { entry -> entry.name }.thenBy { entry -> entry.id }) else it }
+    }
+
+    // -- Functions
+
+    fun back() {
+        if (busy) return
+        if (selectedId != null) selectedId = null else onBack()
+    }
     fun import(uri: android.net.Uri?, temporary: String? = null) {
         if (uri == null) {
             temporary?.let { cameraFile(context, it).delete() }
@@ -66,18 +90,8 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
             finally { busy = false; temporary?.let { cameraFile(context, it).delete() } }
         }
     }
-    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { import(it) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val temporary = cameraName
-        cameraName = null
-        if (temporary != null) import(if (success) cameraUri(context, temporary) else null, temporary)
-    }
-    val file = cutout
-    if (file != null) {
-        CutoutScreen(file, library, owner, onBack = { cutout = null })
-        return
-    }
     fun action(block: suspend () -> Unit) {
+        if (busy) return
         busy = true
         scope.launch {
             try { block() }
@@ -86,59 +100,120 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
             finally { busy = false }
         }
     }
-    CreativePage("贴纸库", { if (selected != null) { selected = null; deleting = false } else onBack() },
-        actions = listOf(com.xnote.app.design.XNoteHeaderAction(com.xnote.app.R.drawable.ic_keyline_stroke_plus, "添加", {
-            try { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-            catch (_: Exception) { toast.show("相册不可用") }
-        }, enabled = !busy)), overlay = { backdrop ->
-        XNoteDialog(visible = deleting, onDismissRequest = { deleting = false }, title = "删除贴纸", backdrop = backdrop,
-            confirmAction = XNoteDialogAction("删除", enabled = !busy, destructive = true, onClick = {
-                selected?.let { entry -> action { library.deleteSticker(entry.id); selected = null; deleting = false } }
-            }), dismissAction = XNoteDialogAction("取消", { deleting = false })) {
-            Text("删除“${selected?.name.orEmpty()}”？已插入笔记的贴纸会保留。")
-        }
-    }) {
-        val entry = selected
-        if (entry != null) {
-            StickerThumbnail(library, entry.attachmentId, Modifier.weight(1f).fillMaxWidth())
-            BasicTextField(name, { name = it }, Modifier.fillMaxWidth().padding(12.dp).testTag("xnote-sticker-rename"),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface), singleLine = true)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                XNoteButton({ action { library.renameSticker(entry.id, name); selected = entry.copy(name = name.trim()); toast.show("已重命名") } }, enabled = !busy && name.isNotBlank()) { Text("重命名") }
-                XNoteButton({ deleting = true }, enabled = !busy) { Text("删除") }
-                if (onInsert != null) XNoteButton({ action { onInsert(entry) } }, enabled = !busy) { Text("插入笔记") }
-                XNoteButton({ selected = null; deleting = false }, enabled = !busy) { Text("返回列表") }
-            }
-        } else {
-            BasicTextField(search, { search = it }, Modifier.fillMaxWidth().padding(12.dp).testTag("xnote-sticker-search"),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface), singleLine = true,
-                decorationBox = { inner -> Box { if (search.isEmpty()) Text("搜索贴纸", color = MaterialTheme.colorScheme.onSurfaceVariant); inner() } })
-            val filtered = entries.filter { it.name.contains(search, ignoreCase = true) }
-                .let { if (sortByName) it.sortedWith(compareBy<StickerEntity> { entry -> entry.name }.thenBy { entry -> entry.id }) else it }
-            if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text(if (search.isEmpty()) "从图片创建你的第一张贴纸" else "没有匹配的贴纸") }
-            else LazyVerticalGrid(GridCells.Adaptive(120.dp), Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(filtered, key = { it.id }) { sticker ->
-                    Column(Modifier.clickable { selected = sticker; name = sticker.name; deleting = false }.testTag("xnote-sticker-${sticker.id}")) {
-                        StickerThumbnail(library, sticker.attachmentId, Modifier.fillMaxWidth().aspectRatio(1f))
-                        Text(sticker.name, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                XNoteButton({ sortByName = !sortByName }, enabled = !busy) { Text(if (sortByName) "按名称" else "最近创建") }
-                XNoteButton({
+
+    // -- Listeners
+
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { import(it) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val temporary = cameraName
+        cameraName = null
+        if (temporary != null) import(if (success) cameraUri(context, temporary) else null, temporary)
+    }
+
+    // -- Lifecycle Hooks
+
+    DisposableEffect(library, owner) { onDispose { library.releaseSessionAttachments(owner) } }
+    LaunchedEffect(library, loadAttempt) {
+        loadFailed = false
+        try { library.observeStickers().collect { entries = it } }
+        catch (error: CancellationException) { throw error }
+        catch (_: Exception) { loadFailed = true }
+    }
+    val file = cutout
+    if (file != null) {
+        CutoutScreen(file, library, owner, onBack = { cutout = null })
+        return
+    }
+    CreativePage(if (selected == null) "贴纸库" else "贴纸", ::back,
+        actions = buildList {
+            add(XNoteHeaderAction(R.drawable.ic_keyline_stroke_more_horizontal, if (selected == null) "排序" else "管理贴纸",
+                { moreMenu = true }, enabled = !busy, popupAnchor = moreAnchor))
+            if (selected == null) add(XNoteHeaderAction(R.drawable.ic_keyline_stroke_plus, "创建贴纸",
+                { addMenu = true }, enabled = !busy, popupAnchor = addAnchor))
+        }, toolbar = if (selected != null && onInsert != null) {
+            { XNoteButton({ action { onInsert(selected) } }, modifier = Modifier.fillMaxWidth(),
+                enabled = !busy, tint = MaterialTheme.colorScheme.primary) { Text(if (busy) "正在插入…" else "插入笔记") } }
+        } else null,
+        overlay = { glass ->
+            XNoteDropdownMenu(addMenu, { addMenu = false }, listOf(
+                XNoteDropdownMenuItem("从相册创建", {
                     try { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
                     catch (_: Exception) { toast.show("相册不可用") }
-                }, enabled = !busy) { Text("相册创建") }
-                XNoteButton({
+                }),
+                XNoteDropdownMenuItem("拍照创建", {
                     try {
                         val temporary = "${newNoteId()}.jpg"
                         cameraName = temporary
                         cameraFile(context, temporary).parentFile?.mkdirs()
                         camera.launch(cameraUri(context, temporary))
                     } catch (_: Exception) { toast.show("相机不可用") }
-                }, enabled = !busy) { Text("拍照创建") }
+                }),
+            ), glass, anchor = addAnchor)
+            XNoteDropdownMenu(moreMenu, { moreMenu = false }, if (selected == null) listOf(
+                XNoteDropdownMenuItem("最近创建", { sortByName = false }, selected = !sortByName),
+                XNoteDropdownMenuItem("按名称", { sortByName = true }, selected = sortByName),
+            ) else listOf(
+                XNoteDropdownMenuItem("重命名", { name = selected.name; renaming = true }),
+                XNoteDropdownMenuItem("删除贴纸", { deleting = true }, destructive = true),
+            ), glass, anchor = moreAnchor)
+            XNoteDialog(renaming, { if (!busy) renaming = false }, "重命名贴纸", glass,
+                XNoteDialogAction("保存", { selected?.let { entry -> action {
+                    library.renameSticker(entry.id, name.trim()); renaming = false; toast.show("名称已保存")
+                } } }, enabled = !busy && name.isNotBlank()),
+                dismissAction = XNoteDialogAction("取消", { renaming = false }, enabled = !busy)) {
+                XNoteTextField(name, { name = it }, Modifier.testTag("xnote-sticker-rename"), placeholder = "贴纸名称", enabled = !busy)
+            }
+            XNoteDialog(deleting, { if (!busy) deleting = false }, "删除贴纸？", glass,
+                XNoteDialogAction("删除", { selected?.let { entry -> action {
+                    library.deleteSticker(entry.id); selectedId = null; deleting = false; toast.show("贴纸已删除")
+                } } }, enabled = !busy, destructive = true),
+                dismissAction = XNoteDialogAction("取消", { deleting = false }, enabled = !busy)) {
+                Text("“${selected?.name.orEmpty()}”将从贴纸库移除，已插入笔记的贴纸会保留。")
+            }
+        }) {
+        if (selected != null) {
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                StickerThumbnail(library, selected.attachmentId, Modifier.weight(1f).fillMaxWidth())
+                Text(selected.name, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                XNoteTextField(search, { search = it }, Modifier.testTag("xnote-sticker-search"), placeholder = "搜索贴纸")
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (entries != null && filtered.isNotEmpty()) Text("${filtered.size} 张贴纸",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                when {
+                    loadFailed -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("贴纸暂时无法读取")
+                            XNoteButton({ loadAttempt++ }) { Text("重试") }
+                        }
+                    }
+                    entries == null -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(28.dp))
+                    }
+                    filtered.isEmpty() -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(if (search.isBlank()) "还没有贴纸" else "没有找到贴纸", style = MaterialTheme.typography.titleMedium)
+                            Text(if (search.isBlank()) "将喜欢的图片变成贴纸。" else "试试其他名称。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            XNoteButton({ if (search.isBlank()) addMenu = true else search = "" }, enabled = !busy) {
+                                Text(if (search.isBlank()) "创建贴纸" else "清除搜索")
+                            }
+                        }
+                    }
+                    else -> LazyVerticalGrid(GridCells.Adaptive(120.dp), Modifier.weight(1f).fillMaxWidth(), state = gridState,
+                        contentPadding = PaddingValues(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(filtered, key = { it.id }) { sticker ->
+                            Column(Modifier.clip(XNoteSmoothCornerShape(16.dp)).clickable(role = Role.Button) { selectedId = sticker.id }
+                                .testTag("xnote-sticker-${sticker.id}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StickerThumbnail(library, sticker.attachmentId, Modifier.fillMaxWidth().aspectRatio(1f))
+                                Text(sticker.name, Modifier.padding(horizontal = 4.dp), maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -155,9 +230,11 @@ fun StickerThumbnail(library: NoteLibrary, attachmentId: String, modifier: Modif
         } catch (error: CancellationException) { throw error }
         catch (_: Exception) { failed = true }
     }
-    Box(modifier, contentAlignment = Alignment.Center) {
+    val shape = XNoteSmoothCornerShape(16.dp)
+    Box(modifier.clip(shape).border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = .2f), shape), contentAlignment = Alignment.Center) {
         TransparencyGrid(Modifier.matchParentSize())
-        bitmap?.let { Image(it, "贴纸预览", Modifier.fillMaxSize()) }
-            ?: Text(if (failed) "图片无法读取" else "加载中")
+        bitmap?.let { Image(it, null, Modifier.fillMaxSize().padding(8.dp)) }
+            ?: if (failed) Text("图片无法读取", style = MaterialTheme.typography.bodySmall)
+            else CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
     }
 }

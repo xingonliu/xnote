@@ -39,16 +39,18 @@ class AgentMemoryFlowTest {
             database.profileMemory().saveFact(AgentProfileFactEntity("fact", "user.response.detail", "请简短回答", "Stated", 2, null,
                 "用户要求简短回答", 0, "active", null, 1))
         }
-        compose.setContent { XNoteTheme { AgentMemoryScreen(timeline, {}) } }
+        compose.setContent { XNoteTheme { com.xnote.app.design.XNoteToastProvider { AgentMemoryScreen(timeline, {}) } } }
         compose.onNodeWithTag("automatic-memory").assertIsOn().performClick()
         compose.waitUntil(5000) { runBlocking { database.profileMemory().settings()?.automatic == false } }
         compose.onNodeWithText("请简短回答").assertExists()
         screenshot("profile-memory")
-        compose.onNodeWithText("更正", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("请简短回答").performClick()
         compose.onAllNodes(hasSetTextAction()).onLast().performTextReplacement("请列出关键步骤")
         compose.onNodeWithText("保存", useUnmergedTree = true).performClick()
         compose.waitUntil(5000) { runBlocking { timeline.profileMemory.active().singleOrNull()?.value == "请列出关键步骤" } }
-        compose.onNodeWithText("删除并停止记住", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("请列出关键步骤").performClick()
+        compose.onNodeWithText("删除这条记忆").performClick()
+        compose.onNodeWithText("删除").performClick()
         compose.waitUntil(5000) { runBlocking { timeline.profileMemory.active().isEmpty() } }
         runBlocking { assertNotNull(database.profileMemory().forgotten("user.response.detail")) }
     }

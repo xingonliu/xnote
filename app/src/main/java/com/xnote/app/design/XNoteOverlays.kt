@@ -28,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -188,6 +190,7 @@ fun XNoteDialog(
                     .align(Alignment.Center)
                     .padding(XNoteSpacingLarge)
                     .widthIn(max = 480.dp)
+                    .heightIn(max = (maxHeight - XNoteSpacingLarge * 2).coerceAtLeast(1.dp))
                     .fillMaxWidth()
                     .xNoteOverlayInputBarrier()
                     .semantics { paneTitle = title },
@@ -208,6 +211,8 @@ fun XNoteDialog(
                     )
                     Column(
                         modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
                             .fillMaxWidth()
                             .padding(
                                 start = 24.dp,
@@ -218,35 +223,20 @@ fun XNoteDialog(
                         verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
                         content = content,
                     )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = 24.dp,
-                                top = 12.dp,
-                                end = 24.dp,
-                                bottom = 24.dp,
-                            ),
-                        horizontalArrangement = Arrangement.spacedBy(
-                            16.dp,
-                            Alignment.CenterHorizontally,
-                        ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (dismissAction != null) {
-                            XNoteDialogButton(
-                                action = dismissAction,
-                                backdrop = backdrop,
-                                foreground = contentColor,
-                                surfaceColor = containerColor.copy(alpha = 0.2f),
-                            )
+                    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 24.dp)) {
+                        val vertical = dismissAction != null && maxWidth < (220 * LocalDensity.current.fontScale).dp
+                        val confirmColor = if (confirmAction.destructive) MaterialTheme.colorScheme.error else accentColor
+                        if (vertical) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                XNoteDialogButton(confirmAction, backdrop, Color.White, confirmColor, Modifier.fillMaxWidth())
+                                XNoteDialogButton(checkNotNull(dismissAction), backdrop, contentColor,
+                                    containerColor.copy(alpha = 0.2f), Modifier.fillMaxWidth())
+                            }
+                        } else Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (dismissAction != null) XNoteDialogButton(dismissAction, backdrop, contentColor,
+                                containerColor.copy(alpha = 0.2f), Modifier.weight(1f))
+                            XNoteDialogButton(confirmAction, backdrop, Color.White, confirmColor, Modifier.weight(1f))
                         }
-                        XNoteDialogButton(
-                            action = confirmAction,
-                            backdrop = backdrop,
-                            foreground = Color.White,
-                            surfaceColor = accentColor,
-                        )
                     }
                 }
             }
@@ -530,14 +520,14 @@ fun BoxScope.XNoteDropdownMenu(
 private fun XNoteOverlayContainer(
     onDismissRequest: () -> Unit,
     scrimColor: Color = Color.Black.copy(alpha = 0.32f),
-    content: @Composable BoxScope.() -> Unit,
+    content: @Composable BoxWithConstraintsScope.() -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         XNoteDismissLayer(
             onDismissRequest = onDismissRequest,
             scrimColor = scrimColor,
         )
-        content()
+        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.union(WindowInsets.ime)), content = content)
     }
 }
 
@@ -561,19 +551,19 @@ private fun XNoteDismissLayer(
 }
 
 @Composable
-private fun RowScope.XNoteDialogButton(
+private fun XNoteDialogButton(
     action: XNoteDialogAction,
     backdrop: Backdrop,
     foreground: Color,
     surfaceColor: Color,
+    modifier: Modifier,
 ) {
     LiquidButton(
         onClick = action.onClick,
         backdrop = backdrop,
         enabled = action.enabled,
         surfaceColor = surfaceColor,
-        modifier = Modifier
-            .weight(1f),
+        modifier = modifier.heightIn(min = 44.dp),
     ) {
         Text(
             text = action.label,

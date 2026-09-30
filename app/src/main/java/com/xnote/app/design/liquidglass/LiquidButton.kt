@@ -5,7 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -136,7 +136,7 @@ private fun LiquidButtonSurface(
                 },
             )
             .then(interaction.modifier)
-            .height(XNoteButtonSize)
+            .heightIn(min = XNoteButtonSize)
             .padding(horizontal = horizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(contentSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,

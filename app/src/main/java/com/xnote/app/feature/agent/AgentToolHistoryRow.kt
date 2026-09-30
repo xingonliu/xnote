@@ -43,9 +43,9 @@ internal fun AgentToolHistoryRow(
             if (event.status == AgentToolStatus.Executing) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             else Icon(painterResource(R.drawable.ic_keyline_stroke_file_text), null, Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${event.name} · ${event.status.toolStatusLabel()}", Modifier.weight(1f),
+            Text("${agentToolTitle(event.name)} · ${event.status.toolStatusLabel()}", Modifier.weight(1f),
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Icon(painterResource(R.drawable.ic_keyline_stroke_chevron_down), "工具调用详情", Modifier.size(16.dp),
+            Icon(painterResource(R.drawable.ic_keyline_stroke_chevron_down), "操作详情", Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (noteId != null) {

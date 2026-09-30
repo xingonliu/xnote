@@ -124,12 +124,11 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                 CompositionLocalProvider(LocalDensity provides initialDensity) {
                     XNotePageScaffold(
                         backdrop = backdrop,
-                        scrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
-                        alwaysVisibleScrollEdges = setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom),
+                        scrollEdges = emptySet(),
                         content = {
-                            Box(Modifier.fillMaxSize().padding(top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
-                                bottom = xNoteScrollEdgePadding(if (controlsHeight == 0) insets.calculateBottomPadding() + 140.dp
-                                else with(initialDensity) { controlsHeight.toDp() })), contentAlignment = Alignment.Center) {
+                            Box(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding() + XNoteHeaderHeight + 16.dp,
+                                bottom = (if (controlsHeight == 0) insets.calculateBottomPadding() + 112.dp
+                                else with(initialDensity) { controlsHeight.toDp() }) + 16.dp), contentAlignment = Alignment.Center) {
                                 when {
                                     failure -> XNoteErrorState(errorMessage, backdrop, actionLabel = stringResource(R.string.export_retry),
                                         onAction = { attempt++ })
@@ -162,13 +161,13 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                                     }, enabled = ready && !saving)), modifier = Modifier.align(Alignment.TopCenter))
                             Column(Modifier.align(Alignment.BottomCenter).onSizeChanged { controlsHeight = it.height }.navigationBarsPadding().padding(horizontal = horizontal, vertical = 8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(stringResource(R.string.export_background_hint), style = typography.labelMedium, color = colors.onSurface)
-                                Text(if (ready) stringResource(R.string.export_page, selected + 1, pages.size)
-                                    else stringResource(R.string.export_progress, minOf(completed + 1, pages.size), pages.size),
+                                if (!ready && !failure) Text(if (pages.isEmpty()) "正在准备图片…" else stringResource(R.string.export_progress, minOf(completed + 1, pages.size), pages.size),
                                     modifier = Modifier.testTag("xnote-export-progress"), style = typography.labelMedium, color = colors.onSurface)
-                                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                if (ready && pages.size > 1) FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     LiquidButton({ selected-- }, backdrop, enabled = ready && selected > 0,
                                         modifier = Modifier.testTag("xnote-export-previous")) { Text(stringResource(R.string.reader_previous)) }
+                                    Text(stringResource(R.string.export_page, selected + 1, pages.size), Modifier.testTag("xnote-export-progress"),
+                                        style = typography.labelMedium, color = colors.onSurface)
                                     LiquidButton({ selected++ }, backdrop, enabled = ready && selected < pages.lastIndex,
                                         modifier = Modifier.testTag("xnote-export-next")) { Text(stringResource(R.string.reader_next)) }
                                 }
@@ -185,7 +184,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
                                     }
                                 }, backdrop = backdrop, enabled = ready && !saving && !saved,
                                     modifier = Modifier.testTag("xnote-export-save")) {
-                                    Text(stringResource(if (saving) R.string.export_working else R.string.export_save))
+                                    Text(if (saved) "已保存到相册" else stringResource(if (saving) R.string.export_working else R.string.export_save))
                                 }
                             }
                         },

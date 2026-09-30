@@ -65,7 +65,7 @@ class S10FlowTest {
         compose.onNodeWithContentDescription("返回").performClick()
         compose.onNodeWithText("存储与隐私").performClick()
         compose.onNodeWithTag("xnote-storage").assertIsDisplayed()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("附件：", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("附件").fetchSemanticsNodes().isNotEmpty() }
         screenshot("storage-phone")
     }
 

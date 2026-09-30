@@ -801,7 +801,8 @@ class NotesFlowTest {
 
         composeRule.onNodeWithText("我的").performClick()
         composeRule.onNodeWithText("回收站").performClick()
-        composeRule.onAllNodesWithText("永久删除")[0].performClick()
+        composeRule.onNodeWithText("永久删除目标").performClick()
+        composeRule.onNodeWithText("永久删除").performClick()
         composeRule.onNodeWithText("删除").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("永久删除目标").fetchSemanticsNodes().isEmpty()

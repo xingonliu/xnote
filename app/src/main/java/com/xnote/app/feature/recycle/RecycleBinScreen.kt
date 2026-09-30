@@ -41,7 +41,9 @@ import com.xnote.app.design.XNoteRadiusSmall
 import com.xnote.app.design.XNoteSmoothCornerShape
 import com.xnote.app.design.XNoteSpacingMedium
 import com.xnote.app.design.XNoteSpacingSmall
-import com.xnote.app.design.XNoteButton
+import com.xnote.app.design.XNotePopupAnchor
+import com.xnote.app.design.rememberXNotePopupAnchor
+import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.domain.model.Note
 import com.xnote.app.domain.model.Notebook
 import com.xnote.app.feature.notes.displayTitle
@@ -60,8 +62,7 @@ fun RecycleBinScreen(
     listState: LazyListState,
     onToggleSelection: (String) -> Unit,
     onEnterSelection: (String) -> Unit,
-    onRestore: (String) -> Unit,
-    onPermanentlyDelete: (String) -> Unit,
+    onOpenActions: (String, XNotePopupAnchor) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val untitledLabel = stringResource(R.string.notes_untitled)
@@ -110,16 +111,14 @@ fun RecycleBinScreen(
                             untitledLabel = untitledLabel,
                             selected = note.id in selectedIds,
                             selectionMode = selectionMode,
-                            onClick = {
+                            onClick = { anchor ->
                                 if (selectionMode) {
                                     onToggleSelection(note.id)
                                 } else {
-                                    onEnterSelection(note.id)
+                                    onOpenActions(note.id, anchor)
                                 }
                             },
                             onLongClick = { onEnterSelection(note.id) },
-                            onRestore = { onRestore(note.id) },
-                            onPermanentlyDelete = { onPermanentlyDelete(note.id) },
                         )
                         if (index < notes.lastIndex) {
                             XNoteInsetDivider(startIndent = 16.dp)
@@ -139,12 +138,11 @@ private fun RecycleBinRow(
     untitledLabel: String,
     selected: Boolean,
     selectionMode: Boolean,
-    onClick: () -> Unit,
+    onClick: (XNotePopupAnchor) -> Unit,
     onLongClick: () -> Unit,
-    onRestore: () -> Unit,
-    onPermanentlyDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val actionAnchor = rememberXNotePopupAnchor()
     val deletedAt = note.deletedAtEpochMs ?: return
     val remainingDays = note.remainingRetentionDays(System.currentTimeMillis()) ?: 0
 
@@ -153,7 +151,8 @@ private fun RecycleBinRow(
             .fillMaxWidth()
             .semantics { this.selected = selected }
             .testTag("xnote-recycle-row")
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .xNotePopupAnchor(actionAnchor)
+            .combinedClickable(onClick = { onClick(actionAnchor) }, onLongClick = onLongClick)
             .padding(horizontal = XNoteSpacingMedium, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -188,9 +187,11 @@ private fun RecycleBinRow(
                 Text(
                     text = "剩余 $remainingDays 天",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = LocalContentColor.current,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (!selectionMode) Icon(painterResource(R.drawable.ic_keyline_stroke_more_horizontal), "笔记操作",
+                Modifier.size(XNoteIconSizeMedium), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -215,32 +216,6 @@ private fun RecycleBinRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-        }
-        if (!selectionMode) {
-            Row(
-                modifier = Modifier.padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
-            ) {
-                XNoteButton(
-                    onClick = onRestore,
-                ) {
-                    Text(
-                        text = stringResource(R.string.recycle_bin_restore),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = LocalContentColor.current,
-                    )
-                }
-                XNoteButton(
-                    onClick = onPermanentlyDelete,
-                    tint = MaterialTheme.colorScheme.primary,
-                ) {
-                    Text(
-                        text = stringResource(R.string.recycle_bin_delete_permanently),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = LocalContentColor.current,
-                    )
-                }
             }
         }
     }

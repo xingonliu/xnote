@@ -51,7 +51,7 @@ fun XNoteBackgroundPicker(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(XNoteSpacingMedium),
     ) {
-        Text(
+        if (scopeDescription.isNotBlank()) Text(
             text = scopeDescription,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -58,7 +58,8 @@ class ModelSettingsFlowTest {
             .performClick()
         compose.waitUntil(5000) { runBlocking { store.list().single().name == "重命名配置" } }
         compose.onNodeWithText("重命名配置 · 默认").performScrollTo().performClick()
-        compose.onNodeWithText("删除").performScrollTo().performClick()
+        compose.onNodeWithTag("model-delete").performScrollTo().performClick()
+        compose.onNodeWithText("删除").performClick()
         compose.waitUntil(5000) { runBlocking { store.list().isEmpty() } }
         compose.onNodeWithText("还没有模型配置").performScrollTo().assertIsDisplayed()
     }
@@ -142,7 +143,7 @@ class ModelSettingsFlowTest {
         compose.waitUntil(5000) { attempts == 2 }
         compose.onNodeWithTag("model-custom").performClick()
         compose.onNodeWithTag("model-url").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("取消", useUnmergedTree = true).performScrollTo().performClick()
+        compose.onNodeWithContentDescription("返回").performClick()
         compose.onNodeWithTag("model-add").assertIsDisplayed()
         org.junit.Assert.assertTrue(runBlocking { store.list().isEmpty() })
     }

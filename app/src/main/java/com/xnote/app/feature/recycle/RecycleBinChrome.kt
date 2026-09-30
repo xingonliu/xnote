@@ -4,6 +4,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -14,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -34,10 +37,6 @@ import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.Note
 import kotlinx.coroutines.launch
 
-// -- Constants
-
-val XNoteRecycleSelectionHeight = 64.dp
-
 // -- Composables
 
 @Composable
@@ -49,6 +48,7 @@ fun BoxScope.RecycleBinChrome(
     isTablet: Boolean,
     toastHostState: XNoteToastState,
     onBack: () -> Unit,
+    onSelectionBarHeightChanged: (Int) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val moreMenuAnchor = rememberXNotePopupAnchor()
@@ -111,6 +111,7 @@ fun BoxScope.RecycleBinChrome(
             },
             onCancel = ui::finishSelection,
             backdrop = backdrop,
+            onHeightChanged = onSelectionBarHeightChanged,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
@@ -120,6 +121,22 @@ fun BoxScope.RecycleBinChrome(
                 ),
         )
     }
+
+    val actionId = ui.actionNoteId
+    XNoteDropdownMenu(
+        expanded = actionId != null && notes.any { it.id == actionId },
+        onDismissRequest = { ui.actionNoteId = null },
+        items = listOf(
+            XNoteDropdownMenuItem("恢复", {
+                if (actionId != null) scope.launch {
+                    try { library.restoreNotes(listOf(actionId)); toastHostState.show(restoredMessage) }
+                    catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { toastHostState.show("恢复失败，请重试") }
+                }
+            }),
+            XNoteDropdownMenuItem("永久删除", { actionId?.let { ui.pendingPermanentDeleteIds = setOf(it) } }, destructive = true),
+        ), backdrop = backdrop, anchor = ui.actionAnchor,
+    )
 
     XNoteDropdownMenu(
         expanded = ui.moreVisible,
@@ -203,10 +220,15 @@ private fun RecycleSelectionBar(
     onPermanentlyDelete: () -> Unit,
     onCancel: () -> Unit,
     backdrop: Backdrop,
+    onHeightChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    Column(
+        modifier = modifier.fillMaxWidth().onSizeChanged { onHeightChanged(it.height) },
+        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+    ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -216,6 +238,13 @@ private fun RecycleSelectionBar(
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f),
         )
+        LiquidButton(onClick = onCancel, backdrop = backdrop) { Text(stringResource(R.string.action_cancel)) }
+    }
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+    ) {
         LiquidButton(
             onClick = onRestore,
             backdrop = backdrop,
@@ -236,14 +265,6 @@ private fun RecycleSelectionBar(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        LiquidButton(
-            onClick = onCancel,
-            backdrop = backdrop,
-        ) {
-            Text(
-                text = stringResource(R.string.action_cancel),
-                color = LocalContentColor.current,
-            )
-        }
+    }
     }
 }
