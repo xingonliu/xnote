@@ -1,6 +1,11 @@
 package com.xnote.app.design
 
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.darkColorScheme
@@ -8,10 +13,27 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 import com.xnote.app.domain.model.ReadingLayout
+
+// -- Type Definitions
+
+private data object XNoteNoIndication : IndicationNodeFactory {
+    // -- Functions
+
+    override fun create(interactionSource: InteractionSource): DelegatableNode =
+        object : Modifier.Node(), DrawModifierNode {
+            // -- Functions
+
+            override fun ContentDrawScope.draw() = drawContent()
+        }
+}
 
 // -- Constants
 
@@ -100,6 +122,7 @@ val LocalReadingLayout = staticCompositionLocalOf { ReadingLayout.Standard }
 // -- Functions
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun XNoteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     reduceMotion: Boolean? = null,
@@ -108,7 +131,12 @@ fun XNoteTheme(
     readingLayout: ReadingLayout = ReadingLayout.Standard,
     content: @Composable () -> Unit,
 ) {
+    // -- State and Variables
+
     val density = LocalDensity.current
+
+    // -- Derived Values
+
     val baseColors = if (darkTheme) DarkColorScheme else LightColorScheme
     val colors = if (highContrast) baseColors.copy(
         primary = if (darkTheme) Color(0xFFFFD60A) else Color(0xFF805600),
@@ -131,8 +159,14 @@ fun XNoteTheme(
             MaterialTheme(
                 colorScheme = colors,
                 typography = XNoteTypography,
-                content = content,
-            )
+            ) {
+                // MaterialTheme installs its own indication, so override it inside its content.
+                CompositionLocalProvider(
+                    LocalIndication provides XNoteNoIndication,
+                    LocalRippleConfiguration provides null,
+                    content = content,
+                )
+            }
         }
     }
 }

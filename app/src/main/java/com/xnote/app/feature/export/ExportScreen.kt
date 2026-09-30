@@ -2,6 +2,7 @@ package com.xnote.app.feature.export
 
 import android.content.Intent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +43,7 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
     val readingLayout = remember { currentReadingLayout }
     val currentColors = MaterialTheme.colorScheme
     val currentTypography = MaterialTheme.typography
+    val indication = LocalIndication.current
     val density = remember { initialDensity }
     val colors = remember { currentColors }
     val typography = remember { currentTypography }
@@ -101,7 +103,10 @@ fun ExportScreen(noteId: String, library: NoteLibrary, defaultBackground: Backgr
             val rasterDensity = remember {
                 Density(minOf(density.density, 2048f / maxOf(pageWidth.value, pageHeight.value)), density.fontScale)
             }
-            CompositionLocalProvider(LocalDensity provides rasterDensity) {
+            CompositionLocalProvider(
+                LocalDensity provides rasterDensity,
+                LocalIndication provides indication,
+            ) {
                 val measurer = rememberTextMeasurer(cacheSize = 128)
                 val pages = remember(note, attachments, attempt) {
                     if (note == null || attachments == null) emptyList() else {

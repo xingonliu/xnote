@@ -1,6 +1,5 @@
 package com.xnote.app.design
 
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -85,7 +84,7 @@ fun XNoteButton(
             .clickable(
                 enabled = enabled,
                 interactionSource = null,
-                indication = if (interaction.enabled) null else LocalIndication.current,
+                indication = null,
                 role = Role.Button,
                 onClick = onClick,
             )

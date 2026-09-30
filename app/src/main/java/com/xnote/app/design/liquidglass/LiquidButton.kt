@@ -1,6 +1,5 @@
 package com.xnote.app.design.liquidglass
 
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -98,7 +97,6 @@ private fun LiquidButtonSurface(
     val interactionSettings = LocalXNoteInteractionSettings.current
     val contrastSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
     val interaction = rememberXNoteButtonInteraction(enabled && isInteractive)
-    val hasInteractiveMotion = interaction.enabled
 
     Row(
         modifier
@@ -127,7 +125,7 @@ private fun LiquidButtonSurface(
                     Modifier.clickable(
                         enabled = enabled,
                         interactionSource = null,
-                        indication = if (hasInteractiveMotion) null else LocalIndication.current,
+                        indication = null,
                         role = Role.Button,
                         onClick = onClick,
                     )

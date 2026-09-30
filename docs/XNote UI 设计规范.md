@@ -292,7 +292,8 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
 - 点击首页 Tab 或平板导航栏的首页入口时清空笔记区子导航栈并显示笔记本首页；从编辑器携带笔记进入 Agent 后也遵循此规则，保留 Agent 对话与草稿。
 - 悬浮 Header、浮动按钮、阅读与导出底部操作使用 `LiquidButton`；页面内容内的操作、筛选、表单选择入口和列表行内按钮使用 `XNoteButton`。材质由所在层级决定，不能仅因控件可点击或位置固定就使用玻璃。
-- `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。新建笔记浮动按钮是唯一例外：使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 52 × 52 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
+- `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。浮动按钮按用途设置尺寸：Agent 回到底部按钮为 46 × 46 dp、下箭头为 22 × 22 dp；新建笔记浮动按钮使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 52 × 52 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
+- 全项目关闭点击灰色涟漪。`XNoteTheme` 在 Material 主题内为普通点击区域提供无绘制 `IndicationNodeFactory`，并通过 `LocalRippleConfiguration = null` 关闭 Material 控件涟漪；嵌套 Material 主题保留该点击配置。公共按钮直接使用 `indication = null`，保留原有按压形变、泛光与触觉反馈，减少动画时也不显示涟漪。
 - 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
@@ -305,7 +306,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 
 - `XNoteButton` 默认采用 iOS 普通 Gray 按钮的轻填充层级：将 6% 的 `onSurface` 合成到 `surface`，形成不透明中性底色，常态无描边、无投影；高对比度时使用 1 dp 的 `outline` 边框。强调操作使用主题 Tint 与对应前景色，禁用时整体不透明度为 64%。
 - 非圆形按钮统一使用 `XNoteButtonRadius = 12.dp` 的连续圆角；等宽高按钮保持正圆。背景、边框、裁剪和按压反馈共用相同 Shape。12 dp 是项目调校值，并非 iOS 强制参数。
-- 不依赖 Backdrop；与玻璃按钮共享触点、形变和回弹实现，不复制动画或增加另一套手势参数。普通材质选择柔和泛光：18% 白色以近似高斯曲线从中心持续衰减，半径为短边的 2 倍，以普通透明度混合代替加法混合，避免白色圆盘与锐利圆边；有无 RuntimeShader 均采用相同绘制。玻璃组件沿用自身高光配方。减少动画时取消形变，保留点击反馈；禁用同时阻止触摸与无障碍点击。
+- 不依赖 Backdrop；与玻璃按钮共享触点、形变和回弹实现，不复制动画或增加另一套手势参数。普通材质选择柔和泛光：18% 白色以近似高斯曲线从中心持续衰减，半径为短边的 2 倍，以普通透明度混合代替加法混合，避免白色圆盘与锐利圆边；有无 RuntimeShader 均采用相同绘制。玻璃组件沿用自身高光配方。减少动画时取消形变与泛光，点击仍正常执行；禁用同时阻止触摸与无障碍点击。
 - 笔记首页管理与添加、集合排序、搜索筛选、模型配置、存储与外观操作、Agent 消息与抽屉内容操作、回收站行内动作、空状态与错误重试使用普通按钮。笔记多选栏保留玻璃外壳，内部操作使用普通按钮。
 - Popup、Dialog、Drawer 可使用玻璃外壳；内部表单、列表与条目操作不因处于浮层而自动采用玻璃。共享 Dialog 确认按钮和笔记编辑页现有组件维持当前样式。
 - 笔记编辑页的 Header、Footer、格式检视器、图片控制、背景面板与相关弹窗沿用现有材质、形状及交互。本次共享交互提取不得改变这些控件的视觉和手势结果。
