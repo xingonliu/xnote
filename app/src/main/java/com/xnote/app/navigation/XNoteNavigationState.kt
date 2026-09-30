@@ -49,6 +49,7 @@ data class XNoteNavigationState(
         isSearchOpen = false,
         isRecycleBinOpen = false,
         isAppearanceOpen = false,
+        notesStack = if (destination == AppDestination.Notes) emptyList() else notesStack,
     )
 
     fun openSearch() = copy(

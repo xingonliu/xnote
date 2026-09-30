@@ -18,7 +18,8 @@ import com.xnote.app.design.XNoteToastState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
+import com.xnote.app.design.liquidglass.LiquidToggle
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
@@ -69,6 +70,13 @@ internal fun NoteBackgroundChrome(
     val failure = stringResource(R.string.background_save_failed)
     val unavailable = stringResource(R.string.image_source_unavailable)
     val image = rememberBackgroundImage(background, library)
+    val onAutoThemeChange: (Boolean) -> Unit = { enabled ->
+        scope.launch {
+            try { settings.setEditorAutoThemeEnabled(enabled) }
+            catch (error: CancellationException) { throw error }
+            catch (_: Exception) { toast.show(failure) }
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null && !busy) {
             busy = true
@@ -100,13 +108,7 @@ internal fun NoteBackgroundChrome(
             Modifier.fillMaxWidth().testTag("xnote-editor-auto-theme").toggleable(
                 value = preferences.editorAutoThemeEnabled,
                 role = Role.Switch,
-                onValueChange = { enabled ->
-                    scope.launch {
-                        try { settings.setEditorAutoThemeEnabled(enabled) }
-                        catch (error: CancellationException) { throw error }
-                        catch (_: Exception) { toast.show(failure) }
-                    }
-                },
+                onValueChange = onAutoThemeChange,
             ).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -114,7 +116,8 @@ internal fun NoteBackgroundChrome(
                 Text(stringResource(R.string.editor_auto_theme_title), style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.editor_auto_theme_summary), style = MaterialTheme.typography.bodyMedium)
             }
-            Switch(checked = preferences.editorAutoThemeEnabled, onCheckedChange = null)
+            LiquidToggle(selected = { preferences.editorAutoThemeEnabled }, onSelect = onAutoThemeChange,
+                backdrop = backdrop, modifier = Modifier.clearAndSetSemantics { })
         }
         XNoteBackgroundPicker(
             selectedKey = session.backgroundKey,

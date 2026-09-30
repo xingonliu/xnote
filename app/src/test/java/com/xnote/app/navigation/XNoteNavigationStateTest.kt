@@ -52,6 +52,24 @@ class XNoteNavigationStateTest {
     }
 
     @Test
+    fun selectingHomeAfterCarryingAnEditorNoteToAgentReturnsToTheNotebookGrid() {
+        val agent = XNoteNavigationState()
+            .openNotebook("book")
+            .openEditor("attached-note")
+            .openDestination(AppDestination.Agent)
+        val restored = agent.copy(notesStack = decodeNotesStack(encodeNotesStack(agent.notesStack)))
+        assertEquals(NotesRoute.Editor("attached-note"), restored.notesRoute)
+
+        val home = restored.openDestination(AppDestination.Notes)
+
+        assertEquals(AppDestination.Notes, home.destination)
+        assertEquals(NotesRoute.Home, home.notesRoute)
+        assertTrue(home.notesStack.isEmpty())
+        assertTrue(home.showsPrimaryChrome)
+        assertEquals(NotesRoute.Home, home.popNotes().notesRoute)
+    }
+
+    @Test
     fun closeSearchReturnsToCurrentDestination() {
         val state = XNoteNavigationState(
             destination = AppDestination.Notes,

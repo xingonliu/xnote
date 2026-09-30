@@ -99,13 +99,13 @@ fun AgentMemoryScreen(timeline: AgentTimeline, onBack: () -> Unit) {
                 dismissAction = XNoteDialogAction("取消", { clearing = false }, enabled = !busy)) {
                 Text("聊天记录会保留，已清除的偏好不会从旧聊天中重新记住。")
             }
-        }) {
+        }) { backdrop ->
             when (page) {
                 MemoryPage.Memory -> {
                     item {
                         XNoteSettingsSection("记忆偏好", description = "关闭后，已保存的记忆仍可使用。你也可以在对话中要求记住或忘记。") {
                             XNoteSettingsSwitch("自动记忆", settings.automatic, { action { store.setAutomatic(it) } },
-                                Modifier.testTag("automatic-memory"), summary = "记住对话中有用的偏好", enabled = !busy)
+                                Modifier.testTag("automatic-memory"), backdrop = backdrop, summary = "记住对话中有用的偏好", enabled = !busy)
                         }
                     }
                     item {

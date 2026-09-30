@@ -274,6 +274,14 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             state = rememberXNoteScrollEdgeState(list),
             edges = setOf(XNoteScrollEdge.Top),
         )
+        Box(Modifier.fillMaxSize().imePadding()) {
+            XNoteProgressiveBlur(
+                backdrop = backdrop,
+                state = XNoteScrollEdgeState(),
+                edges = setOf(XNoteScrollEdge.Bottom),
+                alwaysVisibleEdges = setOf(XNoteScrollEdge.Bottom),
+            )
+        }
         XNoteHeader(
             title = "", backdrop = backdrop,
             actions = listOf(

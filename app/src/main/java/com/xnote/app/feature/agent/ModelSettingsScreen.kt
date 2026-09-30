@@ -97,7 +97,7 @@ fun ModelSettingsScreen(
                                 modelId = "", isDefault = profiles.isEmpty()) })
                     }
                 } else {
-                    ModelProfileForm(selected, saved == null, catalog, selectState, saving || testing, saving,
+                    ModelProfileForm(selected, saved == null, catalog, selectState, backdrop, saving || testing, saving,
                         onNotice = toast::show) { profile, secret ->
                         focus.clearFocus()
                         saving = true

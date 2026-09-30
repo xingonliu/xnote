@@ -292,12 +292,13 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - `DampedDragAnimation.release()` 在释放协程开头调用 Android `awaitFrame()`，再等待滑块接近目标位置并恢复按压与缩放状态；保留现有选中同步、裁剪与拖拽逻辑。
 - 点击切换 tab 必须先进入 `LiquidBottomTabs` 的选中状态，由滑块唤起并执行位移动画；`LiquidBottomTab` 不得绕过父组件直接切换页面。
 - 二次轻触已激活 tab 时不改变横向选中位置，由页面层将当前长列表平滑滚回顶部或清空该目的地的子导航栈；“减少动画”开启时改为即时重置。
+- 点击首页 Tab 或平板导航栏的首页入口时清空笔记区子导航栈并显示笔记本首页；从编辑器携带笔记进入 Agent 后也遵循此规则，保留 Agent 对话与草稿。
 - 悬浮 Header、浮动按钮、阅读与导出底部操作使用 `LiquidButton`；页面内容内的操作、筛选、表单选择入口和列表行内按钮使用 `XNoteButton`。材质由所在层级决定，不能仅因控件可点击或位置固定就使用玻璃。
 - `LiquidButton` 固定使用官方 `Capsule`、XNote 紧凑控件的 40 dp 高度、8 dp 水平内边距以及 `vibrancy + blur(2) + lens(12/24)` 配方；全区域按压白光强度固定为 `0.04`，无 RuntimeShader 时的兜底强度固定为 `0.125`，触点径向白光保持官方 `0.15`。图标按钮使用 `Modifier.size(XNoteButtonSize)` 形成 40 × 40 dp 正圆。新建笔记浮动按钮是唯一例外：使用 `Modifier.size(XNoteCreateNoteButtonSize)` 形成 52 × 52 dp 正圆，内部加号使用 `XNoteIconSizeHero`。页面不得改写形状、内容内边距或高光参数。
 - 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
-- 开关和连续数值输入按控件语义与所在层级选择材质；设置内容中的开关保持普通控件，编辑页背景面板继续使用现有 `LiquidSlider`。
+- 所有设置开关统一使用官方 catalog `LiquidToggle`，包括外观与辅助功能、Markdown 快捷输入、模型配置启用、自动记忆和笔记背景自动深浅模式。保留官方 64 × 28 dp 轨道、40 × 24 dp 滑块、绿色选中态与按压折射配方，按应用主题选择深浅材质；整行可点击并提供单一 Switch 无障碍节点，滑块支持横向拖拽，取消手势恢复当前设置，禁用态阻止点击与拖拽。「减少动画」关闭位移过渡和形变。开关采样不包含自身的页面背景捕获层，滑块另合成官方轨道捕获层；编辑页背景面板连续数值输入使用官方 `LiquidSlider`。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
 列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立操作使用 `XNoteButton`。下拉选择入口使用普通材质，展开后的菜单外壳使用玻璃。
@@ -322,7 +323,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 | `LiquidButton` | 官方 catalog | 悬浮导航、工具栏及浮动操作 |
 | `XNoteButton` | 项目普通材质，共享 catalog 按压交互 | 内容区、筛选、表单和列表操作 |
 | `XNoteDialog` | 官方 catalog `DialogContent` 材质配方 | 阻断式确认与关键说明 |
-| `LiquidToggle` | 官方 catalog，按需纳入 | 设置开关 |
+| `LiquidToggle` | 官方 catalog，已纳入 | 全部设置开关及笔记背景自动深浅模式 |
 | `LiquidSlider` | 官方 catalog，已纳入 | 自定义图片背景遮罩不透明度（0–100%） |
 | `XNoteLiquidGlassPanel` | catalog 无对应组件时的项目适配 | 浮动工具栏与同窗口浮层外壳 |
 | 平板 Navigation Rail | catalog 无竖向组件时的项目适配 | 平板一级导航 |
@@ -548,6 +549,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 - 输入区权限按钮按文字与箭头宽度排列，右侧独立弹性留白将发送按钮推到行尾。
 - Agent 页的操作成功、失败和临时说明统一使用公共 Toast，消息与工具执行状态保留在聊天记录中。
 - 键盘展开时 tabbar 持续保留在窗口底部并被键盘遮挡，输入区使用布局阶段的 IME 与底栏联合避让，收起键盘时不移除底栏占位。
+- Footer 绘制常驻的底部渐变遮罩，复用 `XNoteProgressiveBlur` 的 128 dp、1 px 模糊与主题底色渐隐；键盘出现时遮罩随输入区移动至键盘上沿，收起后回到窗口底部。遮罩位于聊天捕获层外、输入控件下方，不参与控件采样或拦截触摸。
 - 输入区与 tabbar 实测上沿间距为 8 dp，输入区高度计入消息列表底部留白。加号、权限、更多与长按菜单不触发底栏隐藏；菜单避开 tabbar 与键盘，自适应翻转和限制高度。
 
 ## 14. 技术参考

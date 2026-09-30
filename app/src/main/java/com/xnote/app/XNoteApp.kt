@@ -893,7 +893,7 @@ private fun DestinationContent(
     val scope = rememberCoroutineScope()
 
     if (navigationState.isAppearanceOpen) {
-        AppearanceScreen(settings, contentPadding, appearanceScrollState)
+        AppearanceScreen(settings, contentPadding, appearanceScrollState, backdrop)
         return
     }
 

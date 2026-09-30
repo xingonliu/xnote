@@ -23,7 +23,7 @@ fun XNoteSettingsPage(
     listState: LazyListState = rememberLazyListState(),
     actions: List<XNoteHeaderAction> = emptyList(),
     overlay: @Composable BoxScope.(Backdrop) -> Unit = {},
-    content: LazyListScope.() -> Unit,
+    content: LazyListScope.(Backdrop) -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
     val insets = WindowInsets.safeDrawing.asPaddingValues()
@@ -34,7 +34,7 @@ fun XNoteSettingsPage(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp,
                 top = xNoteScrollEdgePadding(insets.calculateTopPadding() + XNoteHeaderHeight),
                 bottom = insets.calculateBottomPadding() + 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp), content = content)
+            verticalArrangement = Arrangement.spacedBy(24.dp), content = { content(backdrop) })
     }, overlay = { glass ->
         XNoteHeader(title, glass, onBack = onBack, actions = actions, modifier = Modifier.align(Alignment.TopCenter))
         overlay(glass)

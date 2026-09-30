@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.*
 import com.xnote.app.design.*
 import com.xnote.app.design.XNoteButton
@@ -18,7 +19,7 @@ import kotlinx.coroutines.CancellationException
 // -- Functions
 
 @Composable
-internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, catalog: ModelCatalog, selectState: XNoteSelectState, busy: Boolean, saving: Boolean, onNotice: (String) -> Unit, onSave: (ModelProfile, String?) -> Unit) {
+internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, catalog: ModelCatalog, selectState: XNoteSelectState, backdrop: Backdrop, busy: Boolean, saving: Boolean, onNotice: (String) -> Unit, onSave: (ModelProfile, String?) -> Unit) {
     // -- State and Variables
 
     var advanced by remember { mutableStateOf(false) }
@@ -159,7 +160,7 @@ internal fun ModelProfileForm(initial: ModelProfile, isNew: Boolean, catalog: Mo
                 }
             }
             XNoteInsetDivider()
-            XNoteSettingsSwitch("启用此配置", enabled, { enabled = it }, enabled = !busy)
+            XNoteSettingsSwitch("启用此配置", enabled, { enabled = it }, backdrop = backdrop, enabled = !busy)
         }
     }
     XNoteButton(::save, enabled = !busy, tint = MaterialTheme.colorScheme.primary,

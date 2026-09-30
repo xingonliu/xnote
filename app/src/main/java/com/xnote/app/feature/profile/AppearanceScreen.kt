@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.data.settings.AppSettingsRepository
 import com.xnote.app.design.*
@@ -20,7 +21,7 @@ import kotlinx.coroutines.launch
 // -- Functions
 
 @Composable
-fun AppearanceScreen(settings: AppSettingsRepository, contentPadding: PaddingValues, scrollState: ScrollState) {
+fun AppearanceScreen(settings: AppSettingsRepository, contentPadding: PaddingValues, scrollState: ScrollState, backdrop: Backdrop) {
     // -- State and Variables
 
     val value by settings.settings.collectAsState(defaultAppSettings())
@@ -59,10 +60,10 @@ fun AppearanceScreen(settings: AppSettingsRepository, contentPadding: PaddingVal
             }
             XNoteSettingsSection("辅助功能") {
                 XNoteSettingsSwitch("减少动画", value.reduceMotion, { save { settings.setReduceMotion(it) } },
-                    Modifier.testTag("setting-减少动画"))
+                    Modifier.testTag("setting-减少动画"), backdrop = backdrop)
                 XNoteInsetDivider()
                 XNoteSettingsSwitch("高对比度", value.highContrast, { save { settings.setHighContrast(it) } },
-                    Modifier.testTag("setting-高对比度"), summary = "让文字和控件更清晰")
+                    Modifier.testTag("setting-高对比度"), backdrop = backdrop, summary = "让文字和控件更清晰")
             }
             XNoteSettingsSection("阅读与编辑") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -75,7 +76,7 @@ fun AppearanceScreen(settings: AppSettingsRepository, contentPadding: PaddingVal
                 XNoteInsetDivider()
                 XNoteSettingsSwitch(stringResource(R.string.editor_markdown_shortcuts_title), value.markdownShortcutsEnabled,
                     { save { settings.setMarkdownShortcutsEnabled(it) } }, Modifier.testTag("xnote-markdown-shortcuts-switch"),
-                    summary = "输入 #、- 等符号时自动设置格式")
+                    backdrop = backdrop, summary = "输入 #、- 等符号时自动设置格式")
             }
             XNoteSettingsSection(stringResource(R.string.background_settings_title), description = "用于未单独设置背景的笔记。") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

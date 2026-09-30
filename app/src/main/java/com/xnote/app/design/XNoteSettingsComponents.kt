@@ -19,6 +19,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xnote.app.R
+import com.kyant.backdrop.Backdrop
+import com.xnote.app.design.liquidglass.LiquidToggle
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 // -- Functions
 
@@ -75,6 +78,7 @@ fun XNoteSettingsSwitch(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    backdrop: Backdrop,
     summary: String? = null,
     enabled: Boolean = true,
 ) {
@@ -86,13 +90,8 @@ fun XNoteSettingsSwitch(
             if (!summary.isNullOrBlank()) Text(summary, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked, onCheckedChange = null, enabled = enabled, colors = SwitchDefaults.colors(
-            checkedTrackColor = MaterialTheme.colorScheme.primary,
-            checkedThumbColor = Color.White,
-            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-            uncheckedThumbColor = Color.White,
-            uncheckedBorderColor = Color.Transparent,
-        ))
+        LiquidToggle(selected = { checked }, onSelect = onChange, backdrop = backdrop,
+            enabled = enabled, modifier = Modifier.clearAndSetSemantics { })
     }
 }
 
