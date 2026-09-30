@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
 import com.xnote.app.R
 import com.xnote.app.domain.agent.agentFinalBubbleTexts
 
@@ -26,6 +27,7 @@ import com.xnote.app.domain.agent.agentFinalBubbleTexts
 internal fun AgentTaskRow(
     task: AgentTimelineItem.Task,
     onLongPress: (AgentMessageMenu) -> Unit,
+    backdrop: Backdrop,
     content: @Composable (AgentTimelineItem) -> Unit,
 ) {
     // -- State and Variables
@@ -60,6 +62,7 @@ internal fun AgentTaskRow(
         if (ending != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             bubbles.forEachIndexed { index, text ->
                 AgentMessageBubble(ending, text, joinsNext = index < bubbles.lastIndex, onLongPress = onLongPress,
+                    backdrop = backdrop,
                     modifier = Modifier.testTag("agent-final-${task.run.id}-$index"))
             }
         }

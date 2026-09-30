@@ -35,6 +35,7 @@ fun AgentComposer(
     enabled: Boolean,
     running: Boolean,
     canSend: Boolean,
+    hasDraftFiles: Boolean,
     permission: AgentPermission,
     notes: List<AgentComposerNote>,
     onRemoveNote: (String) -> Unit,
@@ -45,10 +46,12 @@ fun AgentComposer(
     onAdd: () -> Unit,
     onPermission: () -> Unit,
     onSend: () -> Unit,
+    onStop: () -> Unit,
 ) {
     // -- Derived Values
 
     val permissionSummary = permission.mode.permissionLabel()
+    val showStop = running && input.isBlank() && !hasDraftFiles
 
     XNoteLiquidGlassPanel(backdrop, Modifier.fillMaxWidth().testTag("agent-composer"), XNoteSmoothCornerShape(24.dp)) {
         Column(Modifier.fillMaxWidth().padding(8.dp)) {
@@ -97,9 +100,10 @@ fun AgentComposer(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                LiquidButton(onClick = onSend, backdrop = backdrop, tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(XNoteButtonSize).testTag("agent-send"), enabled = canSend) {
-                    Icon(painterResource(R.drawable.ic_keyline_fill_send), if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
+                LiquidButton(onClick = if (showStop) onStop else onSend, backdrop = backdrop, tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(XNoteButtonSize).testTag(if (showStop) "agent-stop" else "agent-send"), enabled = showStop || canSend) {
+                    Icon(painterResource(if (showStop) R.drawable.ic_agent_stop else R.drawable.ic_keyline_fill_send),
+                        if (showStop) "停止任务" else if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
                 }
             }
         }

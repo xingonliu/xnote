@@ -73,6 +73,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     var messageMenu by remember { mutableStateOf<AgentMessageMenu?>(null) }
     var composerHeight by remember { mutableStateOf(0.dp) }
     val backdrop = rememberLayerBackdrop()
+    val bubbleBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current
     var permissionRequest by remember { mutableStateOf<AgentToolEventEntity?>(null) }
     var snapshotPreview by remember { mutableStateOf<AgentSnapshotEntity?>(null) }
@@ -132,7 +133,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     }
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
-    val atLatest by remember(list) { derivedStateOf { list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset == 0 } }
+    val atLatest by remember(list) { derivedStateOf { !list.canScrollBackward } }
     val followLatest = remember(timelineItems, composerHeight, keyboardVisible, waitingConflict?.id, request?.id) {
         atLatest && !list.isScrollInProgress
     }
@@ -185,7 +186,9 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         }
     }
     Box(modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background)) {
+        Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+            // Bubbles sample only the page background, while floating controls sample the complete conversation.
+            Box(Modifier.fillMaxSize().layerBackdrop(bubbleBackdrop).background(MaterialTheme.colorScheme.background))
             if (historyLoaded) LazyColumn(Modifier.fillMaxSize().testTag("agent-timeline"), state = list, reverseLayout = true,
                 contentPadding = PaddingValues(
                     start = contentPadding.calculateStartPadding(direction),
@@ -222,7 +225,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         AgentTimelineEntry(item, joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1)),
                             AgentTimelinePresentation(runs, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
-                                snapshots, fileCards, state.running, unresolved) { dateFormat.format(java.util.Date(it)) },
+                                snapshots, fileCards, state.running, unresolved, bubbleBackdrop) { dateFormat.format(java.util.Date(it)) },
                             AgentTimelineActions(
                                 onLongPress = { messageMenu = it; attachmentMenu = false; permissionMenu = false; moreMenu = false; historyMenu = false },
                                 onPreviewFile = { filePreview = it }, onPreviewSnapshot = { snapshotPreview = it },
@@ -270,7 +273,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             horizontalPadding = contentPadding.calculateEndPadding(direction),
             modifier = Modifier.align(Alignment.TopCenter).testTag("agent-header"),
         )
-        if (historyLoaded && (state.running || !atLatest)) {
+        if (historyLoaded && !atLatest) {
             AgentScrollToBottomButton(
                 running = state.running, backdrop = backdrop,
                 onClick = { scope.launch {
@@ -286,14 +289,13 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             bottom = 8.dp,
         ).onSizeChanged { composerHeight = with(density) { it.height.toDp() } },
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (state.running || unresolved || queue.isNotEmpty()) {
+            if (!state.running && (unresolved || queue.isNotEmpty())) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (state.running) "正在执行" else if (unresolved) "任务已暂停" else "队列已暂停",
+                    Text(if (unresolved) "任务已暂停" else "队列已暂停",
                         Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     if (queue.isNotEmpty()) TextButton({ keyboard?.hide(); queueDrawer = true }) { Text("待执行 ${queue.size} 条") }
-                    if (state.running) TextButton(timeline::stop, Modifier.testTag("agent-stop")) { Text("停止") }
-                    else if (unresolved) {
+                    if (unresolved) {
                         val recoverable = runs.lastOrNull { it.status in setOf(AgentRunStatus.Interrupted, AgentRunStatus.PausedBudget) }
                         if (recoverable != null) TextButton({ action { timeline.continueRun(recoverable.id) } }, Modifier.testTag("agent-continue")) { Text("继续任务") }
                         TextButton({ action { timeline.finishUnresolved() } }) { Text("结束任务") }
@@ -307,6 +309,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 canSend = state.ready && restored && !importingFile && ((state.running && draftSelection == null &&
                     runs.any { it.status == AgentRunStatus.Running && messages.any { message -> message.runId == it.id } }) ||
                     (!state.running && !unresolved && queue.isEmpty())) && (input.isNotBlank() || draftFiles.isNotEmpty()),
+                hasDraftFiles = draftFiles.isNotEmpty(),
                 permission = permission, notes = selectedNotes.map { id ->
                     val note = availableNotes.find { it.id == id }
                     AgentComposerNote(id, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用",
@@ -321,6 +324,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 onAdd = { attachmentMenu = true; permissionMenu = false; historyMenu = false; messageMenu = null },
                 onPermission = { permissionMenu = true; attachmentMenu = false; historyMenu = false; messageMenu = null },
                 onSend = { val sent = input; action { timeline.send(sent); input = "" } },
+                onStop = timeline::stop,
             )
         }
         AgentHistoryPopup(historyMenu, conversations, conversationId, historyAnchor, backdrop, bottomInset,

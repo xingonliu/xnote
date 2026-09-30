@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.kyant.backdrop.Backdrop
 import com.xnote.app.data.agent.agentVersion
 import com.xnote.app.data.db.*
 import com.xnote.app.design.XNoteButton
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.Json
 internal data class AgentTimelinePresentation(
     val runs: List<AgentRunEntity>, val notes: List<NoteEntity>, val notebookTitles: Map<String, String>,
     val snapshots: List<AgentSnapshotEntity>, val files: List<AgentFileCard>, val running: Boolean, val unresolved: Boolean,
+    val bubbleBackdrop: Backdrop,
     val formatTime: (Long) -> String,
 )
 
@@ -33,7 +35,7 @@ internal data class AgentTimelineActions(
 @Composable
 internal fun AgentTimelineEntry(item: AgentTimelineItem, joinsNext: Boolean, presentation: AgentTimelinePresentation, actions: AgentTimelineActions) {
     when (item) {
-        is AgentTimelineItem.Task -> AgentTaskRow(item, actions.onLongPress) { entry -> AgentTimelineEntry(entry, false, presentation, actions) }
+        is AgentTimelineItem.Task -> AgentTaskRow(item, actions.onLongPress, presentation.bubbleBackdrop) { entry -> AgentTimelineEntry(entry, false, presentation, actions) }
         is AgentTimelineItem.Tool -> {
             val event = item.event
             val run = presentation.runs.find { it.id == event.runId }
@@ -50,7 +52,7 @@ internal fun AgentTimelineEntry(item: AgentTimelineItem, joinsNext: Boolean, pre
                 if (message.role == AgentMessageRole.Event) {
                     Text(message.text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else if (message.text.isNotBlank()) {
-                    if (message.role == AgentMessageRole.User) AgentMessageBubble(message, message.text, joinsNext, actions.onLongPress)
+                    if (message.role == AgentMessageRole.User) AgentMessageBubble(message, message.text, joinsNext, actions.onLongPress, presentation.bubbleBackdrop)
                     else AgentMessageText(message, actions.onLongPress)
                 }
                 AgentFilesStrip(presentation.files.filter { it.ownerType == "message" && it.ownerId == message.id }, actions.onPreviewFile)

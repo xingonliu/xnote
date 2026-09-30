@@ -75,7 +75,7 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("历史消息 20"))
         val readingBounds = compose.onNodeWithTag("agent-message-history-20").fetchSemanticsNode().boundsInRoot
-        compose.onNodeWithTag("agent-scroll-to-bottom").assertWidthIsEqualTo(androidx.compose.ui.unit.Dp(52f))
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertWidthIsEqualTo(androidx.compose.ui.unit.Dp(46f))
         compose.onNodeWithTag("agent-scroll-arrow").assertExists()
         compose.onNodeWithText("我的").performClick()
         compose.onNodeWithText("Agent").performClick()
@@ -85,6 +85,69 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scroll-to-bottom").performClick()
         compose.onNodeWithTag("agent-message-history-39").assertIsDisplayed()
         compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
+    }
+
+    @Test fun composerSendsSupplementAtNextRequestAndStopsShortRunningConversation() {
+        runBlocking {
+            timeline.awaitReady()
+            profiles.save(ModelProfile("composer", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "local-test")
+        }
+        val release = CompletableDeferred<Unit>()
+        val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
+        val model = object : ModelClient {
+            override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
+                requests += request
+                if (requests.size == 1) {
+                    emit(ModelEvent.Text("你好。"))
+                    release.await()
+                    emitAgentFinish("已处理")
+                } else {
+                    emit(ModelEvent.Text("收到补充。"))
+                    awaitCancellation()
+                }
+            }
+        }
+        val running = AgentTimeline(database, profiles, model, scope)
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, agentTimeline = running) } }
+        configureWindow()
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { running.state.value.ready }
+        compose.onNodeWithTag("agent-input").performTextInput("你好")
+        compose.onNodeWithTag("agent-send").assertIsEnabled().performClick()
+        compose.waitUntil(5000) { requests.size == 1 }
+        hideKeyboard()
+        compose.onNodeWithTag("agent-stop").assertIsEnabled().assertContentDescriptionEquals("停止任务")
+        compose.onNodeWithTag("agent-send").assertDoesNotExist()
+        compose.onNodeWithText("正在执行").assertDoesNotExist()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
+
+        compose.onNodeWithTag("agent-input").performTextInput("请继续")
+        compose.onNodeWithTag("agent-send").assertIsEnabled().assertContentDescriptionEquals("补充当前任务")
+        compose.onNodeWithTag("agent-stop").assertDoesNotExist()
+        compose.onNodeWithTag("agent-input").performTextClearance()
+        compose.onNodeWithTag("agent-stop").assertIsEnabled()
+        compose.onNodeWithTag("agent-input").performTextInput("请继续")
+        compose.onNodeWithTag("agent-send").performClick()
+        compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.text == "请继续" } } }
+        hideKeyboard()
+        compose.onNodeWithText("请继续").assertIsDisplayed()
+        compose.onNodeWithTag("agent-stop").assertIsEnabled()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
+        assertEquals(1, requests.size)
+        runBlocking { assertEquals(AgentMessageStatus.Pending, database.agent().messages().single { it.text == "请继续" }.status) }
+
+        release.complete(Unit)
+        compose.waitUntil(5000) { requests.size == 2 }
+        assertTrue(requests.last().messages.any { it.role == AgentMessageRole.User && it.text.contains("请继续") })
+        compose.onNodeWithTag("agent-stop").assertIsDisplayed().performClick()
+        compose.waitUntil(5000) { !running.state.value.running }
+        compose.onNodeWithTag("agent-stop").assertDoesNotExist()
+        compose.onNodeWithTag("agent-send").assertIsNotEnabled()
+        runBlocking {
+            assertEquals(AgentRunStatus.Cancelled, database.agent().run(database.agent().messages().first().runId!!)!!.status)
+            assertEquals(1, database.agent().messages().count { it.text == "请继续" })
+        }
+        assertEquals(2, requests.size)
     }
 
     @Test fun newConversationClearsMessagesAndReturningDoesNotReplayToast() {
@@ -356,8 +419,8 @@ class AgentFlowTest {
         compose.onNodeWithText("Agent").performClick()
         runBlocking { running.send("读取后继续整理") }
         compose.waitUntil(5000) { requests == 2 }
-        compose.onNodeWithTag("agent-scroll-to-bottom").assertIsDisplayed()
-        compose.onNodeWithTag("agent-running-dots").assertExists()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("agent-running-dots").assertDoesNotExist()
         compose.onNodeWithTag("agent-scroll-arrow").assertDoesNotExist()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记", substring = true))
         compose.onNodeWithText("读取笔记", substring = true).performClick()
