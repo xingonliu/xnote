@@ -72,8 +72,8 @@ fun AgentComposer(
             }
             BasicTextField(
                 value = input, onValueChange = onInputChange, enabled = enabled,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp, max = 160.dp)
-                    .padding(horizontal = 12.dp, vertical = 10.dp).testTag("agent-input"),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp, max = 160.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp).testTag("agent-input"),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { inner ->

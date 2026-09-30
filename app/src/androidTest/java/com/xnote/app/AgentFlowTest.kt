@@ -7,6 +7,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.agent.*
 import com.xnote.app.data.db.XNoteDatabase
+import com.xnote.app.data.db.AgentMessageEntity
+import com.xnote.app.data.db.AgentSegmentEntity
 import com.xnote.app.data.files.AttachmentFileStore
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteTheme
@@ -49,6 +51,37 @@ class AgentFlowTest {
         database.agent().pendingQueue().forEach { database.agent().deleteQueueItem(it.id) }
         profiles.list().forEach { profiles.delete(it.id) }
         database.close()
+    }
+
+    @Test fun timelineStartsAtLatestRemembersReadingPositionAndReturnsToBottom() {
+        runBlocking {
+            timeline.awaitReady()
+            database.agent().saveSegment(AgentSegmentEntity("layout", 1))
+            repeat(40) { index ->
+                database.agent().insertMessage(AgentMessageEntity(
+                    id = "history-$index", segmentId = "layout", runId = null,
+                    role = if (index % 2 == 0) AgentMessageRole.User else AgentMessageRole.Assistant,
+                    text = "历史消息 $index", status = AgentMessageStatus.Complete, createdAtEpochMs = index.toLong(),
+                ))
+            }
+        }
+        compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, agentTimeline = timeline) } }
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-message-history-39").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("agent-message-history-39").assertIsDisplayed()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("历史消息 20"))
+        val readingBounds = compose.onNodeWithTag("agent-message-history-20").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertWidthIsEqualTo(androidx.compose.ui.unit.Dp(52f))
+        compose.onNodeWithTag("agent-scroll-arrow").assertExists()
+        compose.onNodeWithText("我的").performClick()
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-message-history-20").fetchSemanticsNodes().isNotEmpty() }
+        val restoredBounds = compose.onNodeWithTag("agent-message-history-20").fetchSemanticsNode().boundsInRoot
+        assertEquals(readingBounds.top, restoredBounds.top, 1f)
+        compose.onNodeWithTag("agent-scroll-to-bottom").performClick()
+        compose.onNodeWithTag("agent-message-history-39").assertIsDisplayed()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
     }
 
     @Test fun sendNavigateBackAndStartNewTopic() {
@@ -256,8 +289,8 @@ class AgentFlowTest {
         screenshot("agent-call-approval")
         compose.onNodeWithText("允许本次").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
-        compose.onNodeWithText("read · 已完成").performClick()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记"))
+        compose.onNodeWithText("读取笔记").performClick()
         compose.onNodeWithText("我的").assertDoesNotExist()
         compose.onNodeWithContentDescription("搜索").assertDoesNotExist()
         compose.onAllNodesWithText("当时权限：请求批准 · 版本 0")[0].assertExists()
@@ -298,8 +331,11 @@ class AgentFlowTest {
         compose.onNodeWithText("Agent").performClick()
         runBlocking { running.send("读取后继续整理") }
         compose.waitUntil(5000) { requests == 2 }
-        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("read · 已完成"))
-        compose.onNodeWithText("read · 已完成").performClick()
+        compose.onNodeWithTag("agent-scroll-to-bottom").assertIsDisplayed()
+        compose.onNodeWithTag("agent-running-dots").assertExists()
+        compose.onNodeWithTag("agent-scroll-arrow").assertDoesNotExist()
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记"))
+        compose.onNodeWithText("读取笔记").performClick()
         compose.onNodeWithTag("agent-tool-stop").performScrollTo().performClick()
         compose.waitUntil(5000) { !running.state.value.running }
         runBlocking {

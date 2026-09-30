@@ -35,4 +35,18 @@ class AgentToolPresentationTest {
         assertEquals("external_command", agentToolTitle("external_command"))
         assertTrue(agentToolDescription("external_command", JsonObject(emptyMap()), emptyMap(), emptyMap()).contains("完整请求"))
     }
+
+    @Test fun compactTargetsDistinguishDirectoryNotebookAndNoteReads() {
+        assertEquals("笔记目录", agentToolTarget("read", JsonObject(emptyMap()), emptyMap(), emptyMap()))
+        assertEquals("未归档", agentToolTarget("read", buildJsonObject { put("notebook_id", "") }, emptyMap(), emptyMap()))
+        assertEquals("旅行", agentToolTarget("read", buildJsonObject { put("notebook_id", "book") }, emptyMap(), mapOf("book" to "旅行")))
+        assertEquals("清单", agentToolTarget("read", buildJsonObject { put("note_id", "note") }, mapOf("note" to "清单"), emptyMap()))
+        assertEquals("笔记不可用", agentToolTarget("write", buildJsonObject { put("note_id", "removed") }, emptyMap(), emptyMap()))
+    }
+
+    @Test fun compactTargetsShowQueriesAndGeneratedFilenames() {
+        assertEquals("会议", agentToolTarget("note_search", buildJsonObject { put("query", "会议") }, emptyMap(), emptyMap()))
+        assertEquals("总结.pdf", agentToolTarget("output_file", buildJsonObject { put("filename", "总结.pdf") }, emptyMap(), emptyMap()))
+        assertEquals("未命名笔记", agentToolTarget("create", buildJsonObject { put("title", "") }, emptyMap(), emptyMap()))
+    }
 }

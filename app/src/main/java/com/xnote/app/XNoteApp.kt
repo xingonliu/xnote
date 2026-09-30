@@ -614,7 +614,9 @@ private fun XNoteAppContent(
             (isEditor || navigationState.notesRoute is NotesRoute.Notebook ||
                 navigationState.notesRoute is NotesRoute.Collection)
         val showsBottomBlur = showsBottomNavigation || showsRecycleSelection || showsNotesBottomControls
-        val scrollEdges = if (navigationState.isSearchOpen) emptySet() else if (showsBottomBlur) {
+        val agentManagesScrollEdges = navigationState.destination == AppDestination.Agent && agentTimeline != null &&
+            !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
+        val scrollEdges = if (navigationState.isSearchOpen || agentManagesScrollEdges) emptySet() else if (showsBottomBlur) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
@@ -989,7 +991,7 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, onAgentModalVisible, onOpenAgentModels) else UnavailableScreen(
+        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, listState, onAgentModalVisible, onOpenAgentModels) else UnavailableScreen(
             titleRes = R.string.agent_unavailable_title,
             descriptionRes = R.string.agent_unavailable_description,
             iconRes = R.drawable.ic_keyline_stroke_star,

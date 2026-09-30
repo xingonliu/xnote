@@ -8,7 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,18 +43,17 @@ import com.xnote.app.data.db.AgentToolEventEntity
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 
 // -- Functions
 
 @Composable
 fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, toastHostState: com.xnote.app.design.XNoteToastState, modifier: Modifier = Modifier,
-    onModalVisible: (Boolean) -> Unit = {}, onOpenModels: () -> Unit) {
+    list: LazyListState, onModalVisible: (Boolean) -> Unit = {}, onOpenModels: () -> Unit) {
     // -- State
 
-    val messages by timeline.messages.collectAsState(emptyList())
-    val runs by timeline.runs.collectAsState(emptyList())
-    val queue by timeline.queue.collectAsState(emptyList())
+    val messageHistory by timeline.messages.collectAsState(initial = null)
+    val runHistory by timeline.runs.collectAsState(initial = null)
+    val queuedHistory by timeline.queue.collectAsState(initial = null)
     val selectedNotes by timeline.draftNotes.collectAsState()
     val draftSelection by timeline.draftSelection.collectAsState()
     val availableNotes by timeline.noteStore.availableNotes.collectAsState(emptyList())
@@ -62,8 +61,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val notebooks by timeline.noteStore.notebooks.collectAsState(emptyList())
     val permission by timeline.noteStore.permission.collectAsState(AgentPermission())
     val snapshots by timeline.noteStore.snapshots.collectAsState(emptyList())
-    val tools by timeline.noteStore.toolEvents.collectAsState(emptyList())
-    val fileCards by (timeline.fileStore?.cards ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(emptyList())
+    val toolHistory by timeline.noteStore.toolEvents.collectAsState(initial = null)
+    val fileHistory by (timeline.fileStore?.cards ?: kotlinx.coroutines.flow.flowOf(emptyList())).collectAsState(initial = null)
     var filePreview by remember { mutableStateOf<com.xnote.app.data.db.AgentFileCard?>(null) }
     var importingFile by remember { mutableStateOf(false) }
     var attachDialog by remember { mutableStateOf(false) }
@@ -83,7 +82,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val state by timeline.state.collectAsState()
     val savedDraft by timeline.draft.collectAsState()
     val scope = rememberCoroutineScope()
-    val list = rememberLazyListState()
     var input by rememberSaveable { mutableStateOf("") }
     var attachmentMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
@@ -98,13 +96,21 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val keyboard = LocalSoftwareKeyboardController.current
     val direction = LocalLayoutDirection.current
     var restored by remember { mutableStateOf(false) }
-    var timelinePositionRestored by remember { mutableStateOf(false) }
     // -- Derived Values
 
+    val messages = messageHistory.orEmpty()
+    val runs = runHistory.orEmpty()
+    val queue = queuedHistory.orEmpty()
+    val tools = toolHistory.orEmpty()
+    val fileCards = fileHistory.orEmpty()
+    val historyLoaded = state.ready && composerHeight > 0.dp && messageHistory != null && runHistory != null &&
+        queuedHistory != null && toolHistory != null && fileHistory != null
     val modalVisible = attachDialog || permissionRequest != null || snapshotPreview != null || toolPreview != null || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
     val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
+    val request = tools.firstOrNull { tool -> tool.status == AgentToolStatus.Requested &&
+        runs.any { it.id == tool.runId && it.status == AgentRunStatus.WaitingPermission } }
     val selectionConflict = waitingConflict?.let { run ->
         messages.find { it.id == run.userMessageId }?.let {
             Json.decodeFromString<List<AgentMessageSource>>(it.sourcesJson).any { source -> source.selection != null }
@@ -119,6 +125,11 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     }
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
+    val atLatest by remember(list) { derivedStateOf { list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset == 0 } }
+    val followLatest = remember(timelineItems, composerHeight, keyboardVisible, waitingConflict?.id, request?.id) {
+        atLatest && !list.isScrollInProgress
+    }
+    val interactionSettings = LocalXNoteInteractionSettings.current
     // -- Functions
 
     fun showNotice(message: String) {
@@ -152,14 +163,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     SideEffect { onModalVisible(modalVisible) }
     DisposableEffect(Unit) { onDispose { onModalVisible(false) } }
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
-    LaunchedEffect(state.ready, timelineItems.size, messages.lastOrNull()?.text, composerHeight, keyboardVisible) {
-        if (!state.ready) return@LaunchedEffect
-        snapshotFlow { list.layoutInfo.totalItemsCount }.first { it > 0 }
-        val lastVisible = list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-        if (!list.isScrollInProgress && (!timelinePositionRestored || lastVisible >= list.layoutInfo.totalItemsCount - 3)) {
-            list.scrollToItem(list.layoutInfo.totalItemsCount - 1)
-            if (messages.isNotEmpty()) timelinePositionRestored = true
-        }
+    LaunchedEffect(historyLoaded, timelineItems, composerHeight, keyboardVisible, waitingConflict?.id, request?.id) {
+        if (historyLoaded && followLatest && !list.isScrollInProgress) list.requestScrollToItem(0)
     }
 
     if (memoryOpen) {
@@ -174,25 +179,43 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     }
     Box(modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background)) {
-            LazyColumn(Modifier.fillMaxSize().testTag("agent-timeline"), state = list,
+            if (historyLoaded) LazyColumn(Modifier.fillMaxSize().testTag("agent-timeline"), state = list, reverseLayout = true,
                 contentPadding = PaddingValues(
                     start = contentPadding.calculateStartPadding(direction),
                     end = contentPadding.calculateEndPadding(direction),
                     top = xNoteScrollEdgePadding(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight),
                     bottom = composerBottom + composerHeight + 12.dp,
                 )) {
-                if (messages.isEmpty() && state.ready && !keyboardVisible) item(key = "welcome") {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("想对笔记做些什么？", style = MaterialTheme.typography.headlineSmall)
-                        Text("附加笔记，开始总结、整理或继续你的想法。", style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (request != null) item(key = "authorization") {
+                    XNoteGroupCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("此任务需要你的授权", style = MaterialTheme.typography.titleMedium)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton({ toolPreview = request }) { Text("查看请求") }
+                                XNoteButton({ permissionRequest = request }, enabled = !state.running,
+                                    modifier = Modifier.testTag("agent-authorize")) { Text("查看并允许") }
+                                TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
+                            }
+                        }
                     }
                 }
-                itemsIndexed(timelineItems, key = { _, item -> item.key }) { index, item ->
-                    Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(index - 1), item)) 3.dp else 12.dp),
+                waitingConflict?.let { run ->
+                    val conflict = tools.firstOrNull { it.runId == run.id && it.status == AgentToolStatus.Requested }
+                    if (conflict != null && !selectionConflict) item(key = "conflict") {
+                        XNoteGroupCard(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                XNoteButton({ action { timeline.replanConflict(run.id, conflict.callId) } },
+                                    enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
+                            }
+                        }
+                    }
+                }
+                itemsIndexed(timelineItems.asReversed(), key = { _, item -> item.key }) { index, item ->
+                    val chronologicalIndex = timelineItems.lastIndex - index
+                    Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(chronologicalIndex - 1), item)) 3.dp else 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         when (item) {
-                            is AgentTimelineItem.Tool -> AgentToolHistoryRow(item.event, availableNotes + trashedNotes,
+                            is AgentTimelineItem.Tool -> AgentToolHistoryRow(item.event, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
                                 onPreview = { toolPreview = item.event }, onOpenReviews = ::openReviews)
                             is AgentTimelineItem.Message -> {
                                 val message = item.message
@@ -202,7 +225,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 } else if (message.text.isNotBlank()) {
                                     AgentMessageBubble(message, message.text,
-                                        joinsNext = joinsMessageGroup(item, timelineItems.getOrNull(index + 1)),
+                                        joinsNext = joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1)),
                                         onLongPress = { messageMenu = it; attachmentMenu = false; permissionMenu = false; moreMenu = false })
                                 }
                                 AgentFilesStrip(fileCards.filter { it.ownerType == "message" && it.ownerId == message.id }, { filePreview = it })
@@ -240,38 +263,20 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                         }
                     }
                 }
-                if (!state.ready) item(key = "restoring") { Text("正在恢复对话…") }
-                waitingConflict?.let { run ->
-                    val conflict = tools.firstOrNull { it.runId == run.id && it.status == AgentToolStatus.Requested }
-                    if (conflict != null && !selectionConflict) item(key = "conflict") {
-                        XNoteGroupCard(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                XNoteButton({ action { timeline.replanConflict(run.id, conflict.callId) } },
-                                    enabled = !state.running, modifier = Modifier.testTag("agent-replan-conflict")) { Text("重新读取并调整") }
-                            }
-                        }
+                if (messages.isEmpty() && state.ready && !keyboardVisible) item(key = "welcome") {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("想对笔记做些什么？", style = MaterialTheme.typography.headlineSmall)
+                        Text("附加笔记，开始总结、整理或继续你的想法。", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                val request = tools.firstOrNull { tool -> tool.status == AgentToolStatus.Requested &&
-                    runs.any { it.id == tool.runId && it.status == AgentRunStatus.WaitingPermission } }
-                if (request != null) item(key = "authorization") {
-                    XNoteGroupCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("此任务需要你的授权", style = MaterialTheme.typography.titleMedium)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton({ toolPreview = request }) { Text("查看请求") }
-                                XNoteButton({ permissionRequest = request }, enabled = !state.running,
-                                    modifier = Modifier.testTag("agent-authorize")) { Text("查看并允许") }
-                                TextButton({ action { timeline.answerPermission(request.runId, request.callId, false) } }, enabled = !state.running) { Text("拒绝") }
-                            }
-                        }
-                    }
-                }
+            } else {
+                Text("正在恢复对话…", Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         XNoteProgressiveBlur(
             backdrop = backdrop,
-            state = rememberXNoteScrollEdgeState(list),
+            state = XNoteScrollEdgeState(canScrollBackward = list.canScrollForward),
             edges = setOf(XNoteScrollEdge.Top),
         )
         Box(Modifier.fillMaxSize().imePadding()) {
@@ -294,6 +299,16 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             horizontalPadding = contentPadding.calculateEndPadding(direction),
             modifier = Modifier.align(Alignment.TopCenter).testTag("agent-header"),
         )
+        if (historyLoaded && (state.running || !atLatest)) {
+            AgentScrollToBottomButton(
+                running = state.running, backdrop = backdrop,
+                onClick = { scope.launch {
+                    if (interactionSettings.reduceMotion) list.scrollToItem(0) else list.animateScrollToItem(0)
+                } },
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = composerBottom + composerHeight + 12.dp),
+            )
+        }
         Column(Modifier.align(Alignment.BottomCenter)
             .windowInsetsPadding(WindowInsets.ime.union(WindowInsets(bottom = bottomInset))).padding(
             start = contentPadding.calculateStartPadding(direction), end = contentPadding.calculateEndPadding(direction),

@@ -17,6 +17,23 @@ internal fun agentToolTitle(name: String): String = when (name) {
     else -> name
 }
 
+internal fun agentToolTarget(name: String, arguments: JsonObject, noteTitles: Map<String, String>, notebookTitles: Map<String, String>): String {
+    fun text(key: String) = (arguments[key] as? JsonPrimitive)?.contentOrNull
+    val noteTitle = text("note_id")?.let { noteTitles[it]?.ifBlank { "未命名笔记" } ?: "笔记不可用" }
+    return when (name) {
+        "read" -> noteTitle ?: text("notebook_id")?.let {
+            if (it.isBlank()) "未归档" else notebookTitles[it] ?: "笔记本不可用"
+        } ?: "笔记目录"
+        "write", "delete" -> noteTitle.orEmpty()
+        "create" -> text("title").orEmpty().ifBlank { "未命名笔记" }
+        "note_search", "memory_search" -> text("query").orEmpty()
+        "memory_remember" -> text("value").orEmpty()
+        "memory_read" -> "历史对话"
+        "output_file" -> text("filename").orEmpty()
+        else -> "查看操作详情"
+    }
+}
+
 internal fun agentToolDescription(
     name: String,
     arguments: JsonObject,

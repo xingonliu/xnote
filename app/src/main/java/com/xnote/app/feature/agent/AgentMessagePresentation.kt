@@ -49,9 +49,10 @@ private class MessageBubbleShape(private val outgoing: Boolean, private val tail
             cubicTo(x(right - radius + control), 0f, x(right), radius - control, x(right), radius)
             lineTo(x(right), bottom - radius)
             if (tail) {
-                cubicTo(x(right), bottom - tailWidth, x(right), bottom - tailWidth / 2, x(size.width), bottom)
-                cubicTo(x(right), bottom, x(right - tailWidth), bottom - tailWidth / 2, x(right - tailWidth), bottom - tailWidth)
-                cubicTo(x(right - tailWidth), bottom, x(right - radius), bottom, x(right - radius), bottom)
+                // A convex outer sweep and concave return form the curved iMessage tail.
+                cubicTo(x(right), bottom - radius / 2, x(right + tailWidth / 3), bottom - tailWidth / 3, x(size.width), bottom)
+                cubicTo(x(right - tailWidth / 3), bottom, x(right - tailWidth), bottom - tailWidth, x(right - tailWidth * 1.5f), bottom - tailWidth * 0.75f)
+                cubicTo(x(right - tailWidth * 2), bottom - tailWidth / 2, x(right - radius * 0.8f), bottom, x(right - radius), bottom)
             } else {
                 cubicTo(x(right), bottom - radius + control, x(right - radius + control), bottom, x(right - radius), bottom)
             }
