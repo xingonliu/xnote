@@ -40,7 +40,7 @@ internal fun AgentScrollToBottomButton(
     LiquidButton(
         onClick = onClick, backdrop = backdrop,
         surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-        modifier = modifier.size(52.dp).testTag("agent-scroll-to-bottom").semantics {
+        modifier = modifier.size(46.dp).testTag("agent-scroll-to-bottom").semantics {
             contentDescription = if (running) "Agent 正在运行，回到最新消息" else "滚动到底部"
         },
     ) {
