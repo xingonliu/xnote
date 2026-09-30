@@ -1,6 +1,7 @@
 package com.xnote.app.feature.agent
 
 import com.xnote.app.data.db.AgentMessageEntity
+import com.xnote.app.data.db.AgentRunEntity
 import com.xnote.app.data.db.AgentToolEventEntity
 import com.xnote.app.domain.agent.*
 import kotlinx.serialization.json.Json
@@ -18,15 +19,19 @@ class AgentTimelineItemsTest {
         val event = AgentToolEventEntity("event", "run", "read-1", "read", "{}", null,
             AgentToolStatus.Requested, 0, 2)
         val user = message("user", AgentMessageRole.User)
-        val pending = agentTimelineItems(listOf(user, reply), listOf(event), emptySet())
-        assertEquals(listOf("user", "tool:event"), pending.map { it.key })
+        val pending = agentTimelineItems(listOf(user, reply), listOf(event), listOf(run(AgentRunStatus.WaitingPermission)), emptySet())
+        assertEquals(listOf("user", "task:run"), pending.map { it.key })
+        assertEquals(listOf("tool:event"), (pending.last() as AgentTimelineItem.Task).process.map { it.key })
 
         val result = message("result", AgentMessageRole.Tool).copy(modelJson = Json.encodeToString(
             ModelMessage(AgentMessageRole.Tool, results = listOf(ModelToolResult("read-1", "read", "ok")))))
-        val completed = agentTimelineItems(listOf(user, reply, result, message("answer", AgentMessageRole.Assistant)),
-            listOf(event.copy(status = AgentToolStatus.Committed, resultJson = "{}")), emptySet())
-        assertEquals(listOf("user", "tool:event", "answer"), completed.map { it.key })
-        assertEquals(AgentToolStatus.Committed, (completed[1] as AgentTimelineItem.Tool).event.status)
+        val completed = agentTimelineItems(listOf(user, reply, result, message("answer", AgentMessageRole.Assistant).copy(isFinal = true)),
+            listOf(event.copy(status = AgentToolStatus.Committed, resultJson = "{}")), listOf(run(AgentRunStatus.Complete)), emptySet())
+        assertEquals(listOf("user", "task:run"), completed.map { it.key })
+        val task = completed[1] as AgentTimelineItem.Task
+        assertTrue(task.finished)
+        assertEquals("answer", task.ending?.id)
+        assertEquals(AgentToolStatus.Committed, (task.process.single() as AgentTimelineItem.Tool).event.status)
     }
 
     @Test fun groupsOnlyAdjacentMessagesFromTheSameSpeakerAndTopic() {
@@ -39,12 +44,32 @@ class AgentTimelineItemsTest {
         assertFalse(joinsMessageGroup(first, null))
     }
 
+    @Test fun ordinaryProseToolsAndFinalEndingStayInOneTaskAcrossReload() {
+        val read = ModelToolCall("read", "read", buildJsonObject {})
+        val close = ModelToolCall("close", AgentFinishToolName, buildJsonObject {})
+        val prose = message("thinking", AgentMessageRole.Assistant, "先看看笔记。")
+        val reply = message("calls", AgentMessageRole.Assistant, "").copy(modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Assistant, calls = listOf(read))))
+        val finalReply = message("closing", AgentMessageRole.Assistant, "").copy(modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Assistant, calls = listOf(close))))
+        val ending = message("ending", AgentMessageRole.Assistant, "整理好了。\n可以看一下。").copy(isFinal = true)
+        val event = AgentToolEventEntity("read-event", "run", "read", "read", "{}", "{}", AgentToolStatus.Committed, 0, 2)
+        val finish = event.copy(id = "close-event", callId = "close", name = AgentFinishToolName)
+        val items = agentTimelineItems(listOf(message("user", AgentMessageRole.User), prose, reply, finalReply, ending),
+            listOf(event, finish), listOf(run(AgentRunStatus.Complete)), emptySet())
+        val task = items.last() as AgentTimelineItem.Task
+        assertEquals(listOf("thinking", "tool:read-event"), task.process.map { it.key })
+        assertEquals(ending, task.ending)
+        assertEquals("用时 1分2秒", agentTaskElapsedText(task.run))
+        assertTrue(task.finished)
+        assertFalse(task.copy(run = task.run.copy(status = AgentRunStatus.Running)).finished)
+        assertFalse(joinsMessageGroup(AgentTimelineItem.Message(prose), AgentTimelineItem.Message(ending)))
+    }
+
     @Test fun excludesQueuedMessagesAndInternalRequestsButKeepsTopicBoundaries() {
         val items = agentTimelineItems(listOf(
             message("queued", AgentMessageRole.User),
             message("request", AgentMessageRole.Event, "模型请求"),
             message("topic", AgentMessageRole.Event, "开始新话题"),
-        ), emptyList(), setOf("queued"))
+        ), emptyList(), emptyList(), setOf("queued"))
         assertEquals(listOf("topic"), items.map { it.key })
     }
 
@@ -52,11 +77,13 @@ class AgentTimelineItemsTest {
         val reply = message("file-reply", AgentMessageRole.Assistant, "").copy(
             modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Assistant,
                 calls = listOf(ModelToolCall("export", "file_create", buildJsonObject {})))))
-        val items = agentTimelineItems(listOf(reply), emptyList(), emptySet(), setOf(reply.id))
+        val items = agentTimelineItems(listOf(reply), emptyList(), emptyList(), emptySet(), setOf(reply.id))
         assertEquals(listOf("file-reply"), items.map { it.key })
     }
 
     // -- Functions
+
+    private fun run(status: AgentRunStatus) = AgentRunEntity("run", "topic", "user", "profile", 1, status, 1000, 63000)
 
     private fun message(id: String, role: AgentMessageRole, text: String = "消息") = AgentMessageEntity(
         id = id, segmentId = "topic", runId = "run", role = role, text = text,

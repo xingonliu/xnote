@@ -31,7 +31,7 @@ class AgentFileFlowTest {
     private val files = AgentFileStore(database, context, directory)
     private val client = object : ModelClient {
         override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
-            emit(ModelEvent.Text("已读取你附加的 Markdown 行程。")); emit(ModelEvent.Finished(ModelFinish.Complete))
+            emitAgentFinish("已读取你附加的 Markdown 行程。")
         }
     }
     private val timeline = AgentTimeline(database, profiles, client, scope, fileStore = files)

@@ -7,7 +7,8 @@ import kotlinx.serialization.json.*
 // -- Tests
 
 class AgentContextBudgetTest {
-    private val profile = ModelProfile("profile", name = "模型", protocol = ModelProtocol.OpenAI, modelId = "model", contextTokens = 4096, outputTokens = 512)
+    private val profile = ModelProfile("profile", name = "模型", protocol = ModelProtocol.OpenAI, modelId = "model",
+        contextTokens = estimatedAgentTokens(AgentSystemPrompt) + 4096, outputTokens = 512)
 
     @Test fun runningCompressionKeepsGoalAndAtomicToolReceiptsWithoutDanglingCalls() {
         val call = ModelToolCall("read-1", "read", buildJsonObject { put("note_id", "note") })

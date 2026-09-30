@@ -30,6 +30,7 @@ class AgentToolRegistry(providers: List<AgentToolProvider>) {
 
     private val entries = providers.flatMap { it.registrations() }.also { registrations ->
         require(registrations.map { it.definition.name }.distinct().size == registrations.size) { "工具名称不能重复。" }
+        require(registrations.none { it.definition.name == AgentFinishToolName }) { "结束语工具由任务运行器管理。" }
         require(registrations.all { it.definition.name.matches(Regex("[A-Za-z0-9_-]{1,64}")) && it.maxArgumentCharacters > 0 })
     }.associateBy { it.definition.name }
 

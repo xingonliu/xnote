@@ -1,5 +1,6 @@
 package com.xnote.app.data
 
+import com.xnote.app.emitAgentFinish
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -65,7 +66,7 @@ class AgentFileStoreTest {
                     assertTrue(binaries.isEmpty())
                     assertTrue(request.messages.any { it.text.contains("image.png") })
                 }
-                emit(ModelEvent.Text("已读取图片和PDF")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                emit(ModelEvent.Text("已读取图片和PDF")); emitAgentFinish("已读取图片和PDF")
             }, scope, fileStore = files)
             timeline.enqueue("")
             assertFalse(files.hasDraft())
@@ -88,14 +89,14 @@ class AgentFileStoreTest {
             val id = files.importBytes("行程.md", "text/markdown", "# 高铁计划\n周六出发".toByteArray())
             val timeline = AgentTimeline(db, profiles, client { request ->
                 assertTrue(request.messages.any { it.text.contains("# 高铁计划") })
-                emit(ModelEvent.Text("收到行程")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                emit(ModelEvent.Text("收到行程")); emitAgentFinish("收到行程")
             }, scope, fileStore = files)
             timeline.send("")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertFalse(files.hasDraft()); assertTrue(db.notes().getAll().isEmpty())
             assertTrue(files.file(id).exists())
             assertTrue(db.agent().unfinishedRuns().isEmpty())
-            timeline.newTopic()
+            timeline.newConversation()
             val historical = db.agent().messages().first { it.role == AgentMessageRole.User }
             assertTrue(agentMessageMemoryText(db, historical).contains("高铁"))
             assertTrue(db.memory().searchMessages("\"高 铁\"", listOf(historical.id)).contains(historical.id))
@@ -125,7 +126,7 @@ class AgentFileStoreTest {
             assertTrue(db.agentFiles().get(textId)!!.text.contains("XNOTE_7391"))
             val timeline = AgentTimeline(db, profiles, client { request ->
                 assertTrue(request.messages.any { it.text.contains("XNOTE_7391") && it.files.isEmpty() })
-                emit(ModelEvent.Text("已提取")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                emit(ModelEvent.Text("已提取")); emitAgentFinish("已提取")
             }, scope, fileStore = files)
             timeline.send("读取PDF")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
@@ -162,7 +163,7 @@ class AgentFileStoreTest {
                     val run = db.agent().unfinishedRuns().single()
                     val cached = AgentNoteStore(db, files).toolExecutor.execute(run.id, call) as AgentToolResult.Finished
                     assertTrue(cached.result.content.contains("saved"))
-                    emit(ModelEvent.Text("文件已生成")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                    emit(ModelEvent.Text("文件已生成")); emitAgentFinish("文件已生成")
                 }
             }, scope, fileStore = files)
             timeline.send("生成Markdown文件")

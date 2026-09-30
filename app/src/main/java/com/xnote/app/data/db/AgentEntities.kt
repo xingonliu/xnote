@@ -25,6 +25,7 @@ data class AgentSegmentEntity(
     val createdAtEpochMs: Long,
     val closedAtEpochMs: Long? = null,
     val closeReason: String? = null,
+    @ColumnInfo(defaultValue = "''") val conversationId: String = id,
 )
 
 @Entity(tableName = "agent_messages", indices = [Index(value = ["id"], unique = true), Index(value = ["segmentId", "sequence"])])
@@ -40,6 +41,7 @@ data class AgentMessageEntity(
     val sourcesJson: String = "[]",
     @ColumnInfo(defaultValue = "NULL") val modelJson: String? = null,
     @ColumnInfo(defaultValue = "0") val contextPermissionRevision: Long = 0,
+    @ColumnInfo(defaultValue = "0") val isFinal: Boolean = false,
 )
 
 @Entity(tableName = "agent_runs", indices = [Index(value = ["status"])])

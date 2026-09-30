@@ -96,7 +96,7 @@ class EditorAgentFlowTest {
                     })))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                 } else {
-                    emit(ModelEvent.Text("润色完成")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                    emitAgentFinish("润色完成")
                 }
             }
         }

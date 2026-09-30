@@ -15,6 +15,8 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
     suspend fun prepare(run: AgentRunEntity, profile: ModelProfile): AgentRequestContext {
         val automaticMemory = AgentPermissionStore(database).current().mode == AgentPermissionMode.FullAccess
         val history = database.agent().messages()
+        val conversationId = requireNotNull(database.agent().segment(run.segmentId)).conversationId
+        val conversationSegments = database.agent().segments().filter { it.conversationId == conversationId }.map { it.id }.toSet()
         val episodes = AgentEpisodeStore(database)
         val recalled = if (automaticMemory) episodes.recall(run, history.lastOrNull { it.runId == run.id && it.role == AgentMessageRole.User }?.text.orEmpty()) else emptyList()
         val summarized = database.memory().episodes().map { it.segmentId }.toSet()
@@ -24,7 +26,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
         val factIds = mutableSetOf<String>()
         val sourceIds = mutableSetOf<String>()
         for ((previousId, exchange) in history.filter { it.runId != run.id && it.runId != null &&
-            (it.segmentId == run.segmentId || (automaticMemory && it.segmentId == previousSegment && it.segmentId !in summarized)) }.groupBy { it.runId }) {
+            (it.segmentId in conversationSegments || (automaticMemory && it.segmentId == previousSegment && it.segmentId !in summarized)) }.groupBy { it.runId }) {
             val previous = database.agent().run(checkNotNull(previousId)) ?: continue
             if (previous.status != AgentRunStatus.Complete || previous.errorCode == "history_removed") continue
             val users = exchange.filter { it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Complete }
@@ -33,7 +35,7 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             val projected = (users + answer).map { notes.projectMessage(run.id, it) }
             if (projected.any { it == null }) continue
             val safe = projected.filterNotNull()
-            val previousSegmentFallback = exchange.first().segmentId != run.segmentId
+            val previousSegmentFallback = exchange.first().segmentId !in conversationSegments
             turns += AgentContextTurn(
                 if (previousSegmentFallback) "[前一片段摘要待生成；原文尾部]\n" + safe.dropLast(1).joinToString("\n") { it.message.text }.takeLast(800)
                 else safe.dropLast(1).joinToString("\n") { it.message.text },
@@ -65,8 +67,9 @@ class AgentConversationContext(private val database: XNoteDatabase, private val 
             }
         }
         require(execution.any { it.role == AgentMessageRole.User })
-        if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User, "请基于已保存的进度继续完成当前任务。")
-        val tools = notes.toolRegistry.definitions(notes.toolContext(run))
+        if (execution.lastOrNull()?.role == AgentMessageRole.Assistant) execution += ModelMessage(AgentMessageRole.User,
+            "请基于已保存的进度继续完成当前任务。完成后必须单独调用 finish_task 给出简短结束语，不能用普通文本结束任务。")
+        val tools = notes.toolRegistry.definitions(notes.toolContext(run)) + AgentFinishTool
         val base = planAgentExecutionContext(profile, turns, execution, tools)
         var remaining = profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens - base.estimatedInputTokens
         val memoryMessages = mutableListOf<ModelMessage>()

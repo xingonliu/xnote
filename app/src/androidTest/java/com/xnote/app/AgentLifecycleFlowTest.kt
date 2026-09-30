@@ -56,7 +56,7 @@ class AgentLifecycleFlowTest {
                     val document = NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("记录这次旅行的见闻。")))))
                     emit(ModelEvent.ToolCall(ModelToolCall("create", "create", Json.encodeToJsonElement(AgentCreateArguments("旅行计划", document.encodeToJson(), AgentCreateTarget("book"))).jsonObject)))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
-                } else { emit(ModelEvent.Text("已创建旅行计划，可以审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                } else { emitAgentFinish("已创建旅行计划，可以审阅。") }
             }
         }
         val timeline = AgentTimeline(db, profiles, model, scope)
@@ -73,6 +73,8 @@ class AgentLifecycleFlowTest {
         val note = runBlocking { db.notes().getAll().single() }
         assertEquals("book", note.notebookId)
         assertEquals(AgentPermission(), runBlocking { AgentPermissionStore(db).current() })
+        val runId = runBlocking { db.agent().messages().first().runId!! }
+        compose.onNodeWithTag("agent-task-toggle-$runId").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("新建笔记", substring = true))
         compose.onNodeWithText("新建笔记", substring = true).performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasTestTag("agent-review-receipt-${note.id}"))
@@ -98,7 +100,7 @@ class AgentLifecycleFlowTest {
                 if (++requests == 1) {
                     emit(ModelEvent.ToolCall(ModelToolCall("delete", "delete", Json.encodeToJsonElement(AgentDeleteArguments(note.id, db.notes().get(note.id)!!.agentVersion())).jsonObject)))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
-                } else { emit(ModelEvent.Text("已移入回收站，可以恢复。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                } else { emitAgentFinish("已移入回收站，可以恢复。") }
             }
         }
         val timeline = AgentTimeline(db, profiles, model, scope)
@@ -106,6 +108,8 @@ class AgentLifecycleFlowTest {
         compose.onNodeWithText("Agent").performClick()
         runBlocking { timeline.selectDraftNotes(listOf(note.id)); timeline.send("删除这篇笔记") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.notes().get(note.id)!!.deletedAtEpochMs != null } }
+        val runId = runBlocking { db.agent().messages().first().runId!! }
+        compose.onNodeWithTag("agent-task-toggle-$runId").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("删除笔记", substring = true))
         compose.onNodeWithText("删除笔记", substring = true).performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasTestTag("agent-review-receipt-${note.id}"))

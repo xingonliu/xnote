@@ -16,6 +16,7 @@ import com.xnote.app.domain.agent.*
 import com.xnote.app.domain.model.SystemEpochClock
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 
 // -- Tests
 
@@ -37,9 +39,9 @@ class AgentFlowTest {
         override fun stream(profile: ModelProfile, apiKey: String, request: ModelRequest) = flow {
             emit(ModelEvent.Text("这是一条逐步保存的回复。"))
             delay(100)
-            emit(ModelEvent.Text("你可以继续发送消息，也可以开始新话题。"))
+            emit(ModelEvent.Text("你可以继续发送消息，也可以开始新会话。"))
             emit(ModelEvent.Usage(12, 24))
-            emit(ModelEvent.Finished(ModelFinish.Complete))
+            emitAgentFinish("这是一条逐步保存的回复。\n你可以继续发送消息，也可以开始新会话。")
         }
     }
     private val timeline = AgentTimeline(database, profiles, client, scope)
@@ -64,6 +66,7 @@ class AgentFlowTest {
                     text = "历史消息 $index", status = AgentMessageStatus.Complete, createdAtEpochMs = index.toLong(),
                 ))
             }
+            timeline.openConversation("layout")
         }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, agentTimeline = timeline) } }
         compose.onNodeWithText("Agent").performClick()
@@ -84,7 +87,7 @@ class AgentFlowTest {
         compose.onNodeWithTag("agent-scroll-to-bottom").assertDoesNotExist()
     }
 
-    @Test fun sendNavigateBackAndStartNewTopic() {
+    @Test fun newConversationClearsMessagesAndReturningDoesNotReplayToast() {
         runBlocking { profiles.save(ModelProfile("test", name = "测试", protocol = ModelProtocol.OpenAI, modelId = "test", isDefault = true), "test-key") }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
         configureWindow()
@@ -120,10 +123,29 @@ class AgentFlowTest {
             assertEquals("帮我整理今天的想法", clipboard.primaryClip!!.getItemAt(0).text.toString())
         }
         screenshot("agent-timeline")
-        compose.onNodeWithContentDescription("开始新话题").performClick()
-        compose.waitUntil(5000) { runBlocking { database.agent().messages().any { it.role == AgentMessageRole.Event && it.text == "开始新话题" } } }
-        compose.onNodeWithText("新话题已开始，时间线记录保留。").assertIsDisplayed()
+        val conversation = timeline.conversationId.value
+        val run = runBlocking { database.agent().observeRuns().first().single() }
+        compose.onNodeWithTag("agent-task-process-${run.id}").assertDoesNotExist()
+        compose.onNodeWithTag("agent-final-${run.id}-0").assertExists()
+        compose.onNodeWithTag("agent-final-${run.id}-1").assertExists()
+        val divider = compose.onNodeWithTag("agent-task-divider-${run.id}").fetchSemanticsNode().boundsInRoot
+        val task = compose.onNodeWithTag("agent-task-${run.id}").fetchSemanticsNode().boundsInRoot
+        assertEquals(task.width, divider.width, 1f)
+        compose.onNodeWithContentDescription("新会话").performClick()
+        compose.waitUntil(5000) { timeline.conversationId.value != conversation && timeline.state.value.notice == null }
+        compose.onNodeWithText("想对笔记做些什么？").assertIsDisplayed()
+        compose.onNodeWithText("帮我整理今天的想法").assertDoesNotExist()
+        compose.onNodeWithText("新会话已开始").assertIsDisplayed()
         compose.onNodeWithTag("agent-notice").assertDoesNotExist()
+        compose.waitUntil(7000) { compose.onAllNodesWithText("新会话已开始").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("我的").performClick()
+        compose.onNodeWithText("Agent").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("新会话已开始").assertDoesNotExist()
+        assertNull(timeline.state.value.notice)
+        compose.onNodeWithContentDescription("历史记录").performClick()
+        compose.onNodeWithTag("agent-history-popup").assertIsDisplayed()
+        compose.onNodeWithTag("agent-history-$conversation").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("帮我整理今天的想法"))
         compose.onNodeWithText("帮我整理今天的想法").assertExists()
     }
@@ -185,10 +207,10 @@ class AgentFlowTest {
         compose.onAllNodesWithText("Agent").assertCountEquals(1)
         compose.onNodeWithTag("agent-send").assertIsNotEnabled()
         val header = compose.onNodeWithTag("agent-header").fetchSemanticsNode().boundsInRoot
-        val topic = compose.onNodeWithContentDescription("开始新话题").fetchSemanticsNode().boundsInRoot
+        val topic = compose.onNodeWithContentDescription("新会话").fetchSemanticsNode().boundsInRoot
         val more = compose.onNodeWithContentDescription("更多").fetchSemanticsNode().boundsInRoot
         assertTrue(topic.right <= more.left)
-        compose.onNodeWithContentDescription("开始新话题").assertWidthIsEqualTo(com.xnote.app.design.XNoteButtonSize)
+        compose.onNodeWithContentDescription("新会话").assertWidthIsEqualTo(com.xnote.app.design.XNoteButtonSize)
         compose.onNodeWithContentDescription("更多").assertHeightIsEqualTo(com.xnote.app.design.XNoteButtonSize)
         assertTrue(header.contains(topic.center) && header.contains(more.center))
         val composer = compose.onNodeWithTag("agent-composer").fetchSemanticsNode().boundsInRoot
@@ -270,7 +292,7 @@ class AgentFlowTest {
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     }
                     2 -> { emit(ModelEvent.Text("已经读取，正在整理")); throw ModelException(ModelError.Quota) }
-                    else -> { emit(ModelEvent.Text("继续任务已完成")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                    else -> { emitAgentFinish("继续任务已完成") }
                 }
             }
         }
@@ -289,6 +311,9 @@ class AgentFlowTest {
         screenshot("agent-call-approval")
         compose.onNodeWithText("允许本次").performClick()
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.status == AgentMessageStatus.Failed } } }
+        val runId = runBlocking { database.agent().messages().first().runId!! }
+        compose.onNodeWithTag("agent-timeline").performScrollToNode(hasTestTag("agent-task-toggle-$runId"))
+        compose.onNodeWithTag("agent-task-toggle-$runId").performClick()
         compose.onNodeWithTag("agent-timeline").performScrollToNode(hasText("读取笔记", substring = true))
         compose.onNodeWithText("读取笔记", substring = true).performClick()
         compose.onNodeWithText("我的").assertExists()
@@ -300,7 +325,7 @@ class AgentFlowTest {
         compose.waitUntil(5000) { !recovery.state.value.running && runBlocking { database.agent().messages().any { it.text == "继续任务已完成" } } }
         compose.onNodeWithText("我的").assertExists()
         runBlocking {
-            assertEquals(1, database.agent().toolEvents(database.agent().messages().first().runId!!).size)
+            assertEquals(1, database.agent().toolEvents(database.agent().messages().first().runId!!).count { it.name != AgentFinishToolName })
             assertEquals(AgentPermission(), AgentPermissionStore(database).current())
             assertEquals(3, requests)
             assertEquals(AgentRunStatus.Complete, database.agent().run(database.agent().messages().first().runId!!)!!.status)

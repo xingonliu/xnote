@@ -23,8 +23,9 @@ import androidx.compose.ui.platform.LocalDensity
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.xnote.app.data.agent.AgentTimeline
+import com.xnote.app.data.agent.agentConversations
+import com.xnote.app.data.agent.agentConversationMessages
 import com.xnote.app.data.agent.agentVersion
-import com.xnote.app.domain.document.plainText
 import com.xnote.app.design.*
 import com.xnote.app.R
 import com.xnote.app.data.repository.NoteLibrary
@@ -52,6 +53,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     // -- State
 
     val messageHistory by timeline.messages.collectAsState(initial = null)
+    val segmentHistory by timeline.segments.collectAsState(initial = null)
+    val conversationId by timeline.conversationId.collectAsState()
     val runHistory by timeline.runs.collectAsState(initial = null)
     val queuedHistory by timeline.queue.collectAsState(initial = null)
     val selectedNotes by timeline.draftNotes.collectAsState()
@@ -84,6 +87,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     var input by rememberSaveable { mutableStateOf("") }
     var attachmentMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
+    var historyMenu by remember { mutableStateOf(false) }
     var queueDrawer by remember { mutableStateOf(false) }
     var reviewsOpen by remember { mutableStateOf(false) }
     var memoryOpen by remember { mutableStateOf(false) }
@@ -91,19 +95,23 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     var draftPreviewId by remember { mutableStateOf<String?>(null) }
     val attachmentAnchor = rememberXNotePopupAnchor()
     val moreAnchor = rememberXNotePopupAnchor()
+    val historyAnchor = rememberXNotePopupAnchor()
     val permissionAnchor = rememberXNotePopupAnchor()
     val keyboard = LocalSoftwareKeyboardController.current
     val direction = LocalLayoutDirection.current
     var restored by remember { mutableStateOf(false) }
     // -- Derived Values
 
-    val messages = messageHistory.orEmpty()
+    val messages = remember(messageHistory, segmentHistory, conversationId) {
+        agentConversationMessages(messageHistory.orEmpty(), segmentHistory.orEmpty(), conversationId)
+    }
+    val conversations = remember(messageHistory, segmentHistory) { agentConversations(segmentHistory.orEmpty(), messageHistory.orEmpty()) }
     val runs = runHistory.orEmpty()
     val queue = queuedHistory.orEmpty()
-    val tools = toolHistory.orEmpty()
+    val tools = toolHistory.orEmpty().filter { event -> messages.any { it.runId == event.runId } }
     val fileCards = fileHistory.orEmpty()
     val historyLoaded = state.ready && composerHeight > 0.dp && messageHistory != null && runHistory != null &&
-        queuedHistory != null && toolHistory != null && fileHistory != null
+        queuedHistory != null && toolHistory != null && fileHistory != null && segmentHistory != null
     val modalVisible = attachDialog || permissionRequest != null || snapshotPreview != null || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
     val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
@@ -118,8 +126,8 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val keyboardInset = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val keyboardVisible = keyboardInset > 0.dp
     val composerBottom = maxOf(bottomInset, keyboardInset) + 8.dp
-    val timelineItems = remember(messages, tools, queue, fileCards) {
-        agentTimelineItems(messages, tools, queue.map { it.messageId }.toSet(),
+    val timelineItems = remember(messages, tools, runs, queue, fileCards) {
+        agentTimelineItems(messages, tools, runs, queue.map { it.messageId }.toSet(),
             fileCards.filter { it.ownerType == "message" }.map { it.ownerId }.toSet())
     }
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
@@ -150,7 +158,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
 
     // -- Lifecycle Hooks
 
-    LaunchedEffect(state.notice) { state.notice?.let(::showNotice) }
+    LaunchedEffect(state.notice) { state.notice?.let { if (timeline.consumeNotice(it)) showNotice(it) } }
     LaunchedEffect(waitingConflict?.id, selectionConflict) {
         if (selectionConflict) showNotice("请结束当前任务，再回到笔记编辑器重新选择文字。")
     }
@@ -212,64 +220,16 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                     val chronologicalIndex = timelineItems.lastIndex - index
                     Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(chronologicalIndex - 1), item)) 3.dp else 12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        when (item) {
-                            is AgentTimelineItem.Tool -> {
-                                val event = item.event
-                                val run = runs.find { it.id == event.runId }
-                                val canContinue = !state.running && !unresolved && run?.errorCode != "history_removed" &&
-                                    run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)
-                                AgentToolHistoryRow(event, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
-                                    onOpenReviews = ::openReviews,
-                                    onContinue = if (canContinue) ({ action { timeline.continueRun(event.runId) } }) else null,
-                                    onStop = if (state.running && run?.status == AgentRunStatus.Running) timeline::stop else null)
-                            }
-                            is AgentTimelineItem.Message -> {
-                                val message = item.message
-                                val run = runs.find { it.id == message.runId }
-                                if (message.role == AgentMessageRole.Event) {
-                                    Text(message.text, Modifier.align(Alignment.CenterHorizontally),
-                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                } else if (message.text.isNotBlank()) {
-                                    AgentMessageBubble(message, message.text,
-                                        joinsNext = joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1)),
-                                        onLongPress = { messageMenu = it; attachmentMenu = false; permissionMenu = false; moreMenu = false })
-                                }
-                                AgentFilesStrip(fileCards.filter { it.ownerType == "message" && it.ownerId == message.id }, { filePreview = it })
-                                if (message.role == AgentMessageRole.User) {
-                                    Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
-                                        val snapshot = snapshots.find { it.id == source.snapshotId }
-                                        XNoteButton({ snapshotPreview = snapshot }, enabled = snapshot != null) {
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(snapshot?.let { "发送时的笔记 · ${it.title.ifBlank { "未命名笔记" }}" } ?: "笔记已永久删除，无法查看")
-                                                snapshot?.let { saved ->
-                                                    Text(extractPlainText(decodeNoteDocument(saved.documentJson)).ifBlank { "暂无正文" },
-                                                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                                                    Text(notebooks.find { it.id == saved.notebookId }?.name ?: if (saved.notebookId == null) "未归档" else "原笔记本已不存在", style = MaterialTheme.typography.labelSmall)
-                                                    if (saved.noteUpdatedAtEpochMs > 0) Text("修改于 ${dateFormat.format(java.util.Date(saved.noteUpdatedAtEpochMs))}", style = MaterialTheme.typography.labelSmall)
-                                                    if (source.selection != null) Text("仅润色所选文字", style = MaterialTheme.typography.labelSmall)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                if (message.role == AgentMessageRole.User && message.status == AgentMessageStatus.Pending) Text("已收到，将继续处理", style = MaterialTheme.typography.bodySmall)
-                                if (message.role == AgentMessageRole.Assistant) {
-                                    if (message.status != AgentMessageStatus.Complete) Text(when (message.status) {
-                                        AgentMessageStatus.Complete -> if (message.modelJson != null) "工具调用已记录" else "已完成"
-                                        AgentMessageStatus.Streaming, AgentMessageStatus.Pending -> "生成中"
-                                        AgentMessageStatus.Failed -> "失败 · 已保留内容"
-                                        AgentMessageStatus.Cancelled -> "已停止"
-                                        AgentMessageStatus.Interrupted -> if (run?.status == AgentRunStatus.PausedBudget) "达到容量上限" else "已中断"
-                                    }, style = MaterialTheme.typography.bodySmall)
-                                    if (!state.running && !unresolved && run?.errorCode != "history_removed" && run?.status in setOf(AgentRunStatus.Failed, AgentRunStatus.Cancelled)) {
-                                        XNoteButton({ action { timeline.continueRun(checkNotNull(run).id) } }) { Text("继续此任务") }
-                                    }
-                                }
-                            }
-                        }
+                        AgentTimelineEntry(item, joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1)),
+                            AgentTimelinePresentation(runs, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
+                                snapshots, fileCards, state.running, unresolved) { dateFormat.format(java.util.Date(it)) },
+                            AgentTimelineActions(
+                                onLongPress = { messageMenu = it; attachmentMenu = false; permissionMenu = false; moreMenu = false; historyMenu = false },
+                                onPreviewFile = { filePreview = it }, onPreviewSnapshot = { snapshotPreview = it },
+                                onOpenReviews = ::openReviews, onContinue = { id -> action { timeline.continueRun(id) } }, onStop = timeline::stop))
                     }
                 }
-                if (messages.isEmpty() && state.ready && !keyboardVisible) item(key = "welcome") {
+                if (messages.isEmpty() && state.ready) item(key = "welcome") {
                     Column(Modifier.fillMaxWidth().padding(vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("想对笔记做些什么？", style = MaterialTheme.typography.headlineSmall)
                         Text("附加笔记，开始总结、整理或继续你的想法。", style = MaterialTheme.typography.bodyMedium,
@@ -295,11 +255,16 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         }
         XNoteHeader(
             title = "", backdrop = backdrop,
+            leadingAction = XNoteHeaderAction(R.drawable.ic_agent_history, "历史记录", {
+                keyboard?.hide(); historyMenu = true; moreMenu = false; attachmentMenu = false; permissionMenu = false; messageMenu = null
+            }, enabled = state.ready, popupAnchor = historyAnchor),
             actions = listOf(
-                XNoteHeaderAction(R.drawable.ic_keyline_stroke_square_pen, "开始新话题", { action { timeline.newTopic() } },
+                XNoteHeaderAction(R.drawable.ic_keyline_stroke_square_pen, "新会话", { keyboard?.hide(); historyMenu = false; action {
+                    timeline.newConversation(); input = ""; messageMenu = null; list.requestScrollToItem(0)
+                } },
                     enabled = state.ready && !state.running && !unresolved && queue.isEmpty()),
                 XNoteHeaderAction(R.drawable.ic_keyline_stroke_more_horizontal, "更多", {
-                    moreMenu = true; attachmentMenu = false; permissionMenu = false; messageMenu = null
+                    moreMenu = true; historyMenu = false; attachmentMenu = false; permissionMenu = false; messageMenu = null
                 }, popupAnchor = moreAnchor),
             ),
             horizontalPadding = contentPadding.calculateEndPadding(direction),
@@ -339,7 +304,9 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             AgentComposer(
                 input = input, onInputChange = { value -> input = value; action { timeline.saveDraft(value) } },
                 enabled = state.ready && restored, running = state.running,
-                canSend = state.ready && restored && !importingFile && ((state.running && draftSelection == null) || (!state.running && !unresolved && queue.isEmpty())) && (input.isNotBlank() || draftFiles.isNotEmpty()),
+                canSend = state.ready && restored && !importingFile && ((state.running && draftSelection == null &&
+                    runs.any { it.status == AgentRunStatus.Running && messages.any { message -> message.runId == it.id } }) ||
+                    (!state.running && !unresolved && queue.isEmpty())) && (input.isNotBlank() || draftFiles.isNotEmpty()),
                 permission = permission, notes = selectedNotes.map { id ->
                     val note = availableNotes.find { it.id == id }
                     AgentComposerNote(id, note?.title?.ifBlank { "未命名笔记" } ?: "笔记不可用",
@@ -351,11 +318,15 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 onRemoveNote = { id -> action { timeline.selectDraftNotes(selectedNotes - id) } },
                 onPreviewNote = { draftPreviewId = it },
                 backdrop = backdrop, attachmentAnchor = attachmentAnchor, permissionAnchor = permissionAnchor,
-                onAdd = { attachmentMenu = true; permissionMenu = false; messageMenu = null },
-                onPermission = { permissionMenu = true; attachmentMenu = false; messageMenu = null },
+                onAdd = { attachmentMenu = true; permissionMenu = false; historyMenu = false; messageMenu = null },
+                onPermission = { permissionMenu = true; attachmentMenu = false; historyMenu = false; messageMenu = null },
                 onSend = { val sent = input; action { timeline.send(sent); input = "" } },
             )
         }
+        AgentHistoryPopup(historyMenu, conversations, conversationId, historyAnchor, backdrop, bottomInset,
+            formatTime = { dateFormat.format(java.util.Date(it)) },
+            onSelect = { id -> action { timeline.openConversation(id); messageMenu = null; list.requestScrollToItem(0); historyMenu = false } },
+            onDismiss = { historyMenu = false })
         XNoteDropdownMenu(attachmentMenu, { attachmentMenu = false },
             listOf(XNoteDropdownMenuItem("笔记", { keyboard?.hide(); attachDialog = true }),
                 XNoteDropdownMenuItem("图片", { keyboard?.hide(); filePicker.launch(arrayOf("image/*")) }, enabled = timeline.fileStore != null && !importingFile),
@@ -385,7 +356,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 enabled = state.ready && restored && !importingFile, modifier = Modifier.testTag("agent-enqueue")) { Text("将输入内容加入队列") }
             if (queue.isNotEmpty() && !state.running && !unresolved) XNoteButton({ action { timeline.resumeQueue(); queueDrawer = false } }, modifier = Modifier.testTag("agent-resume-queue")) { Text("继续队列") }
             queue.forEach { queued ->
-                messages.find { it.id == queued.messageId }?.let { message ->
+                messageHistory.orEmpty().find { it.id == queued.messageId }?.let { message ->
                     AgentQueueCard(queued.id, message.text, queued.status == AgentQueueStatus.Paused,
                         onSave = { value -> action { timeline.editQueued(queued.id, value) } },
                         onMove = { direction -> action { timeline.moveQueued(queued.id, direction) } },

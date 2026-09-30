@@ -47,7 +47,7 @@ class AgentLiveAcceptanceTest {
             val output = database.agentFiles().all().single { it.origin == "output" }
             assertTrue(output.text.contains("杭州")); assertTrue(output.text.contains("高铁"))
             println("LIVE: Markdown input and output_file passed")
-            timeline.newTopic()
+            timeline.newConversation()
             val episodes = AgentEpisodeStore(database)
             episodes.process(profiles, client)
             assertTrue("真实片段摘要必须成功发布", database.memory().episodes().isNotEmpty())

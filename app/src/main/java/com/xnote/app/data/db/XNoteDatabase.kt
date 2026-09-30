@@ -46,7 +46,7 @@ import kotlinx.coroutines.Dispatchers
         AgentNoteMemoryFtsEntity::class,
         AgentFileEntity::class,
     ],
-    version = 17,
+    version = 18,
     autoMigrations = [AutoMigration(from = 16, to = 17)],
     exportSchema = true,
 )
@@ -72,6 +72,7 @@ abstract class XNoteDatabase : RoomDatabase() {
 
         fun createInMemory(context: Context): XNoteDatabase {
             return Room.inMemoryDatabaseBuilder(context.applicationContext, XNoteDatabase::class.java)
+                .addMigrations(AgentConversationMigration)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)
@@ -80,6 +81,7 @@ abstract class XNoteDatabase : RoomDatabase() {
 
         private fun newBuilder(context: Context, name: String): Builder<XNoteDatabase> {
             return Room.databaseBuilder(context, XNoteDatabase::class.java, name)
+                .addMigrations(AgentConversationMigration)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(Dispatchers.IO)

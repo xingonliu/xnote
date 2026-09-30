@@ -61,6 +61,12 @@ interface AgentDao {
     @Query("SELECT * FROM agent_segments WHERE id = :id")
     suspend fun segment(id: String): AgentSegmentEntity?
 
+    @Query("SELECT * FROM agent_segments ORDER BY createdAtEpochMs, rowid")
+    fun observeSegments(): Flow<List<AgentSegmentEntity>>
+
+    @Query("SELECT * FROM agent_segments ORDER BY createdAtEpochMs, rowid")
+    suspend fun segments(): List<AgentSegmentEntity>
+
     @Query("SELECT * FROM agent_messages WHERE id = :id")
     suspend fun message(id: String): AgentMessageEntity?
 

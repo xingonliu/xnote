@@ -71,7 +71,7 @@ class AgentNoteStore(private val database: XNoteDatabase, private val files: Age
         val context = message.runId?.let { database.agent().run(it) }?.let { toolContext(it) }
             ?: AgentToolContext(AgentAccessContext(permissions.current(), "queued:$messageId", message.segmentId),
                 Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).singleOrNull { it.selection != null })
-        planAgentExecutionContext(profile, emptyList(), listOf(files?.project(messageId, model, profile) ?: model), toolRegistry.definitions(context))
+        planAgentExecutionContext(profile, emptyList(), listOf(files?.project(messageId, model, profile) ?: model), toolRegistry.definitions(context) + AgentFinishTool)
     }
 
     suspend fun access(run: AgentRunEntity): AgentAccessContext {

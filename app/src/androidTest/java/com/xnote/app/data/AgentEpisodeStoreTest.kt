@@ -78,7 +78,7 @@ class AgentEpisodeStoreTest {
         fixture { db, profiles ->
             seed(db)
             val store = AgentEpisodeStore(db)
-            store.close(db.agent().segment("segment")!!, "new_topic")
+            store.close(db.agent().segment("segment")!!, "new_conversation")
             var calls = 0
             val model = client { request ->
                 calls++

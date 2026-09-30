@@ -14,8 +14,6 @@ import kotlinx.serialization.json.*
 
 // -- Type Definitions
 
-data class AgentTimelineState(val ready: Boolean = false, val running: Boolean = false, val notice: String? = null)
-
 class AgentTimeline(
     private val database: XNoteDatabase,
     private val profiles: ModelProfileStore,
@@ -30,6 +28,7 @@ class AgentTimeline(
 
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(AgentTimelineState())
+    private val mutableConversationId = MutableStateFlow<String?>(null)
     private val mutableDraft = MutableStateFlow("")
     private val mutableDraftNotes = MutableStateFlow<List<String>>(emptyList())
     private val mutableDraftSelection = MutableStateFlow<AgentDraftSelection?>(null)
@@ -56,6 +55,7 @@ class AgentTimeline(
             mutableDraft.value = database.agent().draft()?.text.orEmpty()
             mutableDraftNotes.value = database.agent().draft()?.let { Json.decodeFromString<List<String>>(it.noteIdsJson) }.orEmpty()
             mutableDraftSelection.value = database.agent().draft()?.selectionJson?.let { Json.decodeFromString<AgentDraftSelection>(it) }
+            mutableConversationId.value = database.agent().openSegment()?.conversationId ?: database.agent().segments().lastOrNull()?.conversationId
         }
         mutableState.value = AgentTimelineState(ready = true)
         episodeStore.sweep()
@@ -65,6 +65,8 @@ class AgentTimeline(
     // -- Derived Values
 
     val state = mutableState.asStateFlow()
+    val conversationId = mutableConversationId.asStateFlow()
+    val segments = database.agent().observeSegments()
     val draft = mutableDraft.asStateFlow()
     val draftNotes = mutableDraftNotes.asStateFlow()
     val draftSelection = mutableDraftSelection.asStateFlow()
@@ -75,6 +77,16 @@ class AgentTimeline(
     // -- Functions
 
     suspend fun awaitReady() { initialization.await() }
+
+    fun consumeNotice(notice: String): Boolean = consumeAgentNotice(mutableState, notice)
+
+    suspend fun openConversation(id: String) {
+        awaitReady()
+        mutex.withLock {
+            require(database.agent().segments().any { it.conversationId == id }) { "会话已不存在。" }
+            mutableConversationId.value = id
+        }
+    }
 
     suspend fun importFile(uri: android.net.Uri) {
         awaitReady()
@@ -169,6 +181,7 @@ class AgentTimeline(
                 require(mutableDraftSelection.value == null) { "选区润色须作为独立任务发送，可先加入队列。" }
                 transaction {
                     val run = database.agent().unfinishedRuns().singleOrNull { it.status == AgentRunStatus.Running } ?: throw ModelException(ModelError.Busy)
+                    require(database.agent().segment(run.segmentId)?.conversationId == mutableConversationId.value) { "请先回到正在执行的会话。" }
                     val profile = boundProfile(run.profileId, run.profileVersion)
                     planAgentContext(profile, emptyList(), text)
                     val sequence = insertMessage(run, AgentMessageRole.User, text, AgentMessageStatus.Pending)
@@ -200,7 +213,9 @@ class AgentTimeline(
                     else -> profiles.active()
                 }
                 planAgentContext(profile, emptyList(), text)
-                val segment = database.agent().openSegment() ?: AgentSegmentEntity(id(), now()).also { database.agent().saveSegment(it) }
+                val segment = run?.let { requireNotNull(database.agent().segment(it.segmentId)) } ?: activeSegment(mutableConversationId.value)
+                require(run == null || segment.conversationId == mutableConversationId.value) { "请先回到正在执行的会话。" }
+                if (mutableConversationId.value == null) mutableConversationId.value = segment.conversationId
                 val messageId = id()
                 database.agent().insertMessage(AgentMessageEntity(id = messageId, segmentId = segment.id, runId = null,
                     role = AgentMessageRole.User, text = text, status = AgentMessageStatus.Pending, createdAtEpochMs = now()))
@@ -334,6 +349,7 @@ class AgentTimeline(
                 database.agent().messages().map { it.segmentId }.distinct().forEach { episodeStore.invalidate(it) }
                 database.agent().messages().forEach { removeMessage(it.id) }
                 database.agent().openSegment()?.let { database.agent().saveSegment(it.copy(closedAtEpochMs = now(), closeReason = "clear_chat")) }
+                mutableConversationId.value = null
                 clearDraft()
             }
             mutableState.value = AgentTimelineState(true)
@@ -341,25 +357,49 @@ class AgentTimeline(
         fileStore?.collectGarbage()
     }
 
-    suspend fun newTopic() {
+    suspend fun newConversation() {
         awaitReady()
-        mutex.withLock { transaction {
+        mutex.withLock {
             if (mutableState.value.running || database.agent().unfinishedRuns().isNotEmpty() || database.agent().pendingQueue().isNotEmpty()) throw ModelException(ModelError.Busy)
-            database.agent().openSegment()?.let { episodeStore.close(it, "new_topic") }
             val segment = AgentSegmentEntity(id(), now())
-            database.agent().saveSegment(segment)
-            database.agent().insertMessage(AgentMessageEntity(id = id(), segmentId = segment.id, runId = null,
-                role = AgentMessageRole.Event, text = "开始新话题", status = AgentMessageStatus.Complete, createdAtEpochMs = now()))
-            mutableState.value = AgentTimelineState(true, notice = "新话题已开始，时间线记录保留。")
-        } }
+            val previous = mutableConversationId.value
+            // Switch the projection before persistence so old messages disappear immediately.
+            mutableConversationId.value = segment.conversationId
+            try {
+                transaction {
+                    database.agent().openSegment()?.let { episodeStore.close(it, "new_conversation") }
+                    database.agent().saveSegment(segment)
+                    clearDraft()
+                }
+                mutableState.value = AgentTimelineState(true, notice = "新会话已开始")
+            } catch (failure: Exception) {
+                mutableConversationId.value = previous
+                throw failure
+            }
+        }
         scheduleMemory()
+    }
+
+    private suspend fun activeSegment(targetConversationId: String?): AgentSegmentEntity {
+        val open = database.agent().openSegment()
+        if (open != null && (targetConversationId == null || open.conversationId == targetConversationId)) return open
+        open?.let { episodeStore.close(it, "switch_conversation") }
+        val segmentId = id()
+        return AgentSegmentEntity(segmentId, now(), conversationId = targetConversationId ?: segmentId).also {
+            database.agent().saveSegment(it)
+        }
     }
 
     private suspend fun createRun(text: String, queued: AgentQueueEntity? = null): AgentRunEntity = transaction {
         val profile = if (queued == null) profiles.active() else boundProfile(queued.profileId, queued.profileVersion)
         profile.validate()
         planAgentContext(profile, emptyList(), text)
-        var segment = database.agent().openSegment() ?: AgentSegmentEntity(id(), now()).also { database.agent().saveSegment(it) }
+        val targetConversationId = if (queued == null) mutableConversationId.value else {
+            val message = requireNotNull(database.agent().message(queued.messageId))
+            requireNotNull(database.agent().segment(message.segmentId)).conversationId
+        }
+        var segment = activeSegment(targetConversationId)
+        if (mutableConversationId.value == null) mutableConversationId.value = segment.conversationId
         val cost = database.agent().messages().filter { it.segmentId == segment.id }.sumOf { estimatedAgentTokens(it.text).toLong() }
         val lastCompleted = database.agent().messages().filter { it.segmentId == segment.id }.mapNotNull { it.runId }.distinct()
             .mapNotNull { database.agent().run(it) }.filter { it.status in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }.maxOfOrNull { it.updatedAtEpochMs }
@@ -367,7 +407,7 @@ class AgentTimeline(
             profile.contextTokens - profile.outputTokens - ModelLimits.ToolReserveTokens, database.agent().unfinishedRuns().isNotEmpty())
         if (closeReason != null) {
             episodeStore.close(segment, closeReason)
-            segment = AgentSegmentEntity(id(), now()).also { database.agent().saveSegment(it) }
+            segment = AgentSegmentEntity(id(), now(), conversationId = segment.conversationId).also { database.agent().saveSegment(it) }
         }
         val userId = queued?.messageId ?: id()
         val run = AgentRunEntity(id(), segment.id, userId, profile.id, profile.version, AgentRunStatus.Running, now(), now())
@@ -442,6 +482,7 @@ class AgentTimeline(
                     sequence = null
                     text = ""
                     if (!completePendingTools(run)) return@withTimeout
+                    if (database.agent().run(run.id)?.status == AgentRunStatus.Complete) return@withTimeout
                     val requestContext = transaction {
                         val history = database.agent().messages()
                         val attempts = history.count { it.runId == run.id && it.role == AgentMessageRole.Event && it.text == "模型请求" }
@@ -504,17 +545,10 @@ class AgentTimeline(
                     if (finish == ModelFinish.OutputLimit) throw AgentBudgetException()
                     if (finish == ModelFinish.Filtered) throw ModelException(ModelError.InvalidRequest)
                     if (finish != ModelFinish.Complete || agentReplyPlainText(text).isBlank()) throw ModelException(ModelError.Interrupted)
-                    // Sharing the submission mutex makes the final boundary atomic with supplements.
-                    val hasSupplement = mutex.withLock { transaction {
+                    transaction {
                         database.agent().updateMessage(checkNotNull(sequence), agentReplyPlainText(text), AgentMessageStatus.Complete)
-                        val pending = database.agent().messages().any { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }
-                        if (!pending) {
-                            run = run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now())
-                            database.agent().saveRun(run)
-                        }
-                        pending
-                    } }
-                    if (!hasSupplement) break
+                        insertMessage(run, AgentMessageRole.Event, "任务尚未结束，请单独调用 finish_task 给出简短结束语。")
+                    }
                     retry = 0
                 }
             }
@@ -541,12 +575,20 @@ class AgentTimeline(
         for (reply in replies) {
             val model = Json.decodeFromString<ModelMessage>(checkNotNull(reply.modelJson))
             if (model.calls.isEmpty() || database.agent().message("tool-results:${reply.id}") != null) continue
+            if (model.calls.any { it.name == AgentFinishToolName }) {
+                if (model.calls.size == 1) {
+                    finishTask(run, reply, model.calls.single())
+                    continue
+                }
+            }
             val results = mutableListOf<ModelToolResult>()
             val memorySources = mutableSetOf<String>()
             val sources = Json.decodeFromString<List<AgentMessageSource>>(reply.sourcesJson).toMutableList()
             for (call in model.calls) {
                 currentCoroutineContext().ensureActive()
-                when (val outcome = noteStore.toolExecutor.execute(run.id, call)) {
+                val executed = if (call.name == AgentFinishToolName) invalidFinish(run, call, "finish_must_be_separate")
+                    else noteStore.toolExecutor.execute(run.id, call)
+                when (val outcome = executed) {
                     is AgentToolResult.PermissionRequired -> {
                         mutableState.value = mutableState.value.copy(notice = "工具需要授权，队列保持等待。")
                         return false
@@ -570,6 +612,48 @@ class AgentTimeline(
             }
         }
         return true
+    }
+
+    private suspend fun finishTask(run: AgentRunEntity, reply: AgentMessageEntity, call: ModelToolCall) {
+        // This boundary shares the submission mutex: a late supplement must be processed before closing.
+        mutex.withLock { transaction {
+            val pending = database.agent().messages().any { it.runId == run.id && it.role == AgentMessageRole.User && it.status == AgentMessageStatus.Pending }
+            val old = database.agent().toolEvent(run.id, call.id)
+            val previousError = old?.resultJson?.let { Json.parseToJsonElement(it).jsonObject["error"]?.jsonPrimitive?.content }
+            val error = previousError ?: agentFinishError(call, 1, pending)
+            val summary = if (error == null) agentFinishSummary(call.arguments) else null
+            val content = buildJsonObject { if (error != null) put("error", error) else put("status", "complete") }.toString()
+            saveFinishEvent(run, call, content, if (error == null) AgentToolStatus.Committed else AgentToolStatus.Denied)
+            val result = ModelToolResult(call.id, call.name, content)
+            val revision = AgentPermissionStore(database).current().revision
+            database.agent().insertMessage(AgentMessageEntity(id = "tool-results:${reply.id}", segmentId = run.segmentId, runId = run.id,
+                role = AgentMessageRole.Tool, text = content, status = AgentMessageStatus.Complete, createdAtEpochMs = now(),
+                sourcesJson = reply.sourcesJson, modelJson = Json.encodeToString(ModelMessage(AgentMessageRole.Tool, results = listOf(result))),
+                contextPermissionRevision = revision))
+            if (summary != null) {
+                val finalId = AgentFinalMessagePrefix + reply.id
+                database.agent().insertMessage(AgentMessageEntity(id = finalId, segmentId = run.segmentId, runId = run.id,
+                    role = AgentMessageRole.Assistant, text = summary, status = AgentMessageStatus.Complete, createdAtEpochMs = now(),
+                    sourcesJson = reply.sourcesJson, contextPermissionRevision = revision, isFinal = true))
+                database.profileMemory().references(reply.id).forEach { database.profileMemory().saveReference(AgentMessageProfileRefEntity(finalId, it.factId)) }
+                AgentMemoryProvenance(database).save(finalId, database.memory().sourceIds(reply.id))
+                database.agent().saveRun(run.copy(status = AgentRunStatus.Complete, updatedAtEpochMs = now()))
+            }
+        } }
+    }
+
+    private suspend fun invalidFinish(run: AgentRunEntity, call: ModelToolCall, code: String): AgentToolResult.Finished = transaction {
+        val content = buildJsonObject { put("error", code) }.toString()
+        saveFinishEvent(run, call, content, AgentToolStatus.Denied)
+        AgentToolResult.Finished(ModelToolResult(call.id, call.name, content), emptyList())
+    }
+
+    private suspend fun saveFinishEvent(run: AgentRunEntity, call: ModelToolCall, content: String, status: AgentToolStatus) {
+        val old = database.agent().toolEvent(run.id, call.id)
+        require(old == null || (old.name == call.name && Json.parseToJsonElement(old.argumentsJson) == call.arguments)) { "工具调用 ID 不能复用为不同操作。" }
+        val event = old ?: AgentToolEventEntity(id(), run.id, call.id, call.name, call.arguments.toString(), null,
+            AgentToolStatus.Requested, AgentPermissionStore(database).current().revision, now())
+        database.agent().saveToolEvent(event.copy(resultJson = content, status = status, committedAtEpochMs = now()))
     }
 
     private suspend fun persistStopped(run: AgentRunEntity, sequence: Long?, text: String, status: AgentMessageStatus) {

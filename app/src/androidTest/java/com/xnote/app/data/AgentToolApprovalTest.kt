@@ -119,7 +119,7 @@ class AgentToolApprovalTest {
             db.agent().insertMessage(AgentMessageEntity(id = id, segmentId = "old", runId = "old-run", role = role,
                 text = "历史旅行内容", status = AgentMessageStatus.Complete, createdAtEpochMs = 1, contextPermissionRevision = old.revision))
         }
-        AgentEpisodeStore(db).close(db.agent().segment("old")!!, "new_topic")
+        AgentEpisodeStore(db).close(db.agent().segment("old")!!, "new_conversation")
         store.savePermissionFromUser(AgentPermission())
         val call = ModelToolCall("history", "memory_read", buildJsonObject { put("episodeId", "old") })
         assertTrue(store.toolExecutor.execute("run", call) is AgentToolResult.PermissionRequired)

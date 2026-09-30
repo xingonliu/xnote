@@ -1,5 +1,6 @@
 package com.xnote.app.data
 
+import com.xnote.app.emitAgentFinish
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
@@ -106,7 +107,7 @@ class AgentProcessRecoveryTest {
                 assertTrue(results.single { it.name == "write" }.content.contains("applied"))
                 assertTrue(request.messages.any { it.text == "终止前已保存的部分回复" })
                 emit(ModelEvent.Text("重启后继续完成"))
-                emit(ModelEvent.Finished(ModelFinish.Complete))
+                emitAgentFinish("重启后继续完成")
             }
         }
         val timeline = AgentTimeline(db, profiles, model, scope)

@@ -69,11 +69,25 @@ private class MessageBubbleShape(private val outgoing: Boolean, private val tail
 // -- Functions
 
 @Composable
+internal fun AgentMessageText(message: AgentMessageEntity, onLongPress: (AgentMessageMenu) -> Unit) {
+    // -- State and Variables
+
+    val anchor = rememberXNotePopupAnchor()
+
+    Text(message.text, Modifier.fillMaxWidth().xNotePopupAnchor(anchor)
+        .combinedClickable(onClick = {}, onLongClickLabel = "复制消息", onLongClick = {
+            onLongPress(AgentMessageMenu(message, message.text, anchor))
+        }).testTag("agent-message-${message.id}"),
+        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 22.sp), color = MaterialTheme.colorScheme.onSurface)
+}
+
+@Composable
 internal fun AgentMessageBubble(
     message: AgentMessageEntity,
     text: String,
     joinsNext: Boolean,
     onLongPress: (AgentMessageMenu) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     // -- State and Variables
 
@@ -87,7 +101,7 @@ internal fun AgentMessageBubble(
     val background = if (outgoing) Color(0xFF007AFF) else if (light) Color(0xFFE9E9EB) else Color(0xFF262628)
     val foreground = if (outgoing || !light) Color.White else Color.Black
 
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
         Text(
             text,
             modifier = Modifier

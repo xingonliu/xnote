@@ -136,6 +136,7 @@ fun XNoteHeader(
     onBack: (() -> Unit)? = null,
     actions: List<XNoteHeaderAction> = emptyList(),
     horizontalPadding: Dp = XNoteSpacingMedium,
+    leadingAction: XNoteHeaderAction? = null,
 ) {
     require(actions.size <= 2) { "XNoteHeader supports at most two actions." }
     val trailingWidth = if (actions.isEmpty()) {
@@ -157,7 +158,14 @@ fun XNoteHeader(
             .height(XNoteHeaderHeight)
             .padding(top = XNoteHeaderTopPadding),
     ) {
-        if (onBack != null) {
+        if (leadingAction != null) {
+            LiquidButton(onClick = leadingAction.onClick, backdrop = backdrop, enabled = leadingAction.enabled,
+                modifier = Modifier.align(Alignment.CenterStart).size(XNoteButtonSize)
+                    .then(leadingAction.popupAnchor?.let { Modifier.xNotePopupAnchor(it) } ?: Modifier)) {
+                Icon(painterResource(leadingAction.iconRes), leadingAction.contentDescription,
+                    tint = leadingAction.tint ?: MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(XNoteIconSizeMedium))
+            }
+        } else if (onBack != null) {
             LiquidButton(
                 onClick = onBack,
                 backdrop = backdrop,

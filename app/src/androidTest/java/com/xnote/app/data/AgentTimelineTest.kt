@@ -1,5 +1,6 @@
 package com.xnote.app.data
 
+import com.xnote.app.emitAgentFinish
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.agent.*
@@ -15,6 +16,88 @@ import org.junit.Test
 // -- Tests
 
 class AgentTimelineTest {
+    @Test fun plainResponseCannotCompleteAndPrivateModeCanCloseWithoutDataApproval() = runBlocking {
+        withFixture { db, profiles, scope ->
+            AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.Private))
+            var requests = 0
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                assertTrue(request.system.contains(AgentCharacterPrompt))
+                assertEquals(listOf(AgentFinishToolName), request.tools.map { it.name })
+                when (++requests) {
+                    1 -> { emit(ModelEvent.Text("过程文字")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                    2 -> {
+                        assertEquals(AgentRunStatus.Running, db.agent().observeRuns().first().single().status)
+                        assertTrue(db.agent().messages().none { it.isFinal })
+                        assertTrue(request.messages.last().text.contains("finish_task"))
+                        emitAgentFinish("好了。\n可以看看。")
+                    }
+                    else -> fail("must not request after closing")
+                }
+            }, scope)
+            timeline.send("聊一下")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val run = db.agent().observeRuns().first().single()
+            assertEquals(AgentRunStatus.Complete, run.status)
+            assertEquals(2, requests)
+            assertEquals("好了。\n可以看看。", db.agent().messages().single { it.isFinal }.text)
+            assertEquals(AgentToolStatus.Committed, db.agent().toolEvents(run.id).single().status)
+        }
+    }
+
+    @Test fun selectedHistoryContinuesTheSameConversationAndNewSessionStartsEmpty() = runBlocking {
+        withFixture { db, profiles, scope ->
+            val requests = mutableListOf<ModelRequest>()
+            val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emitAgentFinish("好了。") }, scope)
+            timeline.send("第一会话")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val first = timeline.conversationId.value!!
+            timeline.newConversation()
+            val second = timeline.conversationId.value!!
+            assertNotEquals(first, second)
+            assertTrue(agentConversationMessages(db.agent().messages(), db.agent().segments(), second).isEmpty())
+            assertTrue(timeline.consumeNotice("新会话已开始"))
+            assertFalse(timeline.consumeNotice("新会话已开始"))
+            timeline.send("第二会话")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            timeline.openConversation(first)
+            timeline.send("继续第一会话")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val history = agentConversationMessages(db.agent().messages(), db.agent().segments(), first)
+            assertEquals(listOf("第一会话", "继续第一会话"), history.filter { it.role == AgentMessageRole.User }.map { it.text })
+            assertEquals(2, agentConversations(db.agent().segments(), db.agent().messages()).size)
+            assertEquals(first, db.agent().openSegment()?.conversationId)
+            assertTrue(requests.last().messages.any { it.role == AgentMessageRole.User && it.text == "第一会话" })
+            assertFalse(requests.last().messages.any { it.text == "第二会话" })
+        }
+    }
+
+    @Test fun browsingHistoryCannotMoveQueuedTasksToTheViewedConversation() = runBlocking {
+        withFixture { db, profiles, scope ->
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val timeline = AgentTimeline(db, profiles, client { request ->
+                if (request.messages.last().text == "正在进行") { started.complete(Unit); release.await() }
+                emitAgentFinish("好了。")
+            }, scope)
+            timeline.send("历史会话")
+            withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
+            val old = timeline.conversationId.value!!
+            timeline.newConversation()
+            val active = timeline.conversationId.value!!
+            timeline.send("正在进行")
+            withTimeout(5000) { started.await() }
+            timeline.enqueue("队列任务")
+            timeline.openConversation(old)
+            release.complete(Unit)
+            withTimeout(5000) { timeline.runs.first { it.size == 3 && it.all { run -> run.status == AgentRunStatus.Complete } } }
+            val queued = db.agent().messages().single { it.role == AgentMessageRole.User && it.text == "队列任务" }
+            assertEquals(active, db.agent().segment(queued.segmentId)?.conversationId)
+            assertEquals(old, timeline.conversationId.value)
+            assertEquals(listOf("历史会话"), agentConversationMessages(db.agent().messages(), db.agent().segments(), old)
+                .filter { it.role == AgentMessageRole.User }.map { it.text })
+        }
+    }
+
     @Test fun untestedModelReadsAttachedSnapshotBeforeWriting() = runBlocking {
         withFixture { db, profiles, scope ->
             seedReadableNote(db)
@@ -40,7 +123,7 @@ class AgentTimelineTest {
                         })))
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     }
-                    else -> { emit(ModelEvent.Text("已完成")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                    else -> { emit(ModelEvent.Text("已完成")); emitAgentFinish("已完成") }
                 }
             }, scope)
             timeline.selectDraftNotes(listOf("readable"))
@@ -57,7 +140,7 @@ class AgentTimelineTest {
         withFixture { db, profiles, scope ->
             val note = NoteEntity("note", null, "标题", NoteDocument(blocks = listOf(TextBlock("body", inlines = listOf(InlineRun("前原文后"))))).encodeToJson(), null, 0, 0, 0, "摘要", 1, 1, null, null)
             db.notes().upsert(note)
-            val model = client { emit(ModelEvent.Text("已收到")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+            val model = client { emit(ModelEvent.Text("已收到")); emitAgentFinish("已收到") }
             val timeline = AgentTimeline(db, profiles, model, scope)
             timeline.saveDraft("已有输入")
             val selection = AgentSelection(note.agentVersion(), "body", 1, 3)
@@ -105,7 +188,7 @@ class AgentTimelineTest {
                 streamed.complete(Unit)
                 finish.await()
                 emit(ModelEvent.Text("\n- 已完成"))
-                emit(ModelEvent.Finished(ModelFinish.Complete))
+                emitAgentFinish("# 总结\n**重要**\n- 已完成")
             }, scope)
             timeline.send("整理一下")
             withTimeout(5000) { streamed.await() }
@@ -122,12 +205,12 @@ class AgentTimelineTest {
         withFixture { db, profiles, scope ->
             val release = CompletableDeferred<Unit>()
             val captured = mutableListOf<ModelRequest>()
-            val client = client { request -> captured += request; emit(ModelEvent.Text("部分回复")); release.await(); emit(ModelEvent.Text("，完成")); emit(ModelEvent.Usage(3, 5)); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+            val client = client { request -> captured += request; emit(ModelEvent.Text("部分回复")); release.await(); emit(ModelEvent.Text("，完成")); emit(ModelEvent.Usage(3, 5)); emitAgentFinish("部分回复，完成") }
             val timeline = AgentTimeline(db, profiles, client, scope)
             timeline.send("用户输入")
             withTimeout(5000) { timeline.messages.first { it.any { message -> message.text == "部分回复" } } }
             assertEquals(AgentMessageStatus.Streaming, db.agent().messages().last().status)
-            assertEquals(setOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read"), captured.single().tools.map { it.name }.toSet())
+            assertEquals(setOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read", AgentFinishToolName), captured.single().tools.map { it.name }.toSet())
             release.complete(Unit)
             withTimeout(5000) { timeline.runs.first { it.lastOrNull()?.status == AgentRunStatus.Complete } }
             assertEquals("部分回复，完成", db.agent().messages().last().text)
@@ -197,14 +280,14 @@ class AgentTimelineTest {
         } finally { scope.cancel(); db.close(); context.deleteDatabase(name) }
     }
 
-    @Test fun newTopicPreservesHistoryWithMarkedPendingSummaryTail() = runBlocking {
+    @Test fun newConversationPreservesHistoryWithMarkedPendingSummaryTail() = runBlocking {
         withFixture { db, profiles, scope ->
             AgentPermissionStore(db).saveFromUser(AgentPermission(AgentPermissionMode.FullAccess))
             val requests = mutableListOf<ModelRequest>()
-            val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("回答")); emit(ModelEvent.Finished(ModelFinish.Complete)) }, scope)
+            val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("回答")); emitAgentFinish("回答") }, scope)
             timeline.send("旧话题")
             withTimeout(5000) { timeline.runs.first { it.lastOrNull()?.status == AgentRunStatus.Complete }; timeline.state.first { !it.running } }
-            timeline.newTopic()
+            timeline.newConversation()
             timeline.send("新话题")
             withTimeout(5000) { timeline.runs.first { it.size == 2 && it.all { run -> run.status == AgentRunStatus.Complete } } }
             assertTrue(db.agent().messages().any { it.text == "旧话题" })
@@ -234,7 +317,7 @@ class AgentTimelineTest {
                 requests += request
                 emit(ModelEvent.Text("回复 ${requests.size}"))
                 if (requests.size == 1) release.await()
-                emit(ModelEvent.Finished(ModelFinish.Complete))
+                emitAgentFinish("回复 ${requests.size}")
             }, scope)
             timeline.send("当前目标")
             withTimeout(5000) { timeline.messages.first { it.any { m -> m.text == "回复 1" } } }
@@ -247,7 +330,7 @@ class AgentTimelineTest {
             release.complete(Unit)
             withTimeout(5000) { timeline.runs.first { it.size == 3 && it.all { row -> row.status == AgentRunStatus.Complete } } }
             assertEquals(4, requests.size)
-            assertTrue(requests[1].messages.last().text.contains("新的约束"))
+            assertTrue(requests[1].messages.any { it.role == AgentMessageRole.User && it.text.contains("新的约束") })
             assertEquals("队列乙已编辑", requests[2].messages.last().text)
             assertEquals("队列甲", requests[3].messages.last().text)
             assertTrue(db.agent().pendingQueue().isEmpty())
@@ -263,7 +346,7 @@ class AgentTimelineTest {
             val timeline = AgentTimeline(db, profiles, client {
                 calls++
                 if (calls == 1) { started.complete(Unit); awaitCancellation() }
-                emit(ModelEvent.Text("完成队列")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                emit(ModelEvent.Text("完成队列")); emitAgentFinish("完成队列")
             }, scope)
             timeline.send("停止这个")
             started.await()
@@ -322,7 +405,7 @@ class AgentTimelineTest {
             val timeline = AgentTimeline(db, profiles, client { request ->
                 requests += request
                 if (requests.size == 1) { emit(ModelEvent.Text("中断前")); started.complete(Unit); awaitCancellation() }
-                emit(ModelEvent.Text("已继续")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                emit(ModelEvent.Text("已继续")); emitAgentFinish("已继续")
             }, scope)
             timeline.send("原始目标")
             started.await()
@@ -344,7 +427,7 @@ class AgentTimelineTest {
     @Test fun deletingOneMessagePreservesTimelineButExcludesTheExchangeFromContext() = runBlocking {
         withFixture { db, profiles, scope ->
             val requests = java.util.concurrent.CopyOnWriteArrayList<ModelRequest>()
-            val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("相关内容")); emit(ModelEvent.Finished(ModelFinish.Complete)) }, scope)
+            val timeline = AgentTimeline(db, profiles, client { request -> requests += request; emit(ModelEvent.Text("相关内容")); emitAgentFinish("相关内容") }, scope)
             timeline.send("需要删除的内容")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             timeline.deleteMessage(db.agent().messages().first { it.role == AgentMessageRole.User }.id)
@@ -415,16 +498,16 @@ class AgentTimelineTest {
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                 } else {
                     emit(ModelEvent.Text(if (requests.size == 2) "笔记包含受保护正文" else "新的回答"))
-                    emit(ModelEvent.Finished(ModelFinish.Complete))
+                    emitAgentFinish(if (requests.size == 2) "笔记包含受保护正文" else "新的回答")
                 }
             }, scope)
             timeline.send("读取笔记")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
-            assertEquals(listOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read"), requests.first().tools.map { it.name })
+            assertEquals(listOf("read", "note_search", "write", "create", "delete", "memory_remember", "memory_search", "memory_read", AgentFinishToolName), requests.first().tools.map { it.name })
             assertEquals(listOf(AgentMessageRole.User, AgentMessageRole.Assistant, AgentMessageRole.Tool), requests[1].messages.map { it.role })
             assertTrue(requests[1].messages.last().results.single().content.contains("受保护正文"))
-            val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single()
+            val tool = db.agent().toolEvents(db.agent().messages().first().runId!!).single { it.name != AgentFinishToolName }
             assertEquals(AgentToolStatus.Committed, tool.status)
             assertTrue(db.agent().messages().last().sourcesJson.contains("readable"))
             timeline.savePermission(AgentPermission())
@@ -447,7 +530,7 @@ class AgentTimelineTest {
                     requested.complete(Unit); release.await()
                     emit(ModelEvent.ToolCall(ModelToolCall("authorize", "read", buildJsonObject { put("note_id", "readable") })))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
-                } else { emit(ModelEvent.Text("已读取")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                } else { emit(ModelEvent.Text("已读取")); emitAgentFinish("已读取") }
             }
             val timeline = AgentTimeline(db, profiles, model, scope)
             timeline.send("需要读取")
@@ -465,7 +548,7 @@ class AgentTimelineTest {
             withTimeout(5000) { reopened.state.first { it.ready && !it.running } }
             assertEquals(2, requests.size)
             assertTrue(requests.last().messages.last().results.single().content.contains("受保护正文"))
-            assertEquals(1, db.agent().toolEvents(waiting.id).size)
+            assertEquals(1, db.agent().toolEvents(waiting.id).count { it.name != AgentFinishToolName })
             assertEquals(AgentPermission(), AgentPermissionStore(db).current())
             assertEquals(AgentQueueStatus.Paused, db.agent().pendingQueue().single().status)
             reopened.removeQueued(db.agent().pendingQueue().single().id)
@@ -482,7 +565,7 @@ class AgentTimelineTest {
                 if (requests.size == 1) {
                     emit(ModelEvent.ToolCall(ModelToolCall("denied", "read", buildJsonObject { put("note_id", "readable") })))
                     emit(ModelEvent.Finished(ModelFinish.ToolCalls))
-                } else { emit(ModelEvent.Text("未获授权")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                } else { emit(ModelEvent.Text("未获授权")); emitAgentFinish("未获授权") }
             }, scope)
             timeline.send("需要授权")
             withTimeout(5000) { timeline.state.first { it.ready && !it.running } }
@@ -504,7 +587,7 @@ class AgentTimelineTest {
                 requests += request
                 emit(ModelEvent.Text("已收到快照"))
                 if (requests.size == 1) { started.complete(Unit); release.await() }
-                emit(ModelEvent.Finished(ModelFinish.Complete))
+                emitAgentFinish("已收到快照")
             }, scope)
             timeline.selectDraftNotes(listOf("readable"))
             timeline.send("总结发送时内容")
@@ -550,7 +633,7 @@ class AgentTimelineTest {
                         })))
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     }
-                    else -> { emit(ModelEvent.Text("已完成调整，可逐篇审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                    else -> { emit(ModelEvent.Text("已完成调整，可逐篇审阅。")); emitAgentFinish("已完成调整，可逐篇审阅。") }
                 }
             }
             val timeline = AgentTimeline(db, profiles, model, scope)
@@ -596,7 +679,7 @@ class AgentTimelineTest {
                         emit(ModelEvent.ToolCall(ModelToolCall("read", "read", Json.encodeToJsonElement(AgentReadArguments(createdId)).jsonObject)))
                         emit(ModelEvent.Finished(ModelFinish.ToolCalls))
                     }
-                    else -> { emit(ModelEvent.Usage(5, 8)); emit(ModelEvent.Text("已创建并读取。")); emit(ModelEvent.Finished(ModelFinish.Complete)) }
+                    else -> { emit(ModelEvent.Usage(5, 8)); emit(ModelEvent.Text("已创建并读取。")); emitAgentFinish("已创建并读取。") }
                 }
             }, scope)
             timeline.send("新建一篇笔记")
@@ -640,7 +723,7 @@ class AgentTimelineTest {
                     assertFalse(wire.contains("受保护正文"))
                     assertFalse(wire.contains("旧原生片段"))
                     assertTrue(wire.contains("trashed"))
-                    emit(ModelEvent.Text("笔记已移入回收站，可以单篇审阅。")); emit(ModelEvent.Finished(ModelFinish.Complete))
+                    emit(ModelEvent.Text("笔记已移入回收站，可以单篇审阅。")); emitAgentFinish("笔记已移入回收站，可以单篇审阅。")
                 }
             }, scope)
             timeline.selectDraftNotes(listOf(original.id))
