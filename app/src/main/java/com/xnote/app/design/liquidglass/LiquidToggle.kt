@@ -65,9 +65,7 @@ fun LiquidToggle(
     val currentOnSelect by rememberUpdatedState(onSelect)
     val reduceMotion = LocalXNoteInteractionSettings.current.reduceMotion
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
-    val accentColor =
-        if (isLightTheme) Color(0xFF34C759)
-        else Color(0xFF30D158)
+    val accentColor = MaterialTheme.colorScheme.primary
     val trackColor =
         if (isLightTheme) Color(0xFF787878).copy(0.2f)
         else Color(0xFF787880).copy(0.36f)

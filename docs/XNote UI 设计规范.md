@@ -298,7 +298,7 @@ AndroidLiquidGlass 的 Maven 发布物提供 Backdrop、Lens、Blur、Vibrancy�
 - 所有玻璃按钮（含 Header、工具栏、Dialog、Drawer 内操作）通过公共 `LiquidButton(enabled = …)` 应用禁用态；透明度使用 `CompositingStrategy.ModulateAlpha`，不能使用会产生有界离屏层的外层 `Modifier.alpha` 裁剪阴影。
 - Dialog 和公共 Panel 直接复用官方 Dialog 的主题化 `colorControls`、浅色 16 dp / 深色 8 dp 模糊、`lens(24/48, depthEffect = true)`、`Highlight.Plain` 与容器色；Dialog 固定使用官方 48 dp `RoundedRectangle`，Popup 与 DropdownMenu 使用 24 dp 平滑圆角（`XNoteSmoothCornerShape(24.dp)`）；Dialog 另行复用官方遮罩色和内容间距。
 - Popup、DropdownMenu、Drawer、Toast、富文本工具栏与平板 Navigation Rail 统一通过 `XNoteLiquidGlassPanel` 获得上述官方 Panel 材质，不得再定义局部玻璃配方。Popup 的全屏关闭层必须独立于面板动画，不能随面板缩放或淡入。Drawer 的全屏遮罩必须以 300 ms 从透明度 0 淡入到 1，不能随面板从底部或侧边滑入；面板同时从底部或末端滑入，点击遮罩即可关闭。
-- 所有设置开关统一使用官方 catalog `LiquidToggle`，包括外观与辅助功能、Markdown 快捷输入、模型配置启用、自动记忆和笔记背景自动深浅模式。保留官方 64 × 28 dp 轨道、40 × 24 dp 滑块、绿色选中态与按压折射配方，按应用主题选择深浅材质；整行可点击并提供单一 Switch 无障碍节点，滑块支持横向拖拽，取消手势恢复当前设置，禁用态阻止点击与拖拽。「减少动画」关闭位移过渡和形变。开关采样不包含自身的页面背景捕获层，滑块另合成官方轨道捕获层；编辑页背景面板连续数值输入使用官方 `LiquidSlider`。
+- 所有设置开关统一使用官方 catalog `LiquidToggle`，包括外观与辅助功能、Markdown 快捷输入、模型配置启用、自动记忆和笔记背景自动深浅模式。保留官方 64 × 28 dp 轨道、40 × 24 dp 滑块与按压折射配方，选中轨道使用 `MaterialTheme.colorScheme.primary` 主题色，深浅模式和高对比度随当前主题同步；整行可点击并提供单一 Switch 无障碍节点，滑块支持横向拖拽，取消手势恢复当前设置，禁用态阻止点击与拖拽。「减少动画」关闭位移过渡和形变。开关采样不包含自身的页面背景捕获层，滑块另合成官方轨道捕获层；编辑页背景面板连续数值输入使用官方 `LiquidSlider`。
 - catalog 没有 Panel 和竖向 Navigation Rail；`XNoteLiquidGlassPanel` 与平板 Rail 因此可以作为项目级适配，但必须直接组合 AndroidLiquidGlass API，不得另建玻璃渲染引擎。
 
 列表整行点击区域、文本输入框、开关、单选项和复选项属于对应控件，不额外包裹玻璃按钮；行内独立操作使用 `XNoteButton`。下拉选择入口使用普通材质，展开后的菜单外壳使用玻璃。
