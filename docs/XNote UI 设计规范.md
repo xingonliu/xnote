@@ -78,7 +78,7 @@ Android 13+ 的系统动画倍率通过 `ValueAnimator.getDurationScale()` 与�
 - 页面背景和明暗主题。
 - Header、底部导航、底部工具区和浮动操作区的层级。
 - Progressive blur 的顶部与底部效果。
-- 全局加载态和页面级错误态。Toast 由应用根层唯一的 `XNoteToastProvider` 承载，页面只通过 `LocalXNoteToast.current.show(message)` 发送提示，不创建状态或显示宿主；显示队列和计时不随页面切换重建。
+- 全局加载态和页面级错误态。Toast 由应用根层唯一的 `XNoteToastProvider` 承载，页面只通过 `LocalXNoteToast.current.show(message)` 发送提示，不创建状态或显示宿主；显示队列和计时不随页面切换重建。Toast 在页面捕获层外独立叠加，固定在屏幕顶部安全区下方 8 dp 居中显示，不占页面排版空间，不随页面底栏高度或键盘移动；水平安全区内留白 16 dp，面板按内容收缩且最大宽度 320 dp，内边距为水平 16 dp、垂直 10 dp，文字采用 `labelMedium`（12 sp／16 sp 行高），小于页面正文并跟随字体缩放。
 - 手机、横屏和平板的内容宽度与边距。
 
 弹窗、Popup 和下拉菜单不视为页面，不单独套用页面 Scaffold；它们自身存在可滚动内容时，必须在内部滚动容器接入相同的边缘效果。
@@ -428,7 +428,7 @@ Drawer 底部形态打开时，全屏遮罩以 300 ms 从透明度 0 淡入到 1
 | 针对某个控件的说明或轻量预览           | `XNotePopup`                 |
 | 排序、更多、单组选项等锚定操作         | `XNoteDropdownMenu`          |
 
-同一时刻只显示一个模态浮层。后显示的非模态 Toast 可以排队，但不能遮挡 Header 返回按钮、主要操作或系统导航区域。
+同一时刻只显示一个模态浮层。非模态 Toast 在应用根层顶部依次显示，不取得输入焦点、不拦截面板外触摸，并避开系统状态栏、刘海和导航区域。
 
 ## 9. Apple Notes 视觉一致性
 

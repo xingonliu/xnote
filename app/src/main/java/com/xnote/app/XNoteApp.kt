@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -156,9 +155,8 @@ fun XNoteApp(
     modelClient: com.xnote.app.data.agent.ModelClient = com.xnote.app.data.agent.HttpModelClient(),
     agentTimeline: com.xnote.app.data.agent.AgentTimeline? = null,
 ) {
-    val (toastBottomInset, setToastBottomInset) = remember { mutableStateOf(0.dp) }
-    XNoteToastProvider(bottomInset = toastBottomInset) {
-        XNoteAppContent(noteLibrary, searchHistory, settings, modelProfiles, modelClient, agentTimeline, setToastBottomInset)
+    XNoteToastProvider {
+        XNoteAppContent(noteLibrary, searchHistory, settings, modelProfiles, modelClient, agentTimeline)
     }
 }
 
@@ -170,7 +168,6 @@ private fun XNoteAppContent(
     modelProfiles: com.xnote.app.data.agent.ModelProfileStore?,
     modelClient: com.xnote.app.data.agent.ModelClient,
     agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
-    onToastBottomInsetChanged: (Dp) -> Unit,
 ) {
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
@@ -448,14 +445,6 @@ private fun XNoteAppContent(
         }
     }
 
-    val showsReader = navigationState.destination == AppDestination.Notes &&
-        navigationState.notesRoute is NotesRoute.Reader
-    val showsExport = navigationState.destination == AppDestination.Notes &&
-        navigationState.notesRoute is NotesRoute.Export
-    if (profilePage != null || showsReader || showsExport) {
-        SideEffect { onToastBottomInsetChanged(if (profilePage == null && showsReader) 96.dp else 0.dp) }
-    }
-
     profilePage?.let { page ->
         if (page == "记忆与画像" && agentTimeline != null) {
             com.xnote.app.feature.agent.AgentMemoryScreen(agentTimeline, onBack = { profilePage = null })
@@ -509,7 +498,6 @@ private fun XNoteAppContent(
         val usesWorkspace = maxWidth.value >= 840 * maxOf(1f, density.fontScale) &&
             navigationState.destination == AppDestination.Notes && !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
         if (usesWorkspace) {
-            SideEffect { onToastBottomInsetChanged(XNoteBottomNavigationHeight) }
             TabletNotesWorkspace(
                 settings = settingsRepository, appSettings = appSettings,
                 navigation = navigationState, library = noteLibrary, notebooks = notebooks, notes = activeNotes, homeUi = homeUi,
@@ -569,7 +557,6 @@ private fun XNoteAppContent(
                 XNoteCreateNoteButtonSize + XNoteSpacingSmall
             else -> 0.dp
         }
-        SideEffect { onToastBottomInsetChanged(bottomOverlayHeight) }
         val contentStartPadding = when {
             isTablet && showsPrimaryChrome -> 112.dp
             isTablet -> 24.dp
