@@ -1,6 +1,5 @@
 package com.xnote.app.feature.agent
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,7 +64,6 @@ internal fun AgentToolHistoryRow(
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             Row(Modifier.widthIn(max = minOf(maxWidth * 0.8f, 360.dp))
                 .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .clickable(role = Role.Button, onClickLabel = if (expanded) "收起详情" else "展开详情") { expanded = !expanded }
                 .semantics { stateDescription = if (expanded) "已展开" else "已收起" }
                 .testTag("agent-tool-toggle-${event.id}")
