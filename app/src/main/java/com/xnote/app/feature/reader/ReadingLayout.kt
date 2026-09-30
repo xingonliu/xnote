@@ -123,16 +123,10 @@ fun measureReadingUnits(
                             ReadingContent.TableLine(cells, columnWidth, line == 0, line == lineCount - 1)))
                     }
                 }
-                is ImageBlock, is StickerBlock, is DrawingBlock -> {
-                    val image = when (block) {
-                        is ImageBlock -> block
-                        is StickerBlock -> ImageBlock(block.id, block.attachmentId, scale = block.scale,
-                            rotationDegrees = block.rotationDegrees, offsetX = block.offsetX, offsetY = block.offsetY, layout = block.layout, zIndex = block.zIndex)
-                        is DrawingBlock -> ImageBlock(block.id, block.attachmentId)
-                    }
+                is PlacedMediaBlock -> {
+                    val image = block
                     val attachment = attachments[image.attachmentId]
-                    val ratio = if (block is DrawingBlock) block.height / block.width
-                        else (attachment?.heightPx ?: 240).toFloat() / (attachment?.widthPx ?: 320).coerceAtLeast(1)
+                    val ratio = (attachment?.heightPx ?: 240).toFloat() / (attachment?.widthPx ?: 320).coerceAtLeast(1)
                     val radians = Math.toRadians(image.rotationDegrees.toDouble())
                     val cosine = abs(cos(radians)).toFloat()
                     val sine = abs(sin(radians)).toFloat()

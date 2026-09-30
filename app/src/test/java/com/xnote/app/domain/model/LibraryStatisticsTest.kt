@@ -11,7 +11,7 @@ class LibraryStatisticsTest {
         val body = listOf(
             TextBlock("text", inlines = listOf(InlineRun("中文 hello", bold = true))),
             TableBlock("table", listOf(TableRow(listOf(TableCell(listOf(InlineRun("世界"))))))),
-            ImageBlock("i1", "shared"), ImageBlock("i2", "shared"), StickerBlock("s", "sticker"), DrawingBlock("d", "drawing", 100f, 100f),
+            ImageBlock("i1", "shared"), ImageBlock("i2", "shared"), StickerBlock("s", "sticker"),
         )
         val stats = libraryStatistics(listOf(note("a", body).copy(notebookId = "book"),
             note("b", listOf(TextBlock("body", inlines = listOf(InlineRun("未归档"))))),
@@ -23,10 +23,8 @@ class LibraryStatisticsTest {
         assertEquals(1, stats.tableNoteCount)
         assertEquals(1, stats.imageNoteCount)
         assertEquals(1, stats.stickerNoteCount)
-        assertEquals(1, stats.drawingNoteCount)
         assertEquals(2, stats.imageCount)
         assertEquals(1, stats.stickerCount)
-        assertEquals(1, stats.drawingCount)
     }
 
     @Test fun recentListsUseTheirOwnTimestampAndStableTieBreaker() {

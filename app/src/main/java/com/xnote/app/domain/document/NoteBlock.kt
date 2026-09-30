@@ -147,16 +147,6 @@ data class StickerBlock(
     override val zIndex: Int = 0,
 ) : PlacedMediaBlock
 
-@Serializable
-@SerialName("drawing")
-data class DrawingBlock(
-    override val id: String,
-    val attachmentId: String,
-    val width: Float,
-    val height: Float,
-    val strokes: List<DrawingStroke> = emptyList(),
-) : NoteBlock
-
 // -- Functions
 
 fun List<InlineRun>.plainText(): String = joinToString(separator = "") { it.text }

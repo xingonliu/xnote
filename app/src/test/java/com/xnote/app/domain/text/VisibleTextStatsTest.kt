@@ -1,6 +1,6 @@
 package com.xnote.app.domain.text
 
-import com.xnote.app.domain.document.DrawingBlock
+import com.xnote.app.domain.document.StickerBlock
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.InlineRun
 import com.xnote.app.domain.document.NoteDocument
@@ -31,7 +31,7 @@ class VisibleTextStatsTest {
                     ),
                 ),
                 ImageBlock(id = "img", attachmentId = "photo.png"),
-                DrawingBlock(id = "draw", attachmentId = "ink", width = 10f, height = 10f),
+                StickerBlock(id = "sticker", attachmentId = "sticker.png"),
             ),
         )
         val note = Note(

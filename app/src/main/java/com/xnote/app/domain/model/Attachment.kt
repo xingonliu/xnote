@@ -5,7 +5,6 @@ package com.xnote.app.domain.model
 enum class AttachmentKind {
     Image,
     Sticker,
-    Drawing,
     File,
 }
 

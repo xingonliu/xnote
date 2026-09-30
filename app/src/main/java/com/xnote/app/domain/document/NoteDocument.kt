@@ -30,7 +30,6 @@ fun NoteDocument.attachmentIds(): Set<String> {
         when (block) {
             is ImageBlock -> ids += block.attachmentId
             is StickerBlock -> ids += block.attachmentId
-            is DrawingBlock -> ids += block.attachmentId
             is TextBlock, is TableBlock -> Unit
         }
     }

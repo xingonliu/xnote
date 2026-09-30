@@ -1,13 +1,12 @@
 # XNote 页面整改验收
 
-日期：2026-09-30。范围：画板、抠图、贴纸库、我的、各设置子页、阅读、导出、搜索、回收站及 Agent 辅助面板。首页、Agent 主对话和笔记编辑页保留既有主体布局。
+日期：2026-09-30。范围：抠图、贴纸库、我的、各设置子页、阅读、导出、搜索、回收站及 Agent 辅助面板。首页、Agent 主对话和笔记编辑页保留既有主体布局。
 
 ## 页面与交互
 
 | 范围 | 当前实现 | 核对依据 |
 | --- | --- | --- |
 | 边缘效果 | 创作、贴纸、阅读、导出及固定搜索区不显示渐变遮罩；滚动设置和列表随边界显隐 | CreativePage、ReaderScreen、ExportScreen、XNoteApp、TabletNotesWorkspace |
-| 画板 | 自适应画布、竖屏底部工具与宽横屏侧栏、颜色选择、粗细预览、撤销重做、清空、未保存退出确认 | DrawingScreen、CreativeTools；S12FlowTest |
 | 抠图 | 原图／选区／结果分段、保留／擦除、粗细、撤销重做、重试、保存命名、退出确认 | CutoutScreen；S12FlowTest |
 | 贴纸库 | 固定搜索、排序和创建菜单、自适应网格、详情、重命名、删除确认与插入 | StickerLibraryScreen；S12FlowTest |
 | 我的与设置 | 真实入口分组、导航行、即时操作、整行开关、等宽分段选择 | ProfileScreen、XNoteSettingsComponents、AppearanceScreen |
@@ -26,10 +25,10 @@
 
 执行 `./gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest`。
 
-- 单元测试共 191 项：190 项通过、1 项跳过、0 失败。新增审批摘要测试核对创建目标笔记本、标题与选区变化、未知工具身份保留。
+- 单元测试共 194 项：193 项通过、1 项跳过、0 失败。审批摘要测试核对创建目标笔记本、标题与选区变化、未知工具身份保留；媒体测试核对图片、贴纸的序列化、插入、附件引用与统计。
 - Lint 无错误；报告保留依赖版本、未使用资源等警告，详细结果见 `app/build/reports/lint-results-debug.html`。
 - Debug APK 与 instrumentation 测试 APK 构建通过。
-- 端侧测试同步了审批、记忆、配置删除、贴纸管理、画板和回收站的新交互，并新增未保存绘画的退出确认用例。
+- 端侧测试同步了审批、记忆、配置删除、贴纸管理和回收站的新交互。
 
 ## 视觉与端侧执行状态
 

@@ -52,15 +52,7 @@ class S12CreativeMediaTest {
         } finally { context.deleteDatabase(name) }
     }
 
-    @Test fun drawingEraseAndMaskCorrectionPreserveTransparentPixels() {
-        val line = DrawingStroke(listOf(DrawingPoint(.2f, .5f), DrawingPoint(.8f, .5f)), width = 30f)
-        val erase = DrawingStroke(listOf(DrawingPoint(.5f, .2f), DrawingPoint(.5f, .8f)), width = 40f, erase = true)
-        val drawing = renderDrawing(listOf(line, erase))
-        try {
-            assertEquals(0, Color.alpha(drawing.getPixel(512, 384)))
-            assertEquals(255, Color.alpha(drawing.getPixel(300, 384)))
-            assertEquals(0, Color.alpha(drawing.getPixel(10, 10)))
-        } finally { drawing.recycle() }
+    @Test fun maskCorrectionPreservesTransparentPixels() {
         val source = Bitmap.createBitmap(30, 30, Bitmap.Config.ARGB_8888).apply { eraseColor(0x80ff0000.toInt()) }
         val mask = IntArray(900)
         paintMask(mask, 30, 30, 2f, 15f, 27f, 15f, 3f, 255)
@@ -80,7 +72,7 @@ class S12CreativeMediaTest {
         var database = XNoteDatabase.create(context, name)
         var library = NoteLibrary(database, AttachmentFileStore(root), SystemEpochClock)
         try {
-            val bitmap = renderDrawing(listOf(DrawingStroke(listOf(DrawingPoint(.5f, .5f)), width = 30f)))
+            val bitmap = Bitmap.createBitmap(30, 30, Bitmap.Config.ARGB_8888).apply { setPixel(15, 15, Color.BLUE) }
             val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Sticker, "test") } finally { bitmap.recycle() }
             val sticker = library.saveSticker(attachment.id, "羊驼")
             val note = library.saveNote(library.createNote(null).copy(document = NoteDocument(blocks = listOf(StickerBlock("s", attachment.id, sticker.id)))))

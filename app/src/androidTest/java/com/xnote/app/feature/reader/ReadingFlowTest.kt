@@ -102,7 +102,7 @@ class ReadingFlowTest {
             TableBlock("table", listOf(TableRow(listOf(TableCell(listOf(InlineRun("单元格\n".repeat(80)))), TableCell(listOf(InlineRun("另一列"))))))),
             ImageBlock("image", "media", scale = 3f, rotationDegrees = 45f, offsetY = 80f),
             StickerBlock("sticker", "media", rotationDegrees = 90f),
-            DrawingBlock("drawing", "media", 200f, 2000f),
+            ImageBlock("tall-image", "tall-media"),
         )))
         var scale by mutableStateOf(1f)
         var units = emptyList<ReadingUnit<ReadingContent>>()
@@ -111,7 +111,9 @@ class ReadingFlowTest {
             CompositionLocalProvider(LocalDensity provides Density(1f, scale)) {
                 XNoteTheme(reduceMotion = true) {
                     val measurer = rememberTextMeasurer()
-                    val measured = measureReadingUnits(listOf(note), emptyMap(), measurer, MaterialTheme.typography,
+                    val attachments = mapOf("tall-media" to Attachment("tall-media", AttachmentKind.Image,
+                        "image/png", null, "tall.png", 0L, 200, 2000, 0L))
+                    val measured = measureReadingUnits(listOf(note), attachments, measurer, MaterialTheme.typography,
                         MaterialTheme.colorScheme, 320, 400f, 1f, "未命名")
                     SideEffect { units = measured; pages = paginateReadingUnits(measured, 400f) }
                 }
@@ -129,7 +131,7 @@ class ReadingFlowTest {
                 assertTrue(layout.getLineLeft(0) > 0)
             }
             assertTrue(lines.first().layout.layoutInput.text.getStringAnnotations("URL", 0, 1).isNotEmpty())
-            assertEquals(listOf("image", "sticker", "drawing"), units.filter { it.content is ReadingContent.Media }.map { it.blockId })
+            assertEquals(listOf("image", "sticker", "tall-image"), units.filter { it.content is ReadingContent.Media }.map { it.blockId })
         }
         val oldCount = pages.size
         compose.runOnIdle { scale = 1.8f }

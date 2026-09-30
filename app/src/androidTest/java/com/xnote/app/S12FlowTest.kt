@@ -1,6 +1,9 @@
 package com.xnote.app
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -10,13 +13,11 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.test.core.app.ApplicationProvider
 import com.xnote.app.data.db.XNoteDatabase
 import com.xnote.app.data.files.AttachmentFileStore
-import com.xnote.app.data.files.renderDrawing
 import com.xnote.app.data.files.saveMediaBitmap
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.XNoteTheme
 import com.xnote.app.domain.document.*
 import com.xnote.app.domain.model.*
-import com.xnote.app.feature.creative.DrawingScreen
 import com.xnote.app.feature.reader.*
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -81,7 +82,7 @@ class S12FlowTest {
 
     @Test fun stickerLibrarySupportsSearchPreviewRenameInsertAndDelete() {
         val sticker = runBlocking {
-            val bitmap = renderDrawing(listOf(DrawingStroke(listOf(DrawingPoint(.2f, .5f), DrawingPoint(.8f, .5f)), color = 0xff1769e0, width = 100f)))
+            val bitmap = transparentStickerBitmap()
             val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Sticker, "sticker-ui") } finally { bitmap.recycle() }
             library.saveSticker(attachment.id, "蓝色笔迹")
         }
@@ -137,49 +138,13 @@ class S12FlowTest {
         }
     }
 
-    @Test fun drawingUiSupportsInkEraseUndoRedoClearAndSave() {
-        var saved: DrawingBlock? = null
-        compose.setContent { XNoteTheme(reduceMotion = true) { DrawingScreen(library, "ui-test", null, {}, { saved = it }) } }
-        compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(centerLeft, centerRight, 400) }
-        compose.onNodeWithText("橡皮").performClick()
-        compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(topCenter, bottomCenter, 400) }
-        compose.onNodeWithContentDescription("撤销").performClick()
-        compose.onNodeWithContentDescription("重做").performClick()
-        compose.onNodeWithContentDescription("清空画板").performClick()
-        compose.onNodeWithContentDescription("撤销").performClick()
-        compose.onNodeWithContentDescription("完成").performClick()
-        compose.waitUntil(10_000) { saved != null }
-        assertEquals(2, saved!!.strokes.size)
-        assertTrue(saved!!.strokes.last().erase)
-        assertTrue(runBlocking { library.getAttachment(saved!!.attachmentId) } != null)
-        screenshot("s12-drawing")
-    }
-
-    @Test fun drawingRequiresConfirmationBeforeDiscardingUnsavedInk() {
-        var exited = false
-        var saved = false
-        compose.setContent { XNoteTheme(reduceMotion = true) {
-            DrawingScreen(library, "discard-test", null, { exited = true }, { saved = true })
-        } }
-        compose.onNodeWithTag("xnote-drawing-canvas").performTouchInput { swipe(centerLeft, centerRight, 300) }
-        compose.onNodeWithContentDescription("返回").performClick()
-        compose.onNodeWithText("放弃这次绘画？").assertIsDisplayed()
-        compose.runOnIdle { assertFalse(exited); assertFalse(saved) }
-        compose.onNodeWithText("继续编辑").performClick()
-        compose.onNodeWithContentDescription("撤销").assertIsEnabled()
-        compose.onNodeWithContentDescription("返回").performClick()
-        compose.onNodeWithText("放弃").performClick()
-        compose.runOnIdle { assertTrue(exited); assertFalse(saved) }
-    }
-
-    @Test fun editorShowsWrappedStickerAndReopensItsDrawing() {
+    @Test fun editorShowsWrappedStickerAndOpensReading() {
         val note = runBlocking {
-            val bitmap = renderDrawing(listOf(DrawingStroke(listOf(DrawingPoint(.1f, .2f), DrawingPoint(.9f, .8f)), color = 0xff1769e0, width = 60f)))
+            val bitmap = transparentStickerBitmap()
             val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Sticker, "ui") } finally { bitmap.recycle() }
             library.saveNote(library.createNote(null).copy(title = "创作验收", document = NoteDocument(blocks = listOf(
                 StickerBlock("s", attachment.id, layout = MediaLayout.Wrap),
                 TextBlock("body", inlines = listOf(InlineRun("文字应当绕过贴纸，在下方恢复完整宽度。".repeat(12)))),
-                DrawingBlock("d", attachment.id, 1024f, 768f, listOf(DrawingStroke(listOf(DrawingPoint(.1f, .2f), DrawingPoint(.9f, .8f))))),
             ))))
         }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library) } }
@@ -188,9 +153,6 @@ class S12FlowTest {
         compose.onNodeWithTag("xnote-image-s").assertIsDisplayed()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(context.getString(R.string.image_loading)).fetchSemanticsNodes().isEmpty() }
         screenshot("s12-wrap-editor")
-        compose.onNodeWithText("编辑画板").performScrollTo().performClick()
-        compose.onNodeWithTag("xnote-drawing-canvas").assertIsDisplayed()
-        compose.onNodeWithContentDescription("返回").performClick()
         compose.onNodeWithTag("xnote-editor-title").assertExists()
         compose.onNodeWithContentDescription("更多").performClick()
         compose.onNodeWithText("打开阅读模式").performClick()
@@ -228,14 +190,13 @@ class S12FlowTest {
         assertEquals(original.take(2) + "输入完成" + original.drop(2), runBlocking { library.getNote(note.id)!!.document.blocks.filterIsInstance<TextBlock>().single().inlines.plainText() })
     }
 
-    @Test fun exportCapturesTransparentDrawingAndWrappedSticker() {
+    @Test fun exportCapturesTransparentWrappedSticker() {
         val before = File(context.cacheDir, "exports").listFiles().orEmpty().toSet()
         val note = runBlocking {
-            val bitmap = renderDrawing(listOf(DrawingStroke(listOf(DrawingPoint(.1f, .5f), DrawingPoint(.9f, .5f)), color = 0xff1769e0, width = 60f)))
-            val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Drawing, "export") } finally { bitmap.recycle() }
+            val bitmap = transparentStickerBitmap()
+            val attachment = try { saveMediaBitmap(context, library, bitmap, AttachmentKind.Sticker, "export") } finally { bitmap.recycle() }
             library.saveNote(library.createNote(null).copy(title = "创作导出", document = NoteDocument(blocks = listOf(
                 StickerBlock("s", attachment.id, layout = MediaLayout.Wrap), TextBlock("text", inlines = listOf(InlineRun("环绕导出文字完整。".repeat(10)))),
-                DrawingBlock("d", attachment.id, 1024f, 768f),
             ))))
         }
         compose.setContent { XNoteTheme(darkTheme = false, reduceMotion = true) {
@@ -260,6 +221,10 @@ class S12FlowTest {
         assertTrue(bluePages > 0)
         screenshot("s12-export")
         directories.forEach { it.deleteRecursively() }
+    }
+
+    private fun transparentStickerBitmap(): Bitmap = Bitmap.createBitmap(320, 240, Bitmap.Config.ARGB_8888).apply {
+        Canvas(this).drawRect(32f, 90f, 288f, 150f, Paint().apply { color = 0xff1769e0.toInt() })
     }
 
     private fun screenshot(name: String) {

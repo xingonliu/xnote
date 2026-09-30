@@ -2,15 +2,8 @@ package com.xnote.app.data.files
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.ImageDecoder
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import com.xnote.app.data.repository.NoteLibrary
-import com.xnote.app.domain.document.DrawingHeight
-import com.xnote.app.domain.document.DrawingStroke
-import com.xnote.app.domain.document.DrawingWidth
 import com.xnote.app.domain.model.Attachment
 import com.xnote.app.domain.model.AttachmentKind
 import java.io.File
@@ -40,21 +33,6 @@ suspend fun saveMediaBitmap(context: Context, library: NoteLibrary, bitmap: Bitm
             temporary.delete()
         }
     }
-
-fun renderDrawing(strokes: List<DrawingStroke>): Bitmap {
-    val bitmap = Bitmap.createBitmap(DrawingWidth, DrawingHeight, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
-    for (stroke in strokes) {
-        paint.color = stroke.color.toInt()
-        paint.strokeWidth = stroke.width
-        paint.xfermode = if (stroke.erase) PorterDuffXfermode(PorterDuff.Mode.CLEAR) else null
-        val points = stroke.points
-        if (points.size == 1) canvas.drawCircle(points[0].x * DrawingWidth, points[0].y * DrawingHeight, stroke.width / 2f, paint)
-        points.zipWithNext { a, b -> canvas.drawLine(a.x * DrawingWidth, a.y * DrawingHeight, b.x * DrawingWidth, b.y * DrawingHeight, paint) }
-    }
-    return bitmap
-}
 
 fun applyCutoutMask(source: Bitmap, alpha: IntArray): Bitmap {
     require(alpha.size == source.width * source.height)

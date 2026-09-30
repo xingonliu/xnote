@@ -45,7 +45,7 @@ import com.xnote.app.feature.creative.*
 class NoteImageUiState {
     var addRequested by mutableStateOf(false)
     var busy by mutableStateOf(false)
-    var creativePage by mutableStateOf<String?>(null)
+    var stickerLibraryVisible by mutableStateOf(false)
 }
 
 // -- Composables
@@ -157,28 +157,16 @@ fun BoxScope.NoteImageChrome(
                 sourceVisible = false
                 session.applyAction(com.xnote.app.design.XNoteRichTextAction.Table)
             },
-        ), XNoteDropdownMenuItem("贴纸", onClick = { sourceVisible = false; ui.creativePage = "stickers" }),
-            XNoteDropdownMenuItem("画板", onClick = { sourceVisible = false; ui.creativePage = "drawing" })) else sources,
+        ), XNoteDropdownMenuItem("贴纸", onClick = { sourceVisible = false; ui.stickerLibraryVisible = true })) else sources,
         backdrop = backdrop, anchor = if (replaceId == null) sourceAnchor else replacementAnchor,
         placement = XNotePopupPlacement.AboveStart,
     )
     val target = EditorSelection(targetBlock, targetStart, targetStart)
-    if (ui.creativePage == "stickers") StickerLibraryScreen(library, onBack = { ui.creativePage = null }, onInsert = { entry ->
+    if (ui.stickerLibraryVisible) StickerLibraryScreen(library, onBack = { ui.stickerLibraryVisible = false }, onInsert = { entry ->
         session.attachMedia(StickerBlock(newNoteId(), entry.attachmentId, libraryEntryId = entry.id), target)
         session.flushSave()
-        ui.creativePage = null
+        ui.stickerLibraryVisible = false
     })
-    val drawingId = session.drawingBlockId
-    if (ui.creativePage == "drawing" || drawingId != null) {
-        val initial = session.document.block(drawingId.orEmpty()) as? DrawingBlock
-        DrawingScreen(library, session.attachmentOwner, initial,
-            onBack = { ui.creativePage = null; session.drawingBlockId = null }, onSave = { drawing ->
-                session.attachMedia(drawing, target, drawingId)
-                session.flushSave()
-                ui.creativePage = null
-                session.drawingBlockId = null
-            })
-    }
     val cutoutId = session.cutoutImageId
     var cutoutFile by remember(cutoutId) { mutableStateOf<java.io.File?>(null) }
     LaunchedEffect(cutoutId) {

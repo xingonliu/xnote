@@ -35,7 +35,6 @@ class NoteDocumentJsonTest {
                 emptyTableBlock("table-1"),
                 ImageBlock(id = "image-1", attachmentId = "att-image", layout = MediaLayout.Wrap),
                 StickerBlock(id = "sticker-1", attachmentId = "att-sticker", libraryEntryId = "lib-1"),
-                DrawingBlock(id = "drawing-1", attachmentId = "att-drawing", width = 320f, height = 240f),
             ),
         )
         val json = document.encodeToJson()
@@ -45,9 +44,8 @@ class NoteDocumentJsonTest {
         assertTrue(json.contains("\"type\":\"table\""))
         assertTrue(json.contains("\"type\":\"image\""))
         assertTrue(json.contains("\"type\":\"sticker\""))
-        assertTrue(json.contains("\"type\":\"drawing\""))
         assertEquals(
-            setOf("att-image", "att-sticker", "att-drawing"),
+            setOf("att-image", "att-sticker"),
             decoded.attachmentIds(),
         )
     }

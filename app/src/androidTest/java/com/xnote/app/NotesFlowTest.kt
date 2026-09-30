@@ -267,6 +267,8 @@ class NotesFlowTest {
         composeRule.onNodeWithContentDescription("插入").performClick()
         composeRule.onNodeWithText("相机").assertIsDisplayed()
         composeRule.onNodeWithText("相册").assertIsDisplayed()
+        composeRule.onNodeWithText("贴纸").assertIsDisplayed()
+        composeRule.onNodeWithText("表格").assertIsDisplayed()
         File(context.getExternalFilesDir(null), "editor-insert.png").outputStream().use {
             composeRule.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }

@@ -112,7 +112,6 @@ class NoteEditorSession(
     var markdownShortcutsEnabled by mutableStateOf(true)
     var cutoutImageId by mutableStateOf<String?>(null)
     val mediaRatios = androidx.compose.runtime.mutableStateMapOf<String, Float>()
-    var drawingBlockId by mutableStateOf<String?>(null)
     var replaceImageId by mutableStateOf<String?>(null)
     var imagePlacement by mutableStateOf<ImagePlacement?>(null)
     val attachmentOwner = newNoteId()
@@ -401,13 +400,8 @@ class NoteEditorSession(
         fieldsEpoch += 1
     }
 
-    fun attachMedia(media: NoteBlock, target: EditorSelection, replaceId: String? = null) {
-        val attachment = when (media) {
-            is PlacedMediaBlock -> media.attachmentId
-            is DrawingBlock -> media.attachmentId
-            else -> error("Expected media")
-        }
-        library.retainSessionAttachments(attachmentOwner, setOf(attachment))
+    fun attachMedia(media: PlacedMediaBlock, target: EditorSelection, replaceId: String? = null) {
+        library.retainSessionAttachments(attachmentOwner, setOf(media.attachmentId))
         mutate { current ->
             if (replaceId != null && current.block(replaceId) != null) {
                 EditorChange(current.replaceBlock(media), EditorSelection(media.id))

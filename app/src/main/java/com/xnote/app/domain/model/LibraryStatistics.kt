@@ -13,10 +13,8 @@ data class LibraryStatistics(
     val tableNoteCount: Int,
     val imageNoteCount: Int,
     val stickerNoteCount: Int,
-    val drawingNoteCount: Int,
     val imageCount: Int,
     val stickerCount: Int,
-    val drawingCount: Int,
     val recentlyCreated: List<Note>,
     val recentlyUpdated: List<Note>,
 )
@@ -37,10 +35,8 @@ fun libraryStatistics(notes: List<Note>): LibraryStatistics {
         tableNoteCount = active.count { it.document.blocks.any { block -> block is TableBlock } },
         imageNoteCount = active.count { it.document.blocks.any { block -> block is ImageBlock } },
         stickerNoteCount = active.count { it.document.blocks.any { block -> block is StickerBlock } },
-        drawingNoteCount = active.count { it.document.blocks.any { block -> block is DrawingBlock } },
         imageCount = blocks.count { it is ImageBlock },
         stickerCount = blocks.count { it is StickerBlock },
-        drawingCount = blocks.count { it is DrawingBlock },
         recentlyCreated = active.sortedWith(compareByDescending<Note> { it.createdAtEpochMs }.thenBy { it.id }).take(5),
         recentlyUpdated = active.sortedWith(compareByDescending<Note> { it.updatedAtEpochMs }.thenBy { it.id }).take(5),
     )

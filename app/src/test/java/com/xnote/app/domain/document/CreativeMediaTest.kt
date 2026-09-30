@@ -10,13 +10,12 @@ import org.junit.Test
 class CreativeMediaTest {
     // -- Functions
 
-    @Test fun stickerAndDrawingRoundTripAndStayProtectedFromAgentWrites() {
+    @Test fun stickerRoundTripsAndStaysProtectedFromAgentWrites() {
         val sticker = StickerBlock("sticker", "alpha", "library", layout = MediaLayout.Wrap, rotationDegrees = 37f)
-        val drawing = DrawingBlock("drawing", "preview", 1024f, 768f, listOf(DrawingStroke(listOf(DrawingPoint(.1f, .3f)))))
-        val document = NoteDocument(blocks = listOf(sticker, drawing))
+        val document = NoteDocument(blocks = listOf(sticker))
         assertEquals(document, decodeNoteDocument(document.encodeToJson()))
-        assertEquals(setOf("alpha", "preview"), document.attachmentIds())
-        val changed = document.copy(blocks = listOf(sticker, drawing.copy(strokes = emptyList())))
+        assertEquals(setOf("alpha"), document.attachmentIds())
+        val changed = document.copy(blocks = listOf(sticker.copy(attachmentId = "other")))
         assertEquals(AgentEditValidation.ProtectedContent, validateAgentEdit(document, changed, "version", "version"))
     }
 
@@ -34,13 +33,13 @@ class CreativeMediaTest {
         assertEquals(0.15f, copied.transformed(0f, -30f, 40f, 20f).scale)
     }
 
-    @Test fun flowGroupsStopAtTableAndDrawingAndRetainEveryBlock() {
+    @Test fun flowGroupsStopAtTableAndRetainEveryBlock() {
         val blocks = listOf(ImageBlock("wrap", "i", MediaLayout.Wrap), TextBlock("a"),
             StickerBlock("float", "s", layout = MediaLayout.Float), TextBlock("b"),
-            emptyTableBlock("table"), DrawingBlock("drawing", "d", 10f, 10f), TextBlock("c"))
+            emptyTableBlock("table"), TextBlock("c"))
         val groups = blocks.flowGroups()
         assertEquals(blocks, groups.flatMap { it.blocks })
-        assertEquals(4, groups.size)
+        assertEquals(3, groups.size)
         assertTrue(groups.first().wraps)
         assertFalse(groups.last().wraps)
         val geometry = (blocks.first() as PlacedMediaBlock).geometry(400f, 1f)
@@ -48,12 +47,12 @@ class CreativeMediaTest {
         assertEquals(168f, geometry.right)
     }
 
-    @Test fun drawingInsertionSplitsInlineStylesAtCaret() {
+    @Test fun stickerInsertionSplitsInlineStylesAtCaret() {
         val doc = NoteDocument(blocks = listOf(TextBlock("text", inlines = listOf(InlineRun("前后", bold = true)))))
-        val drawing = DrawingBlock("d", "file", 1024f, 768f)
-        val next = doc.insertMedia(EditorSelection("text", 1, 1), drawing, "tail").document
+        val sticker = StickerBlock("s", "file")
+        val next = doc.insertMedia(EditorSelection("text", 1, 1), sticker, "tail").document
         assertEquals("前", (next.blocks[0] as TextBlock).inlines.plainText())
-        assertEquals(drawing, next.blocks[1])
+        assertEquals(sticker, next.blocks[1])
         assertEquals(listOf(InlineRun("后", bold = true)), (next.blocks[2] as TextBlock).inlines)
     }
 }

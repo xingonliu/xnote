@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,15 +68,6 @@ import com.xnote.app.domain.document.*
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.roundToInt
-import com.xnote.app.data.files.decodeNoteImage
-import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.graphics.ImageBitmap
-import com.xnote.app.design.XNoteButton
-import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.EditorSelection
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.ListMarker
@@ -265,7 +255,6 @@ private fun EditorBlock(
         )
         is TableBlock -> TableBlockEditor(block = block, session = session)
         is PlacedMediaBlock -> Unit
-        is DrawingBlock -> DrawingBlockPreview(block, session)
     }
 }
 
@@ -537,27 +526,6 @@ private fun TextAlignment.toTextAlign(): TextAlign = when (this) {
     TextAlignment.Left -> TextAlign.Start
     TextAlignment.Center -> TextAlign.Center
     TextAlignment.Right -> TextAlign.End
-}
-
-@Composable
-private fun DrawingBlockPreview(block: DrawingBlock, session: NoteEditorSession) {
-    var image by remember(block.attachmentId) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(block.attachmentId) {
-        val file = session.imageFile(block.attachmentId)
-        if (file != null) try { image = decodeNoteImage(file).asImageBitmap() }
-        catch (error: kotlinx.coroutines.CancellationException) { throw error }
-        catch (_: Exception) { image = null }
-    }
-    Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().aspectRatio(block.width / block.height).clickable(interactionSource = null, indication = null) { session.drawingBlockId = block.id }
-            .testTag("xnote-drawing-${block.id}")) {
-            image?.let { Image(it, "画笔内容，点击编辑", Modifier.fillMaxSize()) } ?: Text("画笔内容无法读取，点击重新编辑")
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            XNoteButton({ session.drawingBlockId = block.id }) { Text("编辑画板") }
-            XNoteButton({ session.removeMedia(block.id) }) { Text("删除画笔块") }
-        }
-    }
 }
 
 @Composable

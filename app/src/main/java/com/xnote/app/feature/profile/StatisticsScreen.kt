@@ -25,7 +25,7 @@ fun StatisticsScreen(notes: List<Note>, notebooks: List<Notebook>, onBack: () ->
         overlay = { glass ->
             XNoteDialog(explanation, { explanation = false }, "统计说明", glass,
                 XNoteDialogAction("知道了", { explanation = false })) {
-                Text("统计笔记正文和表格中的文字，不含标题与已删除的笔记。图片、贴纸和画板分别按使用它们的笔记篇数与内容个数统计。")
+                Text("统计笔记正文和表格中的文字，不含标题与已删除的笔记。图片和贴纸分别按使用它们的笔记篇数与内容个数统计。")
             }
         }) {
         item {
@@ -52,7 +52,7 @@ fun StatisticsScreen(notes: List<Note>, notebooks: List<Notebook>, onBack: () ->
         item {
             XNoteSettingsSection("使用这些内容的笔记") {
                 listOf("表格" to stats.tableNoteCount, "图片" to stats.imageNoteCount,
-                    "贴纸" to stats.stickerNoteCount, "画板" to stats.drawingNoteCount).forEachIndexed { index, (label, count) ->
+                    "贴纸" to stats.stickerNoteCount).forEachIndexed { index, (label, count) ->
                     if (index > 0) XNoteInsetDivider()
                     XNoteSettingsRow(label, value = "${number(count)} 篇")
                 }
@@ -60,7 +60,7 @@ fun StatisticsScreen(notes: List<Note>, notebooks: List<Notebook>, onBack: () ->
         }
         item {
             XNoteSettingsSection("内容个数") {
-                listOf("图片" to stats.imageCount, "贴纸" to stats.stickerCount, "画板" to stats.drawingCount)
+                listOf("图片" to stats.imageCount, "贴纸" to stats.stickerCount)
                     .forEachIndexed { index, (label, count) ->
                         if (index > 0) XNoteInsetDivider()
                         XNoteSettingsRow(label, value = "${number(count)} 个")

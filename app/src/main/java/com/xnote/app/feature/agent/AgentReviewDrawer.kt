@@ -166,7 +166,7 @@ private fun AgentCumulativeDiff(before: AgentEditableContent, after: AgentEditab
     if (before.document.blocks.map { it.id } != after.document.blocks.map { it.id }) {
         Text("段落顺序", style = MaterialTheme.typography.labelLarge)
         fun outline(document: NoteDocument) = document.blocks.mapIndexed { index, block ->
-            "${index + 1}. " + when (block) { is ImageBlock -> "图片"; is StickerBlock -> "贴纸"; is DrawingBlock -> "画笔"; else -> blockText(block).take(40).ifBlank { "空段落" } }
+            "${index + 1}. " + when (block) { is ImageBlock -> "图片"; is StickerBlock -> "贴纸"; else -> blockText(block).take(40).ifBlank { "空段落" } }
         }.joinToString("\n")
         AgentDiffText(outline(before.document), outline(after.document))
     }

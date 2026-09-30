@@ -1,6 +1,5 @@
 package com.xnote.app.domain.text
 
-import com.xnote.app.domain.document.DrawingBlock
 import com.xnote.app.domain.document.ImageBlock
 import com.xnote.app.domain.document.NoteDocument
 import com.xnote.app.domain.document.StickerBlock
@@ -40,7 +39,7 @@ fun extractPlainText(document: NoteDocument): String {
                     }
                 }
             }
-            is ImageBlock, is StickerBlock, is DrawingBlock -> Unit
+            is ImageBlock, is StickerBlock -> Unit
         }
     }
     return parts.joinToString("\n")
