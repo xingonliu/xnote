@@ -39,38 +39,125 @@ private class MessageBubbleShape(private val outgoing: Boolean, private val tail
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         // -- Derived Values
 
-        val tailDrop = with(density) { if (tail) BubbleTailDrop.toPx() else 0f }
-        val right = size.width
-        val bottom = size.height - tailDrop
-        val radius = minOf(with(density) { 20.dp.toPx() }, bottom / 2, right / 2)
-        val control = radius * 0.5522848f
+        val width = size.width
+        val height = size.height
+        val tailWidth = with(density) { if (tail) TailWidth.toPx() else 0f }
+        val rTarget = with(density) { BubbleRadius.toPx() }
+        val r = minOf(rTarget, height / 2f / SquircleSmoothLeadRatio, (width - tailWidth) / 2f / SquircleSmoothLeadRatio)
+        val d = SquircleSmoothLeadRatio * r
+        val rightWall = width - tailWidth
+        val bottom = height
+
+        val tailOnRight = outgoing == (layoutDirection == LayoutDirection.Ltr)
 
         // -- Functions
 
-        fun x(value: Float) = if (outgoing == (layoutDirection == LayoutDirection.Ltr)) value else size.width - value
+        fun x(value: Float) = if (tailOnRight) value else width - value
 
         return Outline.Generic(Path().apply {
-            moveTo(x(radius), 0f)
-            lineTo(x(right - radius), 0f)
-            cubicTo(x(right - radius + control), 0f, x(right), radius - control, x(right), radius)
-            lineTo(x(right), bottom - radius)
             if (tail) {
-                // The inward tail continues the rounded edge, then dips below the body with a soft tip.
-                cubicTo(x(right), bottom - radius * 0.45f,
-                    x(right - radius * 0.58f), bottom - radius * 0.28f, x(right - radius * 0.6f), bottom - radius * 0.04f)
-                cubicTo(x(right - radius * 0.62f), bottom + radius * 0.2f,
-                    x(right - radius * 0.56f), bottom + tailDrop * 0.6f, x(right - radius * 0.42f), bottom + tailDrop * 0.86f)
-                cubicTo(x(right - radius * 0.378f), bottom + tailDrop * 0.938f,
-                    x(right - radius * 0.36f), bottom + tailDrop, x(right - radius * 0.44f), bottom + tailDrop * 0.95f)
-                cubicTo(x(right - radius * 0.552f), bottom + tailDrop * 0.88f,
-                    x(right - radius * 0.95f), bottom, x(right - radius * 1.2f), bottom)
+                val scoopStart = rightWall - with(density) { 18.dp.toPx() }
+                moveTo(x(d), bottom)
+                lineTo(x(scoopStart), bottom)
+                // Inner scoop into tail
+                cubicTo(
+                    x(scoopStart + with(density) { 6.dp.toPx() }), bottom,
+                    x(rightWall - with(density) { 6.dp.toPx() }), bottom - with(density) { 1.5.dp.toPx() },
+                    x(width - with(density) { 2.dp.toPx() }), bottom - with(density) { 0.5.dp.toPx() },
+                )
+                // Soft tip
+                cubicTo(
+                    x(width), bottom - with(density) { 0.2.dp.toPx() },
+                    x(width), bottom,
+                    x(width), bottom,
+                )
+                // Outer sweep up to right wall
+                cubicTo(
+                    x(width - with(density) { 0.5.dp.toPx() }), bottom - with(density) { 3.dp.toPx() },
+                    x(rightWall), bottom - with(density) { 8.dp.toPx() },
+                    x(rightWall), bottom - with(density) { 12.dp.toPx() },
+                )
             } else {
-                cubicTo(x(right), bottom - radius + control, x(right - radius + control), bottom, x(right - radius), bottom)
+                moveTo(x(d), bottom)
+                lineTo(x(rightWall - d), bottom)
+                // Bottom-right continuous squircle corner
+                cubicTo(
+                    x(rightWall - d + 0.4401f * r), bottom,
+                    x(rightWall - d + 0.6602f * r), bottom - 0.0463f * r,
+                    x(rightWall - d + 0.8971f * r), bottom - 0.1316f * r,
+                )
+                cubicTo(
+                    x(rightWall - d + 1.1340f * r), bottom - 0.2169f * r,
+                    x(rightWall - 0.2169f * r), bottom - d + 1.1340f * r,
+                    x(rightWall - 0.1316f * r), bottom - d + 0.8971f * r,
+                )
+                cubicTo(
+                    x(rightWall - 0.0463f * r), bottom - d + 0.6602f * r,
+                    x(rightWall), bottom - d + 0.4401f * r,
+                    x(rightWall), bottom - d,
+                )
             }
-            lineTo(x(radius), bottom)
-            cubicTo(x(radius - control), bottom, x(0f), bottom - radius + control, x(0f), bottom - radius)
-            lineTo(x(0f), radius)
-            cubicTo(x(0f), radius - control, x(radius - control), 0f, x(radius), 0f)
+
+            // Right wall up to top-right corner
+            lineTo(x(rightWall), d)
+
+            // Top-right continuous squircle corner
+            cubicTo(
+                x(rightWall), d - 0.4401f * r,
+                x(rightWall - 0.0463f * r), d - 0.6602f * r,
+                x(rightWall - 0.1316f * r), d - 0.8971f * r,
+            )
+            cubicTo(
+                x(rightWall - 0.2169f * r), d - 1.1340f * r,
+                x(rightWall - d + 1.1340f * r), 0.2169f * r,
+                x(rightWall - d + 0.8971f * r), 0.1316f * r,
+            )
+            cubicTo(
+                x(rightWall - d + 0.6602f * r), 0.0463f * r,
+                x(rightWall - d + 0.4401f * r), 0f,
+                x(rightWall - d), 0f,
+            )
+
+            // Top wall
+            lineTo(x(d), 0f)
+
+            // Top-left continuous squircle corner
+            cubicTo(
+                x(d - 0.4401f * r), 0f,
+                x(d - 0.6602f * r), 0.0463f * r,
+                x(d - 0.8971f * r), 0.1316f * r,
+            )
+            cubicTo(
+                x(d - 1.1340f * r), 0.2169f * r,
+                x(0.2169f * r), d - 1.1340f * r,
+                x(0.1316f * r), d - 0.8971f * r,
+            )
+            cubicTo(
+                x(0.0463f * r), d - 0.6602f * r,
+                x(0f), d - 0.4401f * r,
+                x(0f), d,
+            )
+
+            // Left wall
+            lineTo(x(0f), bottom - d)
+
+            // Bottom-left continuous squircle corner
+            cubicTo(
+                x(0f), bottom - d + 0.4401f * r,
+                x(0.0463f * r), bottom - d + 0.6602f * r,
+                x(0.1316f * r), bottom - d + 0.8971f * r,
+            )
+            cubicTo(
+                x(0.2169f * r), bottom - d + 1.1340f * r,
+                x(d - 1.1340f * r), bottom - 0.2169f * r,
+                x(d - 0.8971f * r), bottom - 0.1316f * r,
+            )
+            cubicTo(
+                x(d - 0.6602f * r), bottom - 0.0463f * r,
+                x(d - 0.4401f * r), bottom,
+                x(d), bottom,
+            )
+
             close()
         })
     }
@@ -78,7 +165,9 @@ private class MessageBubbleShape(private val outgoing: Boolean, private val tail
 
 // -- Constants
 
-private val BubbleTailDrop = 6.dp
+private val BubbleRadius = 18.dp
+private val TailWidth = 4.dp
+private const val SquircleSmoothLeadRatio = 1.528665f
 
 // -- Functions
 
@@ -100,20 +189,35 @@ internal fun AgentMessageBubble(
     val outgoing = message.role == AgentMessageRole.User
     val light = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val highContrast = LocalXNoteInteractionSettings.current.highContrast
-    val shape = remember(outgoing, joinsNext) { MessageBubbleShape(outgoing, !joinsNext) }
+    val hasTail = !joinsNext
+    val shape = remember(outgoing, hasTail) { MessageBubbleShape(outgoing, hasTail) }
     val colors = when {
-        highContrast -> List(2) { if (outgoing) Color(0xFF0066D9) else Color(0xFF262628) }
-        outgoing -> listOf(Color(0xFF2994EF).copy(alpha = 0.9f), Color(0xFF2484EB).copy(alpha = 0.92f))
-        light -> listOf(Color(0xFF42443F).copy(alpha = 0.76f), Color(0xFF31332F).copy(alpha = 0.8f))
-        else -> listOf(Color(0xFF4C4E49).copy(alpha = 0.68f), Color(0xFF3D3F3B).copy(alpha = 0.72f))
+        highContrast -> when {
+            outgoing -> List(2) { Color(0xFF0066D9) }
+            light -> List(2) { Color(0xFFE5E5EA) }
+            else -> List(2) { Color(0xFF262628) }
+        }
+        outgoing -> listOf(Color(0xFF2997FF).copy(alpha = 0.92f), Color(0xFF007AFF).copy(alpha = 0.95f))
+        light -> listOf(Color(0xFFF0F0F2).copy(alpha = 0.92f), Color(0xFFE5E5EA).copy(alpha = 0.94f))
+        else -> listOf(Color(0xFF3A3A3C).copy(alpha = 0.84f), Color(0xFF2C2C2E).copy(alpha = 0.88f))
     }
     val tint = remember(colors) { Brush.verticalGradient(colors) }
+    val contentColor = when {
+        outgoing -> Color.White
+        highContrast -> if (light) Color.Black else Color.White
+        light -> Color(0xFF1C1C1E)
+        else -> Color(0xFFFAFAFC)
+    }
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         Text(
             text,
             modifier = Modifier
                 .align(if (outgoing) Alignment.CenterEnd else Alignment.CenterStart)
+                .padding(
+                    start = if (!outgoing && joinsNext) TailWidth else 0.dp,
+                    end = if (outgoing && joinsNext) TailWidth else 0.dp,
+                )
                 .widthIn(max = minOf(maxWidth * 0.8f, 360.dp))
                 .xNotePopupAnchor(anchor)
                 .drawBackdrop(
@@ -128,7 +232,7 @@ internal fun AgentMessageBubble(
                     val outline = shape.createOutline(size, layoutDirection, this)
                     onDrawWithContent {
                         drawContent()
-                        if (!outgoing && !highContrast) {
+                        if (!outgoing && !light && !highContrast) {
                             drawOutline(outline, Color.White.copy(alpha = 0.12f), style = Stroke(0.5.dp.toPx()))
                         }
                     }
@@ -136,10 +240,14 @@ internal fun AgentMessageBubble(
                 .combinedClickable(onClick = {}, onLongClickLabel = "复制消息", onLongClick = {
                     onLongPress(AgentMessageMenu(message, text, anchor))
                 })
-                .padding(start = 14.dp, end = 14.dp,
-                    top = 8.dp, bottom = 8.dp + if (joinsNext) 0.dp else BubbleTailDrop)
+                .padding(
+                    start = 14.dp + if (!outgoing && hasTail) TailWidth else 0.dp,
+                    end = 14.dp + if (outgoing && hasTail) TailWidth else 0.dp,
+                    top = 8.dp,
+                    bottom = 8.dp,
+                )
                 .testTag("agent-message-${message.id}"),
-            color = if (highContrast) Color.White else Color(0xFFFAFAFC),
+            color = contentColor,
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp,
             ),
