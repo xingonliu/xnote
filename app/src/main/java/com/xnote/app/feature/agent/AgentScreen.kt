@@ -302,8 +302,10 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                     }
                 }
             }
-            if (draftFiles.isNotEmpty()) AgentFilesStrip(draftFiles, { filePreview = it }, { id -> action { timeline.removeDraftFile(id) } })
             AgentComposer(
+                files = draftFiles,
+                onRemoveFile = { id -> action { timeline.removeDraftFile(id) } },
+                onPreviewFile = { filePreview = it },
                 input = input, onInputChange = { value -> input = value; action { timeline.saveDraft(value) } },
                 enabled = state.ready && restored, running = state.running,
                 canSend = state.ready && restored && !importingFile && ((state.running && draftSelection == null &&
