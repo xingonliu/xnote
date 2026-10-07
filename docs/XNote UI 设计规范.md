@@ -215,7 +215,9 @@ Android 资源以 `ic_keyline_<style>_<官方名称>` 命名，将 Keyline 名�
 | `ic_keyline_fill_star` | `star` / Rounded Fill | 手机 Agent Tab |
 | `ic_keyline_fill_user` | `user` / Rounded Fill | 手机个人中心 Tab |
 | `ic_keyline_stroke_square_pen` | `square-pen` / Rounded Stroke | 笔记功能、空状态、平板笔记导航 |
-| `ic_keyline_stroke_star` | `star` / Rounded Stroke | Agent 功能与平板导航 |
+| `ic_keyline_stroke_sparkles` | `sparkles` / Rounded Stroke | 笔记编辑页附带与唤起 Agent 操作 |
+| `ic_keyline_stroke_x` | `x` / Rounded Stroke | 附加卡片移除操作 |
+| `ic_keyline_stroke_star` | `star` / Rounded Stroke | 平板导航与收藏标记 |
 | `ic_keyline_stroke_user` | `user` / Rounded Stroke | 平板个人中心导航 |
 | `ic_keyline_stroke_search` | `search` / Rounded Stroke | 搜索操作 |
 | `ic_keyline_stroke_arrow_left` | `arrow-left` / Rounded Stroke | 返回操作 |

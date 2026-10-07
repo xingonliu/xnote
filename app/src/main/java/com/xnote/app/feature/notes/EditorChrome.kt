@@ -92,7 +92,7 @@ fun EditorHeader(
         }
         Spacer(Modifier.weight(1f))
         EditorGlassIconButton(
-            iconRes = R.drawable.ic_keyline_stroke_star,
+            iconRes = R.drawable.ic_keyline_stroke_sparkles,
             description = "与 Agent 对话",
             backdrop = backdrop,
             enabled = session?.note != null,

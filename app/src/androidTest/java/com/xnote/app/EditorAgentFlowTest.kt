@@ -64,7 +64,7 @@ class EditorAgentFlowTest {
         compose.onNodeWithTag("xnote-editor-agent").performClick()
         compose.waitUntil(5000) { compose.onAllNodesWithTag("agent-input").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("agent-input").assertTextContains("已有草稿")
-        compose.onNodeWithTag("agent-draft-note-${note.id}").assertTextContains("携带笔记").assertTextContains("准备发送的正文新增内容")
+        compose.onNodeWithTag("agent-draft-note-${note.id}").assertTextContains("携带笔记")
         assertTrue(runBlocking { db.agent().messages().isEmpty() })
         assertTrue(runBlocking { db.notes().get(note.id)!!.documentJson.contains("新增内容") })
         screenshot("editor-carried-note")

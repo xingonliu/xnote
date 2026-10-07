@@ -25,17 +25,19 @@ fun XNoteLiquidGlassPanel(
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
     shape: Shape = XNoteSmoothCornerShape(XNoteRadiusLarge),
+    containerColor: Color? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val highContrast = LocalXNoteInteractionSettings.current.highContrast
-    val containerColor = if (highContrast) {
+    val defaultContainerColor = if (highContrast) {
         MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
     } else if (isLightTheme) {
         Color(0xFFFAFAFA).copy(alpha = 0.6f)
     } else {
         Color(0xFF121212).copy(alpha = 0.4f)
     }
+    val surfaceColor = containerColor ?: defaultContainerColor
 
     Box(
         modifier = modifier.drawBackdrop(
@@ -54,7 +56,7 @@ fun XNoteLiquidGlassPanel(
                 )
             },
             highlight = { Highlight.Plain },
-            onDrawSurface = { drawRect(containerColor) },
+            onDrawSurface = { drawRect(surfaceColor) },
         ),
         content = content,
     )

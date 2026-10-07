@@ -1,14 +1,19 @@
 package com.xnote.app.feature.agent
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -27,6 +32,97 @@ data class AgentComposerNote(val id: String, val title: String, val summary: Str
     val modified: String, val selected: Boolean)
 
 // -- Functions
+
+@Composable
+private fun AgentAttachedNoteChip(
+    note: AgentComposerNote,
+    backdrop: Backdrop,
+    onPreview: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
+    val highContrast = LocalXNoteInteractionSettings.current.highContrast
+    val chipContainerColor = if (highContrast) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
+    } else if (isLightTheme) {
+        Color(0xFFE2E2E7).copy(alpha = 0.72f)
+    } else {
+        Color(0xFF26262A).copy(alpha = 0.65f)
+    }
+
+    XNoteLiquidGlassPanel(
+        backdrop = backdrop,
+        modifier = modifier
+            .widthIn(min = 96.dp, max = 260.dp)
+            .height(34.dp),
+        shape = XNoteSmoothCornerShape(XNoteRadiusSmall),
+        containerColor = chipContainerColor,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 10.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f, fill = false)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onPreview,
+                    )
+                    .testTag("agent-draft-note-${note.id}"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_keyline_stroke_file_text),
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = note.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (note.selected) {
+                    Surface(
+                        shape = XNoteSmoothCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    ) {
+                        Text(
+                            text = "所选文字",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+            }
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier
+                    .size(24.dp)
+                    .testTag("agent-remove-note-${note.id}"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_keyline_stroke_x),
+                    contentDescription = "移除附加笔记：${note.title}",
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun AgentComposer(
@@ -53,57 +149,61 @@ fun AgentComposer(
     val permissionSummary = permission.mode.permissionLabel()
     val showStop = running && input.isBlank() && !hasDraftFiles
 
-    XNoteLiquidGlassPanel(backdrop, Modifier.fillMaxWidth().testTag("agent-composer"), XNoteSmoothCornerShape(24.dp)) {
-        Column(Modifier.fillMaxWidth().padding(8.dp)) {
-            if (notes.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (notes.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 notes.forEach { note ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton({ onPreviewNote(note.id) }, Modifier.widthIn(max = 232.dp).testTag("agent-draft-note-${note.id}")) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(note.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(note.summary, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                                Text("${note.notebook} · ${note.modified}", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                                if (note.selected) Text("仅润色所选文字", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                        IconButton({ onRemoveNote(note.id) }, Modifier.testTag("agent-remove-note-${note.id}")) {
-                            Icon(painterResource(R.drawable.ic_keyline_stroke_bin), "移除附加笔记：${note.title}", Modifier.size(18.dp))
-                        }
-                    }
+                    AgentAttachedNoteChip(
+                        note = note,
+                        backdrop = backdrop,
+                        onPreview = { onPreviewNote(note.id) },
+                        onRemove = { onRemoveNote(note.id) },
+                    )
                 }
             }
-            BasicTextField(
-                value = input, onValueChange = onInputChange, enabled = enabled,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp, max = 160.dp)
-                    .padding(horizontal = 12.dp, vertical = 4.dp).testTag("agent-input"),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                decorationBox = { inner ->
-                    Box {
-                        if (input.isEmpty()) Text("输入消息", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        inner()
+        }
+        XNoteLiquidGlassPanel(backdrop, Modifier.fillMaxWidth().testTag("agent-composer"), XNoteSmoothCornerShape(24.dp)) {
+            Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                BasicTextField(
+                    value = input, onValueChange = onInputChange, enabled = enabled,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 32.dp, max = 160.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp).testTag("agent-input"),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { inner ->
+                        Box {
+                            if (input.isEmpty()) Text("输入消息", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            inner()
+                        }
+                    },
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onAdd, Modifier.size(XNoteButtonSize).xNotePopupAnchor(attachmentAnchor).testTag("agent-add-attachment"), enabled) {
+                        Icon(painterResource(R.drawable.ic_keyline_stroke_plus), "添加附件", Modifier.size(XNoteIconSizeMedium))
                     }
-                },
-            )
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onAdd, Modifier.size(XNoteButtonSize).xNotePopupAnchor(attachmentAnchor).testTag("agent-add-attachment"), enabled) {
-                    Icon(painterResource(R.drawable.ic_keyline_stroke_plus), "添加附件", Modifier.size(XNoteIconSizeMedium))
-                }
-                TextButton(onPermission, Modifier.xNotePopupAnchor(permissionAnchor).testTag("agent-permission-settings")
-                    .semantics { contentDescription = "Agent 权限" }) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(permissionSummary,
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Icon(painterResource(R.drawable.ic_keyline_stroke_chevron_down), null, Modifier.size(16.dp))
+                    TextButton(onPermission, Modifier.xNotePopupAnchor(permissionAnchor).testTag("agent-permission-settings")
+                        .semantics { contentDescription = "Agent 权限" }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(permissionSummary,
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Icon(painterResource(R.drawable.ic_keyline_stroke_chevron_down), null, Modifier.size(16.dp))
+                        }
                     }
-                }
-                Spacer(Modifier.weight(1f))
-                LiquidButton(onClick = if (showStop) onStop else onSend, backdrop = backdrop, tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(XNoteButtonSize).testTag(if (showStop) "agent-stop" else "agent-send"), enabled = showStop || canSend) {
-                    Icon(painterResource(if (showStop) R.drawable.ic_agent_stop else R.drawable.ic_keyline_fill_send),
-                        if (showStop) "停止任务" else if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
+                    Spacer(Modifier.weight(1f))
+                    LiquidButton(onClick = if (showStop) onStop else onSend, backdrop = backdrop, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(XNoteButtonSize).testTag(if (showStop) "agent-stop" else "agent-send"), enabled = showStop || canSend) {
+                        Icon(painterResource(if (showStop) R.drawable.ic_agent_stop else R.drawable.ic_keyline_fill_send),
+                            if (showStop) "停止任务" else if (running) "补充当前任务" else "发送", Modifier.size(XNoteIconSizeMedium))
+                    }
                 }
             }
         }
