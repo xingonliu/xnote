@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -28,6 +29,7 @@ internal fun AgentTaskRow(
     task: AgentTimelineItem.Task,
     onLongPress: (AgentMessageMenu) -> Unit,
     backdrop: Backdrop,
+    viewport: () -> Rect,
     content: @Composable (AgentTimelineItem) -> Unit,
 ) {
     // -- State and Variables
@@ -59,10 +61,10 @@ internal fun AgentTaskRow(
                 task.process.forEach { item -> key(item.key) { content(item) } }
             }
         }
-        if (ending != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (ending != null) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(AgentMessageGroupSpacing)) {
             bubbles.forEachIndexed { index, text ->
                 AgentMessageBubble(ending, text, joinsNext = index < bubbles.lastIndex, onLongPress = onLongPress,
-                    backdrop = backdrop,
+                    backdrop = backdrop, viewport = viewport,
                     modifier = Modifier.testTag("agent-final-${task.run.id}-$index"))
             }
         }

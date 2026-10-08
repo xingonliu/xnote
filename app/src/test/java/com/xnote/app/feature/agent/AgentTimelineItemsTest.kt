@@ -44,6 +44,29 @@ class AgentTimelineItemsTest {
         assertFalse(joinsMessageGroup(first, null))
     }
 
+    @Test fun attachmentsSnapshotsAndPendingStatusSeparateMessageGroups() {
+        val first = AgentTimelineItem.Message(message("one", AgentMessageRole.User))
+        val next = AgentTimelineItem.Message(message("two", AgentMessageRole.User).copy(createdAtEpochMs = 20_000))
+        assertFalse(joinsMessageGroup(first, next, setOf("one")))
+        assertFalse(joinsMessageGroup(first, next, setOf("two")))
+        val snapshot = first.copy(message = first.message.copy(sourcesJson = "[{\"noteId\":\"note\"}]"))
+        assertFalse(joinsMessageGroup(snapshot, next))
+        assertFalse(joinsMessageGroup(first, next.copy(message = next.message.copy(sourcesJson = snapshot.message.sourcesJson))))
+        assertFalse(joinsMessageGroup(first.copy(message = first.message.copy(status = AgentMessageStatus.Pending)), next))
+        assertFalse(joinsMessageGroup(first, next.copy(message = next.message.copy(status = AgentMessageStatus.Pending))))
+    }
+
+    @Test fun messageGroupingHonorsTheExactTimeBoundaryAndChronologicalOrder() {
+        val first = AgentTimelineItem.Message(message("one", AgentMessageRole.User).copy(createdAtEpochMs = 100_000))
+        fun next(at: Long) = AgentTimelineItem.Message(message("two", AgentMessageRole.User).copy(createdAtEpochMs = at))
+        assertTrue(joinsMessageGroup(first, next(100_000)))
+        assertTrue(joinsMessageGroup(first, next(160_000)))
+        assertFalse(joinsMessageGroup(first, next(160_001)))
+        assertFalse(joinsMessageGroup(first, next(99_999)))
+        assertFalse(joinsMessageGroup(first, next(100_001).copy(message = next(100_001).message.copy(text = ""))))
+        assertFalse(joinsMessageGroup(first, AgentTimelineItem.Task(run(AgentRunStatus.Complete), emptyList(), null)))
+    }
+
     @Test fun ordinaryProseToolsAndFinalEndingStayInOneTaskAcrossReload() {
         val read = ModelToolCall("read", "read", buildJsonObject {})
         val close = ModelToolCall("close", AgentFinishToolName, buildJsonObject {})

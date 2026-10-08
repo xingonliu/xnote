@@ -66,7 +66,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.shapes.Capsule
@@ -75,6 +74,7 @@ import com.xnote.app.design.xNoteScrollEdgePadding
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
 import com.xnote.app.design.XNoteBottomTabIconSize
+import com.xnote.app.design.XNoteBottomTabFontSize
 import com.xnote.app.design.XNoteHeaderHeight
 import com.xnote.app.design.XNoteLiquidGlassPanel
 import com.xnote.app.design.LocalXNoteInteractionSettings
@@ -1051,7 +1051,7 @@ private fun XNoteBottomNavigation(
                 )
                 BasicText(
                     text = label,
-                    style = TextStyle(color = contentColor, fontSize = 12.sp),
+                    style = TextStyle(color = contentColor, fontSize = XNoteBottomTabFontSize),
                 )
             }
         }

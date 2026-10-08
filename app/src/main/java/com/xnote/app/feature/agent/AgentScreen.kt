@@ -19,6 +19,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -74,6 +77,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     var composerHeight by remember { mutableStateOf(0.dp) }
     val backdrop = rememberLayerBackdrop()
     val bubbleBackdrop = rememberLayerBackdrop()
+    val bubbleViewport = remember { mutableStateOf(Rect.Zero) }
     val density = LocalDensity.current
     var permissionRequest by remember { mutableStateOf<AgentToolEventEntity?>(null) }
     var snapshotPreview by remember { mutableStateOf<AgentSnapshotEntity?>(null) }
@@ -127,9 +131,19 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val keyboardInset = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val keyboardVisible = keyboardInset > 0.dp
     val composerBottom = maxOf(bottomInset, keyboardInset) + 8.dp
+    val bubbleViewportTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight
+    val bubbleViewportBounds = remember(density, bubbleViewportTop, composerBottom, composerHeight) {
+        {
+            val bounds = bubbleViewport.value
+            val top = bounds.top + with(density) { bubbleViewportTop.toPx() }
+            Rect(bounds.left, top, bounds.right,
+                maxOf(top + 1f, bounds.bottom - with(density) { (composerBottom + composerHeight).toPx() }))
+        }
+    }
+    val fileMessageIds = remember(fileCards) { fileCards.filter { it.ownerType == "message" }.map { it.ownerId }.toSet() }
     val timelineItems = remember(messages, tools, runs, queue, fileCards) {
         agentTimelineItems(messages, tools, runs, queue.map { it.messageId }.toSet(),
-            fileCards.filter { it.ownerType == "message" }.map { it.ownerId }.toSet())
+            fileMessageIds)
     }
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val dateFormat = remember(locale) { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
@@ -185,7 +199,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
             try { timeline.importFile(uri) } finally { importingFile = false }
         }
     }
-    Box(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize().onGloballyPositioned { bubbleViewport.value = it.boundsInWindow() }) {
         Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
             // Bubbles sample only the page background, while floating controls sample the complete conversation.
             Box(Modifier.fillMaxSize().layerBackdrop(bubbleBackdrop).background(MaterialTheme.colorScheme.background))
@@ -221,11 +235,11 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
                 }
                 itemsIndexed(timelineItems.asReversed(), key = { _, item -> item.key }) { index, item ->
                     val chronologicalIndex = timelineItems.lastIndex - index
-                    Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(chronologicalIndex - 1), item)) 3.dp else 12.dp),
+                    Column(Modifier.fillMaxWidth().padding(top = if (joinsMessageGroup(timelineItems.getOrNull(chronologicalIndex - 1), item, fileMessageIds)) AgentMessageGroupSpacing else AgentMessageSpacing),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AgentTimelineEntry(item, joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1)),
+                        AgentTimelineEntry(item, joinsMessageGroup(item, timelineItems.getOrNull(chronologicalIndex + 1), fileMessageIds),
                             AgentTimelinePresentation(runs, availableNotes + trashedNotes, notebooks.associate { it.id to it.name },
-                                snapshots, fileCards, state.running, unresolved, bubbleBackdrop) { dateFormat.format(java.util.Date(it)) },
+                                snapshots, fileCards, state.running, unresolved, bubbleBackdrop, bubbleViewportBounds) { dateFormat.format(java.util.Date(it)) },
                             AgentTimelineActions(
                                 onLongPress = { messageMenu = it; attachmentMenu = false; permissionMenu = false; moreMenu = false; historyMenu = false },
                                 onPreviewFile = { filePreview = it }, onPreviewSnapshot = { snapshotPreview = it },

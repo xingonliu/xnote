@@ -89,11 +89,14 @@ internal fun agentTimelineItems(
     }
 }
 
-internal fun joinsMessageGroup(previous: AgentTimelineItem?, next: AgentTimelineItem?): Boolean {
+internal fun joinsMessageGroup(previous: AgentTimelineItem?, next: AgentTimelineItem?, fileMessageIds: Set<String> = emptySet()): Boolean {
     val first = (previous as? AgentTimelineItem.Message)?.message ?: return false
     val second = (next as? AgentTimelineItem.Message)?.message ?: return false
     return first.role == AgentMessageRole.User && second.role == AgentMessageRole.User && first.segmentId == second.segmentId &&
         first.text.isNotBlank() && second.text.isNotBlank() &&
+        first.status == AgentMessageStatus.Complete && second.status == AgentMessageStatus.Complete &&
+        first.sourcesJson == "[]" && second.sourcesJson == "[]" &&
+        first.id !in fileMessageIds && second.id !in fileMessageIds &&
         second.createdAtEpochMs - first.createdAtEpochMs in 0..MessageGroupIntervalMs
 }
 

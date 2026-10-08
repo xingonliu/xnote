@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
@@ -33,6 +34,7 @@ internal data class AgentTimelinePresentation(
     val runs: List<AgentRunEntity>, val notes: List<NoteEntity>, val notebookTitles: Map<String, String>,
     val snapshots: List<AgentSnapshotEntity>, val files: List<AgentFileCard>, val running: Boolean, val unresolved: Boolean,
     val bubbleBackdrop: Backdrop,
+    val bubbleViewport: () -> Rect,
     val formatTime: (Long) -> String,
 )
 
@@ -144,7 +146,7 @@ private fun AgentSnapshotCard(
 @Composable
 internal fun AgentTimelineEntry(item: AgentTimelineItem, joinsNext: Boolean, presentation: AgentTimelinePresentation, actions: AgentTimelineActions) {
     when (item) {
-        is AgentTimelineItem.Task -> AgentTaskRow(item, actions.onLongPress, presentation.bubbleBackdrop) { entry -> AgentTimelineEntry(entry, false, presentation, actions) }
+        is AgentTimelineItem.Task -> AgentTaskRow(item, actions.onLongPress, presentation.bubbleBackdrop, presentation.bubbleViewport) { entry -> AgentTimelineEntry(entry, false, presentation, actions) }
         is AgentTimelineItem.Tool -> {
             val event = item.event
             val run = presentation.runs.find { it.id == event.runId }
@@ -158,14 +160,17 @@ internal fun AgentTimelineEntry(item: AgentTimelineItem, joinsNext: Boolean, pre
             val message = item.message
             val isUser = message.role == AgentMessageRole.User
             val run = presentation.runs.find { it.id == message.runId }
+            val messageFiles = presentation.files.filter { it.ownerType == "message" && it.ownerId == message.id }
+            val sources = if (isUser) Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson) else emptyList()
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (message.role == AgentMessageRole.Event) {
                     Text(message.text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else if (message.text.isNotBlank()) {
-                    if (isUser) AgentMessageBubble(message, message.text, joinsNext, actions.onLongPress, presentation.bubbleBackdrop)
+                    if (isUser) AgentMessageBubble(message, message.text,
+                        joinsNext || messageFiles.isNotEmpty() || sources.isNotEmpty(), actions.onLongPress,
+                        presentation.bubbleBackdrop, presentation.bubbleViewport)
                     else AgentMessageText(message, actions.onLongPress)
                 }
-                val messageFiles = presentation.files.filter { it.ownerType == "message" && it.ownerId == message.id }
                 if (messageFiles.isNotEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -175,7 +180,7 @@ internal fun AgentTimelineEntry(item: AgentTimelineItem, joinsNext: Boolean, pre
                     }
                 }
                 if (isUser) {
-                    Json.decodeFromString<List<AgentMessageSource>>(message.sourcesJson).forEach { source ->
+                    sources.forEach { source ->
                         val snapshot = presentation.snapshots.find { it.id == source.snapshotId }
                         Box(
                             modifier = Modifier.fillMaxWidth(),

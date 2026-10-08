@@ -8,6 +8,8 @@ import androidx.compose.ui.unit.sp
 
 // -- Constants
 
+val XNoteBottomTabFontSize = 12.sp
+
 val XNoteTypography = Typography(
     headlineLarge = TextStyle(
         fontFamily = FontFamily.Default,
