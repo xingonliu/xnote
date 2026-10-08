@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -76,13 +77,38 @@ private fun resolveFileVisual(name: String, mimeType: String): FileTypeVisual = 
 }
 
 @Composable
+fun AgentComposerFileCard(
+    card: AgentFileCard,
+    backdrop: Backdrop,
+    onPreview: () -> Unit,
+    modifier: Modifier = Modifier,
+    onRemove: (() -> Unit)? = null,
+) {
+    XNoteLiquidGlassPanel(
+        backdrop = backdrop,
+        modifier = modifier
+            .widthIn(max = 240.dp)
+            .height(52.dp)
+            .testTag("agent-file-${card.id}"),
+        shape = XNoteSmoothCornerShape(14.dp),
+        shadowEnabled = false,
+    ) {
+        AgentFileCardContent(
+            card = card,
+            onRemove = onRemove,
+            wrapContent = true,
+            modifier = Modifier.clickable(onClick = onPreview),
+        )
+    }
+}
+
+@Composable
 fun AgentFileCardView(
     card: AgentFileCard,
     onPreview: () -> Unit,
     modifier: Modifier = Modifier,
     onRemove: (() -> Unit)? = null,
 ) {
-    val context = LocalContext.current
     val isLight = MaterialTheme.colorScheme.background.luminance() >= 0.5f
     val highContrast = LocalXNoteInteractionSettings.current.highContrast
 
@@ -97,7 +123,6 @@ fun AgentFileCardView(
         else -> Color.White.copy(alpha = 0.12f)
     }
     val shape = XNoteSmoothCornerShape(14.dp)
-    val visual = resolveFileVisual(card.name, card.mimeType)
 
     Surface(
         onClick = onPreview,
@@ -109,62 +134,77 @@ fun AgentFileCardView(
         color = containerColor,
         border = BorderStroke(0.5.dp, borderColor),
     ) {
-        Row(
+        AgentFileCardContent(card = card, onRemove = onRemove)
+    }
+}
+
+@Composable
+private fun AgentFileCardContent(
+    card: AgentFileCard,
+    onRemove: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    wrapContent: Boolean = false,
+) {
+    // -- Derived Values
+
+    val context = LocalContext.current
+    val visual = resolveFileVisual(card.name, card.mimeType)
+    val sizeText = Formatter.formatFileSize(context, card.byteSize)
+    val pageText = if (card.pages > 0) " · ${card.pages} 页" else ""
+
+    Row(
+        modifier = modifier
+            .then(if (wrapContent) Modifier.fillMaxHeight() else Modifier.fillMaxSize())
+            .padding(start = 8.dp, end = if (onRemove != null) 4.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 8.dp, end = if (onRemove != null) 4.dp else 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .size(36.dp)
+                .clip(XNoteSmoothCornerShape(9.dp))
+                .background(visual.bgTint),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
+            Icon(
+                painter = painterResource(visual.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = visual.iconTint,
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f, fill = !wrapContent),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = card.name,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "${visual.badge} · $sizeText$pageText",
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onRemove != null) {
+            IconButton(
+                onClick = onRemove,
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(XNoteSmoothCornerShape(9.dp))
-                    .background(visual.bgTint),
-                contentAlignment = Alignment.Center,
+                    .size(if (wrapContent) XNoteButtonSize else 28.dp)
+                    .testTag("agent-remove-file-${card.id}"),
             ) {
                 Icon(
-                    painter = painterResource(visual.iconRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = visual.iconTint,
+                    painter = painterResource(R.drawable.ic_keyline_stroke_x),
+                    contentDescription = "移除文件：${card.name}",
+                    modifier = Modifier.size(if (wrapContent) XNoteIconSizeMedium else 13.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-            Column(
-                modifier = Modifier.weight(1f, fill = true),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = card.name,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                val sizeText = Formatter.formatFileSize(context, card.byteSize)
-                val pageText = if (card.pages > 0) " · ${card.pages} 页" else ""
-                Text(
-                    text = "${visual.badge} · $sizeText$pageText",
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (onRemove != null) {
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .testTag("agent-remove-file-${card.id}"),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_keyline_stroke_x),
-                        contentDescription = "移除文件：${card.name}",
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
     }

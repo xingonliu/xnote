@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -45,27 +44,17 @@ private fun AgentAttachedNoteChip(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
-    val highContrast = LocalXNoteInteractionSettings.current.highContrast
-    val chipContainerColor = if (highContrast) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)
-    } else if (isLightTheme) {
-        Color(0xFFE2E2E7).copy(alpha = 0.72f)
-    } else {
-        Color(0xFF26262A).copy(alpha = 0.65f)
-    }
-
     XNoteLiquidGlassPanel(
         backdrop = backdrop,
         modifier = modifier
-            .widthIn(min = 140.dp, max = 240.dp)
+            .widthIn(max = 240.dp)
             .height(52.dp),
         shape = XNoteSmoothCornerShape(14.dp),
-        containerColor = chipContainerColor,
+        shadowEnabled = false,
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
                 .padding(start = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -73,7 +62,7 @@ private fun AgentAttachedNoteChip(
             Row(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .weight(1f, fill = true)
+                    .weight(1f, fill = false)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -98,7 +87,7 @@ private fun AgentAttachedNoteChip(
                     )
                 }
                 Column(
-                    modifier = Modifier.weight(1f, fill = true),
+                    modifier = Modifier.weight(1f, fill = false),
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Row(
@@ -139,13 +128,13 @@ private fun AgentAttachedNoteChip(
             IconButton(
                 onClick = onRemove,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(XNoteButtonSize)
                     .testTag("agent-remove-note-${note.id}"),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_keyline_stroke_x),
                     contentDescription = "移除附加笔记：${note.title}",
-                    modifier = Modifier.size(13.dp),
+                    modifier = Modifier.size(XNoteIconSizeMedium),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -202,8 +191,9 @@ fun AgentComposer(
                     )
                 }
                 files.forEach { file ->
-                    AgentFileCardView(
+                    AgentComposerFileCard(
                         card = file,
+                        backdrop = backdrop,
                         onPreview = { onPreviewFile?.invoke(file) },
                         onRemove = if (onRemoveFile != null) ({ onRemoveFile(file.id) }) else null,
                     )

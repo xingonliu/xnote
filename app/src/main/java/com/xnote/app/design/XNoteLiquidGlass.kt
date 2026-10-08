@@ -15,6 +15,7 @@ import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.Shadow
 
 // AndroidLiquidGlass dialog material copied from catalog commit 65ab177.
 
@@ -26,6 +27,7 @@ fun XNoteLiquidGlassPanel(
     modifier: Modifier = Modifier,
     shape: Shape = XNoteSmoothCornerShape(XNoteRadiusLarge),
     containerColor: Color? = null,
+    shadowEnabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() >= 0.5f
@@ -56,6 +58,7 @@ fun XNoteLiquidGlassPanel(
                 )
             },
             highlight = { Highlight.Plain },
+            shadow = if (shadowEnabled) ({ Shadow.Default }) else null,
             onDrawSurface = { drawRect(surfaceColor) },
         ),
         content = content,
