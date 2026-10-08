@@ -50,7 +50,7 @@ class AgentFileFlowTest {
             files.importBytes("周末行程.md", "text/markdown", "# 周末行程\n周六乘坐高铁，周日返程。".toByteArray())
         }
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
-        compose.onNodeWithText("Agent").performClick()
+        compose.onNodeWithContentDescription("Agent").performClick()
         compose.onNodeWithTag("agent-file-$id").performClick()
         compose.onNodeWithTag("agent-file-preview-text").assertTextContains("# 周末行程", substring = true)
         compose.onNodeWithText("保存文件", useUnmergedTree = true).assertIsEnabled()

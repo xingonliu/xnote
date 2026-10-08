@@ -2,6 +2,7 @@ package com.xnote.app.feature.agent
 
 import android.Manifest
 import android.app.NotificationManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -52,7 +53,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: PaddingValues, bottomInset: Dp, toastHostState: com.xnote.app.design.XNoteToastState, modifier: Modifier = Modifier,
-    list: LazyListState, onModalVisible: (Boolean) -> Unit = {}, onOpenModels: () -> Unit) {
+    list: LazyListState, onBack: () -> Unit, onOpenModels: () -> Unit) {
     // -- State
 
     val messageHistory by timeline.messages.collectAsState(initial = null)
@@ -117,7 +118,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     val fileCards = fileHistory.orEmpty()
     val historyLoaded = state.ready && composerHeight > 0.dp && messageHistory != null && runHistory != null &&
         queuedHistory != null && toolHistory != null && fileHistory != null && segmentHistory != null
-    val modalVisible = attachDialog || permissionRequest != null || snapshotPreview != null || queueDrawer || reviewsOpen || draftPreviewId != null || memoryOpen || filePreview != null
     val draftFiles = fileCards.filter { it.ownerType == "draft" }
     val unresolved = runs.any { it.status !in setOf(AgentRunStatus.Complete, AgentRunStatus.Failed, AgentRunStatus.Cancelled) }
     val waitingConflict = runs.firstOrNull { it.status == AgentRunStatus.WaitingConflict }
@@ -130,7 +130,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
     } == true
     val keyboardInset = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     val keyboardVisible = keyboardInset > 0.dp
-    val composerBottom = maxOf(bottomInset, keyboardInset) + 8.dp
+    val composerBottom = maxOf(bottomInset, keyboardInset) + XNoteBottomNavigationSpacing
     val bubbleViewportTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight
     val bubbleViewportBounds = remember(density, bubbleViewportTop, composerBottom, composerHeight) {
         {
@@ -170,9 +170,17 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         reviewNoteId = noteId
         reviewsOpen = true
     }
+    fun back() {
+        keyboard?.hide()
+        if (!restored) onBack() else action {
+            timeline.saveDraft(input)
+            onBack()
+        }
+    }
 
     // -- Lifecycle Hooks
 
+    BackHandler(onBack = ::back)
     LaunchedEffect(state.notice) { state.notice?.let { if (timeline.consumeNotice(it)) showNotice(it) } }
     LaunchedEffect(waitingConflict?.id, selectionConflict) {
         if (selectionConflict) showNotice("请结束当前任务，再回到笔记编辑器重新选择文字。")
@@ -182,8 +190,6 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         if (state.running && input.isNotBlank()) showNotice(
             if (draftSelection != null) "选区润色为独立任务，可从任务队列加入" else "发送后补充当前任务")
     }
-    SideEffect { onModalVisible(modalVisible) }
-    DisposableEffect(Unit) { onDispose { onModalVisible(false) } }
     LaunchedEffect(state.ready) { if (state.ready && !restored) { input = savedDraft; restored = true } }
     LaunchedEffect(historyLoaded, timelineItems, composerHeight, keyboardVisible, waitingConflict?.id, request?.id) {
         if (historyLoaded && followLatest && !list.isScrollInProgress) list.requestScrollToItem(0)
@@ -272,6 +278,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         }
         XNoteHeader(
             title = "", backdrop = backdrop,
+            onBack = ::back,
             leadingAction = XNoteHeaderAction(R.drawable.ic_agent_history, "历史记录", {
                 keyboard?.hide(); historyMenu = true; moreMenu = false; attachmentMenu = false; permissionMenu = false; messageMenu = null
             }, enabled = state.ready, popupAnchor = historyAnchor),
@@ -300,7 +307,7 @@ fun AgentScreen(timeline: AgentTimeline, library: NoteLibrary, contentPadding: P
         Column(Modifier.align(Alignment.BottomCenter)
             .windowInsetsPadding(WindowInsets.ime.union(WindowInsets(bottom = bottomInset))).padding(
             start = contentPadding.calculateStartPadding(direction), end = contentPadding.calculateEndPadding(direction),
-            bottom = 8.dp,
+            bottom = XNoteBottomNavigationSpacing,
         ).onSizeChanged { composerHeight = with(density) { it.height.toDp() } },
             verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (!state.running && (unresolved || queue.isNotEmpty())) {

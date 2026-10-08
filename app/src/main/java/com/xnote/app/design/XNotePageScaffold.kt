@@ -144,7 +144,9 @@ fun XNoteHeader(
     } else {
         XNoteButtonSize * actions.size + XNoteSpacingSmall * (actions.size - 1)
     }
-    val titlePadding = maxOf(XNoteButtonSize, trailingWidth) + XNoteSpacingMedium
+    val leadingWidth = if (onBack != null && leadingAction != null) XNoteButtonSize * 2 + XNoteSpacingSmall
+        else XNoteButtonSize
+    val titlePadding = maxOf(leadingWidth, trailingWidth) + XNoteSpacingMedium
 
     Box(
         modifier = modifier
@@ -158,34 +160,25 @@ fun XNoteHeader(
             .height(XNoteHeaderHeight)
             .padding(top = XNoteHeaderTopPadding),
     ) {
-        if (leadingAction != null) {
-            LiquidButton(onClick = leadingAction.onClick, backdrop = backdrop, enabled = leadingAction.enabled,
-                modifier = Modifier.align(Alignment.CenterStart).size(XNoteButtonSize)
-                    .then(leadingAction.popupAnchor?.let { Modifier.xNotePopupAnchor(it) } ?: Modifier)) {
-                Icon(painterResource(leadingAction.iconRes), leadingAction.contentDescription,
-                    tint = leadingAction.tint ?: MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(XNoteIconSizeMedium))
+        Row(
+            modifier = Modifier.align(Alignment.CenterStart),
+            horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                LiquidButton(onClick = onBack, backdrop = backdrop, modifier = Modifier.size(XNoteButtonSize)) {
+                    Icon(painterResource(R.drawable.ic_keyline_stroke_arrow_left), stringResource(R.string.action_back),
+                        tint = LocalContentColor.current, modifier = Modifier.size(XNoteIconSizeMedium))
+                }
             }
-        } else if (onBack != null) {
-            LiquidButton(
-                onClick = onBack,
-                backdrop = backdrop,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .size(XNoteButtonSize),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_keyline_stroke_arrow_left),
-                    contentDescription = stringResource(R.string.action_back),
-                    tint = LocalContentColor.current,
-                    modifier = Modifier.size(XNoteIconSizeMedium),
-                )
+            if (leadingAction != null) {
+                LiquidButton(onClick = leadingAction.onClick, backdrop = backdrop, enabled = leadingAction.enabled,
+                    modifier = Modifier.size(XNoteButtonSize)
+                        .then(leadingAction.popupAnchor?.let { Modifier.xNotePopupAnchor(it) } ?: Modifier)) {
+                    Icon(painterResource(leadingAction.iconRes), leadingAction.contentDescription,
+                        tint = leadingAction.tint ?: MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(XNoteIconSizeMedium))
+                }
             }
-        } else {
-            Spacer(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .size(XNoteButtonSize),
-            )
         }
 
         Text(

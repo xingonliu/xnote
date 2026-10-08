@@ -18,11 +18,11 @@ enum class AppDestination(
         tabIconRes = R.drawable.ic_keyline_fill_file_text,
         navigationIconRes = R.drawable.ic_keyline_stroke_square_pen,
     ),
-    Agent(
-        labelRes = R.string.navigation_agent,
-        titleRes = R.string.agent_title,
-        tabIconRes = R.drawable.ic_keyline_fill_star,
-        navigationIconRes = R.drawable.ic_keyline_stroke_star,
+    Stickers(
+        labelRes = R.string.navigation_stickers,
+        titleRes = R.string.navigation_stickers,
+        tabIconRes = R.drawable.ic_keyline_fill_grid_3x3,
+        navigationIconRes = R.drawable.ic_keyline_stroke_grid_3x3,
     ),
     Profile(
         labelRes = R.string.navigation_profile,

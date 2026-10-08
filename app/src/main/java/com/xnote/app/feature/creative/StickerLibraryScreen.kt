@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,7 @@ import com.xnote.app.data.db.StickerEntity
 import com.xnote.app.data.files.*
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.design.*
+import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.domain.model.newNoteId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -36,14 +39,21 @@ import kotlinx.coroutines.launch
 // -- Functions
 
 @Composable
-fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (suspend (StickerEntity) -> Unit)? = null) {
+fun StickerLibraryScreen(
+    library: NoteLibrary,
+    onBack: (() -> Unit)? = null,
+    onInsert: (suspend (StickerEntity) -> Unit)? = null,
+    contentPadding: PaddingValues? = null,
+    bottomNavigationVisible: Boolean = false,
+    gridState: LazyGridState = rememberLazyGridState(),
+    onPrimaryChromeVisible: (Boolean) -> Unit = {},
+) {
     // -- State and Variables
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val toast = LocalXNoteToast.current
     val owner = remember { "sticker-library:${newNoteId()}" }
-    val gridState = rememberLazyGridState()
     val addAnchor = rememberXNotePopupAnchor()
     val moreAnchor = rememberXNotePopupAnchor()
     var entries by remember { mutableStateOf<List<StickerEntity>?>(null) }
@@ -64,6 +74,8 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
     // -- Derived Values
 
     val selected = entries?.find { it.id == selectedId }
+    val menuBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+        if (bottomNavigationVisible) XNoteBottomNavigationHeight else XNoteBottomNavigationSpacing
     val filtered = remember(entries, search, sortByName) {
         entries.orEmpty().filter { it.name.contains(search, ignoreCase = true) }
             .let { if (sortByName) it.sortedWith(compareBy<StickerEntity> { entry -> entry.name }.thenBy { entry -> entry.id }) else it }
@@ -73,7 +85,7 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
 
     fun back() {
         if (busy) return
-        if (selectedId != null) selectedId = null else onBack()
+        if (selectedId != null) selectedId = null else onBack?.invoke()
     }
     fun import(uri: android.net.Uri?, temporary: String? = null) {
         if (uri == null) {
@@ -109,9 +121,23 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
         cameraName = null
         if (temporary != null) import(if (success) cameraUri(context, temporary) else null, temporary)
     }
+    val takePhoto: () -> Unit = {
+        try {
+            val temporary = "${newNoteId()}.jpg"
+            cameraName = temporary
+            cameraFile(context, temporary).parentFile?.mkdirs()
+            camera.launch(cameraUri(context, temporary))
+        } catch (_: Exception) {
+            cameraName?.let { cameraFile(context, it).delete() }
+            cameraName = null
+            toast.show("相机不可用")
+        }
+    }
 
     // -- Lifecycle Hooks
 
+    SideEffect { onPrimaryChromeVisible(selected == null && cutout == null) }
+    DisposableEffect(Unit) { onDispose { onPrimaryChromeVisible(true) } }
     DisposableEffect(library, owner) { onDispose { library.releaseSessionAttachments(owner) } }
     LaunchedEffect(library, loadAttempt) {
         loadFailed = false
@@ -124,7 +150,8 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
         CutoutScreen(file, library, owner, onBack = { cutout = null })
         return
     }
-    CreativePage(if (selected == null) "贴纸库" else "贴纸", ::back,
+    CreativePage(if (selected == null) "贴纸库" else "贴纸", if (selected != null || onBack != null) ::back else null,
+        contentPadding = contentPadding,
         actions = buildList {
             add(XNoteHeaderAction(R.drawable.ic_keyline_stroke_more_horizontal, if (selected == null) "排序" else "管理贴纸",
                 { moreMenu = true }, enabled = !busy, popupAnchor = moreAnchor))
@@ -135,27 +162,33 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
                 enabled = !busy, tint = MaterialTheme.colorScheme.primary) { Text(if (busy) "正在插入…" else "插入笔记") } }
         } else null,
         overlay = { glass ->
+            if (selected == null) LiquidButton(
+                onClick = takePhoto, backdrop = glass, enabled = !busy,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(
+                    end = if (contentPadding != null) contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                        else XNoteSpacingMedium,
+                    bottom = if (bottomNavigationVisible) XNoteBottomNavigationHeight + XNoteSpacingSmall
+                        else XNoteBottomNavigationSpacing,
+                ).size(XNoteCreateNoteButtonSize).testTag("xnote-sticker-camera"),
+            ) {
+                Icon(painterResource(R.drawable.ic_keyline_stroke_camera), "拍照创建贴纸",
+                    tint = LocalContentColor.current, modifier = Modifier.size(XNoteIconSizeHero))
+            }
             XNoteDropdownMenu(addMenu, { addMenu = false }, listOf(
                 XNoteDropdownMenuItem("从相册创建", {
                     try { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
                     catch (_: Exception) { toast.show("相册不可用") }
                 }),
-                XNoteDropdownMenuItem("拍照创建", {
-                    try {
-                        val temporary = "${newNoteId()}.jpg"
-                        cameraName = temporary
-                        cameraFile(context, temporary).parentFile?.mkdirs()
-                        camera.launch(cameraUri(context, temporary))
-                    } catch (_: Exception) { toast.show("相机不可用") }
-                }),
-            ), glass, anchor = addAnchor)
+                XNoteDropdownMenuItem("拍照创建", takePhoto),
+            ), glass, anchor = addAnchor, bottomInset = menuBottomInset)
             XNoteDropdownMenu(moreMenu, { moreMenu = false }, if (selected == null) listOf(
                 XNoteDropdownMenuItem("最近创建", { sortByName = false }, selected = !sortByName),
                 XNoteDropdownMenuItem("按名称", { sortByName = true }, selected = sortByName),
             ) else listOf(
                 XNoteDropdownMenuItem("重命名", { name = selected.name; renaming = true }),
                 XNoteDropdownMenuItem("删除贴纸", { deleting = true }, destructive = true),
-            ), glass, anchor = moreAnchor)
+            ), glass, anchor = moreAnchor, bottomInset = menuBottomInset)
             XNoteDialog(renaming, { if (!busy) renaming = false }, "重命名贴纸", glass,
                 XNoteDialogAction("保存", { selected?.let { entry -> action {
                     library.renameSticker(entry.id, name.trim()); renaming = false; toast.show("名称已保存")
@@ -202,7 +235,9 @@ fun StickerLibraryScreen(library: NoteLibrary, onBack: () -> Unit, onInsert: (su
                         }
                     }
                     else -> LazyVerticalGrid(GridCells.Adaptive(120.dp), Modifier.weight(1f).fillMaxWidth(), state = gridState,
-                        contentPadding = PaddingValues(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = if (contentPadding == null)
+                            XNoteCreateNoteButtonSize + XNoteBottomNavigationSpacing else XNoteSpacingSmall),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(filtered, key = { it.id }) { sticker ->
                             Column(Modifier.clip(XNoteSmoothCornerShape(16.dp)).clickable(role = Role.Button) { selectedId = sticker.id }

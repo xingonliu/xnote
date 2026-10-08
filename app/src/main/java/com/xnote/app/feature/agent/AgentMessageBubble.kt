@@ -27,7 +27,6 @@ import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
 import com.xnote.app.data.db.AgentMessageEntity
 import com.xnote.app.design.LocalXNoteInteractionSettings
-import com.xnote.app.design.XNoteBottomTabFontSize
 import com.xnote.app.design.rememberXNotePopupAnchor
 import com.xnote.app.design.xNotePopupAnchor
 import com.xnote.app.domain.agent.AgentMessageRole
@@ -36,6 +35,7 @@ import com.xnote.app.domain.agent.AgentMessageRole
 
 internal val AgentMessageGroupSpacing = 3.dp
 internal val AgentMessageSpacing = 10.dp
+private val AgentMessageFontSize = 14.sp
 private val OutgoingBlue = listOf(Color(0xFF32A5FF), Color(0xFF087AFF))
 private val HighContrastBlue = Color(0xFF0066D9)
 
@@ -127,7 +127,7 @@ internal fun AgentMessageBubble(
                 .testTag("agent-message-${message.id}"),
             color = contentColor,
             style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = XNoteBottomTabFontSize, lineHeight = 16.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp,
+                fontSize = AgentMessageFontSize, lineHeight = 18.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp,
             ),
         )
     }

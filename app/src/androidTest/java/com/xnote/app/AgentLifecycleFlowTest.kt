@@ -61,7 +61,7 @@ class AgentLifecycleFlowTest {
         }
         val timeline = AgentTimeline(db, profiles, model, scope)
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = model, agentTimeline = timeline) } }
-        compose.onNodeWithText("Agent").performClick()
+        compose.onNodeWithContentDescription("Agent").performClick()
         runBlocking { timeline.send("新建旅行计划") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingPermission } } }
         compose.onNodeWithTag("agent-authorize").performClick()
@@ -105,7 +105,7 @@ class AgentLifecycleFlowTest {
         }
         val timeline = AgentTimeline(db, profiles, model, scope)
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = model, agentTimeline = timeline) } }
-        compose.onNodeWithText("Agent").performClick()
+        compose.onNodeWithContentDescription("Agent").performClick()
         runBlocking { timeline.selectDraftNotes(listOf(note.id)); timeline.send("删除这篇笔记") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.notes().get(note.id)!!.deletedAtEpochMs != null } }
         val runId = runBlocking { db.agent().messages().first().runId!! }

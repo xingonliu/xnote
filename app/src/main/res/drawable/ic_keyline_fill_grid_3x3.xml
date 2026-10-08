@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keyline Icons "grid-3x3" rounded fill, source b83dfe19 — MIT License -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FF000000"
+        android:pathData="M6 2H8V8H2V6C2 3.79086 3.79086 2 6 2ZM10 2H14V8H10V2ZM16 2H18C20.20914 2 22 3.79086 22 6V8H16V2ZM2 10H8V14H2V10ZM10 10H14V14H10V10ZM16 10H22V14H16V10ZM2 16H8V22H6C3.79086 22 2 20.20914 2 18V16ZM10 16H14V22H10V16ZM16 16H22V18C22 20.20914 20.20914 22 18 22H16V16Z" />
+</vector>

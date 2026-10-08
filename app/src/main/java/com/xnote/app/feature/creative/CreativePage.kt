@@ -22,18 +22,21 @@ import com.xnote.app.design.*
 @Composable
 fun CreativePage(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     actions: List<XNoteHeaderAction> = emptyList(),
     toolbar: (@Composable ColumnScope.() -> Unit)? = null,
     overlay: @Composable BoxScope.(Backdrop) -> Unit = {},
+    contentPadding: PaddingValues? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = onBack != null) { onBack?.invoke() }
     XNotePageScaffold(backdrop, modifier = Modifier.xNoteOverlayInputBarrier(), scrollEdges = emptySet(),
         content = {
-            BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding().imePadding()
-                .padding(top = XNoteHeaderHeight + 12.dp, bottom = 12.dp).padding(horizontal = 16.dp)) {
+            val paddingModifier = if (contentPadding != null) Modifier.imePadding().padding(contentPadding)
+                else Modifier.safeDrawingPadding().imePadding()
+                    .padding(top = XNoteHeaderHeight + 12.dp, bottom = 12.dp).padding(horizontal = 16.dp)
+            BoxWithConstraints(Modifier.fillMaxSize().then(paddingModifier)) {
                 if (toolbar != null && maxWidth >= 600.dp && maxWidth > maxHeight) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Box(Modifier.weight(1f).fillMaxHeight(), content = content)

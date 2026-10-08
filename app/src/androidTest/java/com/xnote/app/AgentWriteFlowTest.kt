@@ -70,7 +70,7 @@ class AgentWriteFlowTest {
         }
         val timeline = AgentTimeline(db, profiles, client, scope)
         compose.setContent { XNoteTheme(reduceMotion = true) { XNoteApp(library, modelProfiles = profiles, modelClient = client, agentTimeline = timeline) } }
-        compose.onNodeWithText("Agent").performClick()
+        compose.onNodeWithContentDescription("Agent").performClick()
         runBlocking { timeline.send("帮我整理周末计划") }
         compose.waitUntil(5000) { !timeline.state.value.running && runBlocking { db.agent().unfinishedRuns().any { it.status == AgentRunStatus.WaitingConflict } } }
         compose.onNodeWithTag("agent-replan-conflict").assertIsDisplayed()

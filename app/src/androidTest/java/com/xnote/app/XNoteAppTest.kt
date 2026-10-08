@@ -15,6 +15,7 @@ import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isSelected
@@ -148,17 +149,24 @@ class XNoteAppTest {
     }
 
     @Test
-    fun bottomTabsNavigateToAgent() {
+    fun independentAgentButtonReturnsToItsOriginatingStickerTab() {
         composeRule.setContent {
             XNoteTheme {
                 XNoteApp(noteLibrary = library)
             }
         }
 
-        composeRule.onNodeWithText("Agent").performClick()
+        composeRule.onNodeWithTag("xnote-tab-Stickers").performClick()
+        composeRule.onNodeWithTag("xnote-sticker-search").assertIsDisplayed().performTextInput("旅行")
+        composeRule.onNodeWithTag("xnote-sticker-camera")
+            .assertIsDisplayed().assertWidthIsEqualTo(XNoteCreateNoteButtonSize).assertHeightIsEqualTo(XNoteCreateNoteButtonSize)
+        composeRule.onNodeWithContentDescription("Agent").performClick()
 
         composeRule.onNodeWithText("Agent 工作区已预留").assertIsDisplayed()
-        composeRule.onNode(isSelected() and hasText("Agent")).assertIsSelected()
+        composeRule.onNodeWithTag("xnote-bottom-navigation").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("返回").performClick()
+        composeRule.onNodeWithTag("xnote-tab-Stickers").assertIsSelected()
+        composeRule.onNodeWithTag("xnote-sticker-search").assertTextContains("旅行")
     }
 
     @Test

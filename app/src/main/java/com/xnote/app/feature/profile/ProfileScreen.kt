@@ -28,8 +28,6 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item {
                 XNoteSettingsSection("我的内容") {
-                    XNoteSettingsRow("贴纸库", icon = R.drawable.ic_keyline_stroke_grid_3x3, onClick = { onOpenDetail("贴纸库") })
-                    XNoteInsetDivider(startIndent = 52.dp)
                     XNoteSettingsRow("统计", icon = R.drawable.ic_keyline_stroke_list, onClick = { onOpenDetail("统计") })
                     XNoteInsetDivider(startIndent = 52.dp)
                     XNoteSettingsRow(stringResource(R.string.recycle_bin_title), icon = R.drawable.ic_keyline_stroke_bin,

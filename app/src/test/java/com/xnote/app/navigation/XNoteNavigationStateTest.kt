@@ -33,11 +33,11 @@ class XNoteNavigationStateTest {
 
     @Test
     fun openSearchPreservesCurrentDestination() {
-        val state = XNoteNavigationState(destination = AppDestination.Agent)
+        val state = XNoteNavigationState(destination = AppDestination.Stickers)
 
         val result = state.openSearch()
 
-        assertEquals(AppDestination.Agent, result.destination)
+        assertEquals(AppDestination.Stickers, result.destination)
         assertTrue(result.isSearchOpen)
     }
 
@@ -56,7 +56,7 @@ class XNoteNavigationStateTest {
         val agent = XNoteNavigationState()
             .openNotebook("book")
             .openEditor("attached-note")
-            .openDestination(AppDestination.Agent)
+            .openAgent()
         val restored = agent.copy(notesStack = decodeNotesStack(encodeNotesStack(agent.notesStack)))
         assertEquals(NotesRoute.Editor("attached-note"), restored.notesRoute)
 
@@ -67,6 +67,36 @@ class XNoteNavigationStateTest {
         assertTrue(home.notesStack.isEmpty())
         assertTrue(home.showsPrimaryChrome)
         assertEquals(NotesRoute.Home, home.popNotes().notesRoute)
+    }
+
+    @Test
+    fun agentReturnsToEachOriginatingTabWithoutChangingItsSelection() {
+        for (destination in AppDestination.entries) {
+            val origin = XNoteNavigationState(destination = destination)
+            val agent = origin.openAgent()
+            assertTrue(agent.isAgentOpen)
+            assertEquals(destination, agent.destination)
+            assertFalse(agent.showsPrimaryChrome)
+            assertEquals(origin, agent.closeAgent())
+        }
+    }
+
+    @Test
+    fun agentPreservesTheEditorStackAndSearchWhenReturning() {
+        val editor = XNoteNavigationState().openNotebook("book").openEditor("note").openSearch()
+        val agent = editor.openAgent()
+        assertEquals(editor, agent.closeAgent())
+        assertEquals(NotesRoute.Editor("note"), agent.closeAgent().notesRoute)
+        assertTrue(agent.closeAgent().isSearchOpen)
+        assertEquals(NotesRoute.Notebook("book"), agent.closeAgent().closeSearch().popNotes().notesRoute)
+    }
+
+    @Test
+    fun selectingATabClosesAgent() {
+        val result = XNoteNavigationState().openAgent().openDestination(AppDestination.Stickers)
+        assertFalse(result.isAgentOpen)
+        assertEquals(AppDestination.Stickers, result.destination)
+        assertTrue(result.showsPrimaryChrome)
     }
 
     @Test

@@ -3,6 +3,7 @@
     <string name="app_name">XNote</string>
     <string name="navigation_notes">笔记</string>
     <string name="navigation_agent">Agent</string>
+    <string name="navigation_stickers">贴纸库</string>
     <string name="navigation_profile">我的</string>
     <string name="action_search">搜索</string>
     <string name="action_back">返回</string>

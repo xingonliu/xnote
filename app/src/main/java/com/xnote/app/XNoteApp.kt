@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
@@ -73,6 +76,7 @@ import com.xnote.app.design.XNoteHeader
 import com.xnote.app.design.xNoteScrollEdgePadding
 import com.xnote.app.design.XNoteHeaderAction
 import com.xnote.app.design.XNoteBottomNavigationHeight
+import com.xnote.app.design.XNoteBottomNavigationSpacing
 import com.xnote.app.design.XNoteBottomTabIconSize
 import com.xnote.app.design.XNoteBottomTabFontSize
 import com.xnote.app.design.XNoteHeaderHeight
@@ -91,6 +95,7 @@ import com.xnote.app.design.XNoteToastState
 import com.xnote.app.design.LocalXNoteToast
 import com.xnote.app.design.liquidglass.LiquidBottomTab
 import com.xnote.app.design.liquidglass.LiquidBottomTabs
+import com.xnote.app.design.liquidglass.LiquidBottomAction
 import com.xnote.app.design.liquidglass.LiquidButton
 import com.xnote.app.data.repository.NoteLibrary
 import com.xnote.app.data.search.EmptySearchHistoryRepository
@@ -172,6 +177,7 @@ private fun XNoteAppContent(
     var statisticsNoteId by rememberSaveable { mutableStateOf<String?>(null) }
     var profilePage by rememberSaveable { mutableStateOf<String?>(null) }
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Notes.name) }
+    var isAgentOpen by rememberSaveable { mutableStateOf(false) }
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var isRecycleBinOpen by rememberSaveable { mutableStateOf(false) }
     var isAppearanceOpen by rememberSaveable { mutableStateOf(false) }
@@ -181,11 +187,14 @@ private fun XNoteAppContent(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchNotebookId by rememberSaveable { mutableStateOf<String?>(null) }
     val readerStateHolder = rememberSaveableStateHolder()
+    val stickerStateHolder = rememberSaveableStateHolder()
+    var stickerPrimaryChromeVisible by remember { mutableStateOf(true) }
     val uiState = remember { NotesUiState() }
     val homeUi = rememberNotebookHomeUiState()
     val recycleBinUiState = remember { RecycleBinUiState() }
     val navigationState = remember(
         destinationName,
+        isAgentOpen,
         isSearchOpen,
         isRecycleBinOpen,
         isAppearanceOpen,
@@ -193,6 +202,7 @@ private fun XNoteAppContent(
     ) {
         XNoteNavigationState(
             destination = AppDestination.valueOf(destinationName),
+            isAgentOpen = isAgentOpen,
             isSearchOpen = isSearchOpen,
             isRecycleBinOpen = isRecycleBinOpen,
             isAppearanceOpen = isAppearanceOpen,
@@ -206,6 +216,7 @@ private fun XNoteAppContent(
     val notebookListState = rememberLazyListState()
     val editorScrollState = rememberScrollState()
     val agentListState = rememberLazyListState()
+    val stickerGridState = rememberLazyGridState()
     val profileListState = rememberLazyListState()
     val searchListState = rememberLazyListState()
     val recycleBinListState = rememberLazyListState()
@@ -308,7 +319,7 @@ private fun XNoteAppContent(
     fun updateNavigationState(newState: XNoteNavigationState) {
         appScope.launch {
             if (newState.notesRoute != navigationState.notesRoute || newState.destination != navigationState.destination ||
-                newState.isSearchOpen != navigationState.isSearchOpen) {
+                newState.isSearchOpen != navigationState.isSearchOpen || newState.isAgentOpen != navigationState.isAgentOpen) {
                 editorSession?.flushSave()
                 if (editorSession?.saveStatus == EditorSaveStatus.Error) {
                     toastHostState.show("保存失败，请重试后再切换")
@@ -321,6 +332,7 @@ private fun XNoteAppContent(
                 uiState.moreVisible = false
             }
             destinationName = newState.destination.name
+            isAgentOpen = newState.isAgentOpen
             isSearchOpen = newState.isSearchOpen
             isRecycleBinOpen = newState.isRecycleBinOpen
             isAppearanceOpen = newState.isAppearanceOpen
@@ -356,7 +368,7 @@ private fun XNoteAppContent(
                     )
                 }
                 requireNotNull(agentTimeline).carryNote(note.id, selection, polish)
-                updateNavigationState(navigationState.openDestination(AppDestination.Agent))
+                updateNavigationState(navigationState.openAgent())
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -410,7 +422,13 @@ private fun XNoteAppContent(
 
         val destinationListState = when (destination) {
             AppDestination.Notes -> notesListState
-            AppDestination.Agent -> agentListState
+            AppDestination.Stickers -> {
+                appScope.launch {
+                    if (interactionSettings.reduceMotion) stickerGridState.scrollToItem(0)
+                    else stickerGridState.animateScrollToItem(0)
+                }
+                return
+            }
             AppDestination.Profile -> profileListState
         }
         if (destinationListState.layoutInfo.totalItemsCount == 0) return
@@ -424,6 +442,7 @@ private fun XNoteAppContent(
     }
 
     val canGoBack = uiState.selectedIds.isNotEmpty() ||
+        navigationState.isAgentOpen ||
         recycleBinUiState.selectionMode ||
         navigationState.isSearchOpen ||
         navigationState.isRecycleBinOpen ||
@@ -431,6 +450,7 @@ private fun XNoteAppContent(
         navigationState.notesRoute !is NotesRoute.Home
     BackHandler(enabled = canGoBack) {
         when {
+            navigationState.isAgentOpen -> updateNavigationState(navigationState.closeAgent())
             recycleBinUiState.selectionMode -> recycleBinUiState.finishSelection()
             uiState.selectedIds.isNotEmpty() -> uiState.selectedIds = emptySet()
             navigationState.isSearchOpen -> updateNavigationState(navigationState.closeSearch())
@@ -454,15 +474,40 @@ private fun XNoteAppContent(
             com.xnote.app.feature.agent.ModelSettingsScreen(modelProfiles, modelClient, onBack = { profilePage = null })
             return
         }
-        if (page == "贴纸库") {
-            com.xnote.app.feature.creative.StickerLibraryScreen(noteLibrary, onBack = { profilePage = null })
-            return
-        }
         ProfileDetailScreen(page, activeNotes, notebooks, agentTimeline?.noteMemory, onBack = { profilePage = null }, onOpenNote = {
             profilePage = null
             statisticsNoteId = it
             updateNavigationState(navigationState.openEditor(it))
         })
+        return
+    }
+
+    if (navigationState.isAgentOpen) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val horizontalPadding = if (maxWidth >= TabletBreakpoint) 24.dp else XNoteSpacingMedium
+            val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val agentContentPadding = PaddingValues(
+                start = horizontalPadding, end = horizontalPadding,
+                top = xNoteScrollEdgePadding(WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + XNoteHeaderHeight),
+                bottom = bottomInset + XNoteBottomNavigationSpacing,
+            )
+            if (agentTimeline != null) {
+                com.xnote.app.feature.agent.AgentScreen(
+                    timeline = agentTimeline, library = noteLibrary, contentPadding = agentContentPadding,
+                    bottomInset = bottomInset, toastHostState = toastHostState, list = agentListState,
+                    onBack = { updateNavigationState(navigationState.closeAgent()) },
+                    onOpenModels = { profilePage = "模型与服务商" },
+                )
+            } else {
+                XNotePageScaffold(backdrop = backdrop, content = {
+                    UnavailableScreen(R.string.agent_unavailable_title, R.string.agent_unavailable_description,
+                        R.drawable.ic_keyline_stroke_star, backdrop, agentContentPadding, agentListState)
+                }, overlay = { glass ->
+                    XNoteHeader("", glass, onBack = { updateNavigationState(navigationState.closeAgent()) },
+                        modifier = Modifier.align(Alignment.TopCenter), horizontalPadding = horizontalPadding)
+                })
+            }
+        }
         return
     }
 
@@ -489,8 +534,6 @@ private fun XNoteAppContent(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        var agentModalVisible by remember { mutableStateOf(false) }
-        var bottomNavigationHeight by remember { mutableStateOf(0.dp) }
         val density = androidx.compose.ui.platform.LocalDensity.current
         var noteSelectionBarHeight by remember { mutableStateOf(0.dp) }
         var recycleSelectionBarHeight by remember { mutableStateOf(96.dp) }
@@ -519,17 +562,18 @@ private fun XNoteAppContent(
                 onOpenAgent = ::openAgent,
                 navigationRail = { railBackdrop ->
                     XNoteNavigationRail(navigationState.destination, { updateNavigationState(navigationState.openDestination(it)) },
-                        railBackdrop, Modifier.align(Alignment.CenterStart))
+                        { updateNavigationState(navigationState.openAgent()) }, railBackdrop, Modifier.align(Alignment.CenterStart))
                 },
             )
             return@BoxWithConstraints
         }
-        val showsPrimaryChrome = navigationState.showsPrimaryChrome ||
-            (isTablet && navigationState.isSearchOpen)
+        val showsPrimaryChrome = (navigationState.showsPrimaryChrome ||
+            (isTablet && navigationState.isSearchOpen)) &&
+            (navigationState.destination != AppDestination.Stickers || stickerPrimaryChromeVisible)
         val showsShellHeader = !navigationState.isRecycleBinOpen &&
             !navigationState.isAppearanceOpen &&
             (navigationState.isSearchOpen ||
-                (navigationState.destination != AppDestination.Agent && navigationState.showsNotesPrimaryChrome))
+                (navigationState.destination != AppDestination.Stickers && navigationState.showsNotesPrimaryChrome))
         val isEditor = navigationState.destination == AppDestination.Notes &&
             navigationState.notesRoute is NotesRoute.Editor
         val showsEditorToolbar = isEditor
@@ -549,7 +593,7 @@ private fun XNoteAppContent(
             showsRecycleSelection -> recycleSelectionBarHeight + XNoteSpacingSmall * 2
             showsNoteSelection -> noteSelectionBarHeight +
                 if (showsBottomNavigation) XNoteBottomNavigationHeight + XNoteSpacingSmall else XNoteSpacingMedium
-            showsBottomNavigation && navigationState.destination == AppDestination.Notes ->
+            showsBottomNavigation && navigationState.destination in setOf(AppDestination.Notes, AppDestination.Stickers) ->
                 XNoteBottomNavigationHeight + XNoteSpacingSmall + XNoteCreateNoteButtonSize
             showsBottomNavigation -> XNoteBottomNavigationHeight
             navigationState.destination == AppDestination.Notes &&
@@ -584,7 +628,7 @@ private fun XNoteAppContent(
             navigationState.isRecycleBinOpen -> recycleBinListState
             else -> when (navigationState.destination) {
                 AppDestination.Notes -> notesListState
-                AppDestination.Agent -> agentListState
+                AppDestination.Stickers -> notesListState
                 AppDestination.Profile -> profileListState
             }
         }
@@ -601,9 +645,7 @@ private fun XNoteAppContent(
             (isEditor || navigationState.notesRoute is NotesRoute.Notebook ||
                 navigationState.notesRoute is NotesRoute.Collection)
         val showsBottomBlur = showsBottomNavigation || showsRecycleSelection || showsNotesBottomControls
-        val agentManagesScrollEdges = navigationState.destination == AppDestination.Agent && agentTimeline != null &&
-            !navigationState.isRecycleBinOpen && !navigationState.isAppearanceOpen
-        val scrollEdges = if (navigationState.isSearchOpen || agentManagesScrollEdges) emptySet() else if (showsBottomBlur) {
+        val scrollEdges = if (navigationState.isSearchOpen || navigationState.destination == AppDestination.Stickers) emptySet() else if (showsBottomBlur) {
             setOf(XNoteScrollEdge.Top, XNoteScrollEdge.Bottom)
         } else {
             setOf(XNoteScrollEdge.Top)
@@ -633,11 +675,10 @@ private fun XNoteAppContent(
                 },
                 content = {
                     DestinationContent(
-                        agentTimeline = agentTimeline,
-                        onAgentModalVisible = { agentModalVisible = it },
-                        agentBottomInset = if (showsBottomNavigation) bottomNavigationHeight.takeIf { it > 0.dp }
-                            ?: (navigationBarHeight + 72.dp) else navigationBarHeight,
-                        onOpenAgentModels = { profilePage = "模型与服务商" },
+                        stickerGridState = stickerGridState,
+                        stickerStateHolder = stickerStateHolder,
+                        showsBottomNavigation = showsBottomNavigation,
+                        onStickerPrimaryChromeVisible = { stickerPrimaryChromeVisible = it },
                         navigationState = navigationState,
                         noteLibrary = noteLibrary,
                         uiState = uiState,
@@ -678,8 +719,6 @@ private fun XNoteAppContent(
                     )
                 },
                 overlay = overlay@ { contentBackdrop ->
-                    // Agent dialogs cover the page; shell controls must not overlap or receive input above them.
-                    if (agentModalVisible) return@overlay
                     if (showsShellHeader) {
                         XNoteHeader(
                             title = if (navigationState.isSearchOpen) {
@@ -728,6 +767,7 @@ private fun XNoteAppContent(
                                 onDestinationSelected = {
                                     updateNavigationState(navigationState.openDestination(it))
                                 },
+                                onOpenAgent = { updateNavigationState(navigationState.openAgent()) },
                                 backdrop = backdrop,
                                 modifier = Modifier.align(Alignment.CenterStart),
                             )
@@ -738,10 +778,9 @@ private fun XNoteAppContent(
                                     updateNavigationState(navigationState.openDestination(it))
                                 },
                                 onDestinationReselected = ::resetDestination,
+                                onOpenAgent = { updateNavigationState(navigationState.openAgent()) },
                                 backdrop = contentBackdrop,
-                                modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged {
-                                    bottomNavigationHeight = with(density) { it.height.toDp() }
-                                },
+                                modifier = Modifier.align(Alignment.BottomCenter),
                             )
                         }
                     }
@@ -839,10 +878,10 @@ private fun XNoteAppContent(
 
 @Composable
 private fun DestinationContent(
-    agentTimeline: com.xnote.app.data.agent.AgentTimeline?,
-    onAgentModalVisible: (Boolean) -> Unit,
-    agentBottomInset: androidx.compose.ui.unit.Dp,
-    onOpenAgentModels: () -> Unit,
+    stickerGridState: LazyGridState,
+    stickerStateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
+    showsBottomNavigation: Boolean,
+    onStickerPrimaryChromeVisible: (Boolean) -> Unit,
     navigationState: XNoteNavigationState,
     noteLibrary: NoteLibrary,
     uiState: NotesUiState,
@@ -978,15 +1017,13 @@ private fun DestinationContent(
             }
         }
 
-        AppDestination.Agent -> if (agentTimeline != null) com.xnote.app.feature.agent.AgentScreen(agentTimeline, noteLibrary, contentPadding, agentBottomInset, toastHostState, modifier, listState, onAgentModalVisible, onOpenAgentModels) else UnavailableScreen(
-            titleRes = R.string.agent_unavailable_title,
-            descriptionRes = R.string.agent_unavailable_description,
-            iconRes = R.drawable.ic_keyline_stroke_star,
-            backdrop = backdrop,
-            contentPadding = contentPadding,
-            listState = listState,
-            modifier = modifier,
-        )
+        AppDestination.Stickers -> stickerStateHolder.SaveableStateProvider("stickers") {
+            com.xnote.app.feature.creative.StickerLibraryScreen(
+                library = noteLibrary, contentPadding = contentPadding, gridState = stickerGridState,
+                bottomNavigationVisible = showsBottomNavigation,
+                onPrimaryChromeVisible = onStickerPrimaryChromeVisible,
+            )
+        }
 
         AppDestination.Profile -> ProfileScreen(
             onOpenDetail = onOpenProfileDetail,
@@ -1007,6 +1044,7 @@ private fun XNoteBottomNavigation(
     currentDestination: AppDestination,
     onDestinationSelected: (AppDestination) -> Unit,
     onDestinationReselected: (AppDestination) -> Unit,
+    onOpenAgent: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
@@ -1014,46 +1052,53 @@ private fun XNoteBottomNavigation(
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val iconColorFilter = remember(contentColor) { ColorFilter.tint(contentColor) }
 
-    LiquidBottomTabs(
-        selectedTabIndex = { currentDestination.ordinal },
-        onTabSelected = { index ->
-            val destination = AppDestination.entries[index]
-            if (destination != currentDestination) {
-                onDestinationSelected(destination)
-            }
-        },
-        backdrop = backdrop,
-        tabsCount = AppDestination.entries.size,
-        modifier = modifier
-            .testTag("xnote-bottom-navigation")
-            .navigationBarsPadding()
-            .padding(horizontal = 36.dp)
-            .padding(bottom = 16.dp),
+    Row(
+        modifier = modifier.testTag("xnote-bottom-navigation").navigationBarsPadding()
+            .padding(start = XNoteSpacingMedium, end = XNoteSpacingMedium, bottom = XNoteBottomNavigationSpacing),
+        horizontalArrangement = Arrangement.spacedBy(XNoteSpacingSmall),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppDestination.entries.forEach { destination ->
-            val iconPainter = painterResource(destination.tabIconRes)
-            val label = stringResource(destination.labelRes)
-            val isSelected = destination == currentDestination
-            LiquidBottomTab(
-                onClick = {
-                    if (isSelected) {
-                        onDestinationReselected(destination)
-                    } else {
-                        onDestinationSelected(destination)
-                    }
-                },
-                modifier = Modifier.semantics { this.selected = isSelected },
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(XNoteBottomTabIconSize)
-                        .paint(iconPainter, colorFilter = iconColorFilter),
-                )
-                BasicText(
-                    text = label,
-                    style = TextStyle(color = contentColor, fontSize = XNoteBottomTabFontSize),
-                )
+        LiquidBottomTabs(
+            selectedTabIndex = { currentDestination.ordinal },
+            onTabSelected = { index ->
+                val destination = AppDestination.entries[index]
+                if (destination != currentDestination) {
+                    onDestinationSelected(destination)
+                }
+            },
+            backdrop = backdrop,
+            tabsCount = AppDestination.entries.size,
+            modifier = Modifier.weight(1f),
+        ) {
+            AppDestination.entries.forEach { destination ->
+                val iconPainter = painterResource(destination.tabIconRes)
+                val label = stringResource(destination.labelRes)
+                val isSelected = destination == currentDestination
+                LiquidBottomTab(
+                    onClick = {
+                        if (isSelected) {
+                            onDestinationReselected(destination)
+                        } else {
+                            onDestinationSelected(destination)
+                        }
+                    },
+                    modifier = Modifier.testTag("xnote-tab-${destination.name}").semantics { this.selected = isSelected },
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(XNoteBottomTabIconSize)
+                            .paint(iconPainter, colorFilter = iconColorFilter),
+                    )
+                    BasicText(
+                        text = label,
+                        style = TextStyle(color = contentColor, fontSize = XNoteBottomTabFontSize),
+                    )
+                }
             }
+        }
+        LiquidBottomAction(onOpenAgent, backdrop, Modifier.testTag("xnote-open-agent")) {
+            Icon(painterResource(R.drawable.ic_keyline_fill_star), stringResource(R.string.navigation_agent),
+                tint = contentColor, modifier = Modifier.size(XNoteBottomTabIconSize))
         }
     }
 }
@@ -1062,6 +1107,7 @@ private fun XNoteBottomNavigation(
 private fun XNoteNavigationRail(
     currentDestination: AppDestination,
     onDestinationSelected: (AppDestination) -> Unit,
+    onOpenAgent: () -> Unit,
     backdrop: Backdrop,
     modifier: Modifier = Modifier,
 ) {
@@ -1089,6 +1135,10 @@ private fun XNoteNavigationRail(
                     backdrop = backdrop,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+            LiquidBottomAction(onOpenAgent, backdrop, Modifier.align(Alignment.CenterHorizontally).testTag("xnote-open-agent")) {
+                Icon(painterResource(R.drawable.ic_keyline_stroke_star), stringResource(R.string.navigation_agent),
+                    tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(XNoteNavigationRailIconSize))
             }
         }
     }
