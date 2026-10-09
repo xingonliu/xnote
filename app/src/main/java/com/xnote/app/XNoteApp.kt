@@ -63,6 +63,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -1051,6 +1053,7 @@ private fun XNoteBottomNavigation(
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val iconColorFilter = remember(contentColor) { ColorFilter.tint(contentColor) }
+    val agentLabel = stringResource(R.string.navigation_agent)
 
     Row(
         modifier = modifier.testTag("xnote-bottom-navigation").navigationBarsPadding()
@@ -1097,8 +1100,21 @@ private fun XNoteBottomNavigation(
             }
         }
         LiquidBottomAction(onOpenAgent, backdrop, Modifier.testTag("xnote-open-agent")) {
-            Icon(painterResource(R.drawable.ic_keyline_fill_star), stringResource(R.string.navigation_agent),
-                tint = contentColor, modifier = Modifier.size(XNoteBottomTabIconSize))
+            Column(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = agentLabel },
+                verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(XNoteBottomTabIconSize)
+                        .paint(painterResource(R.drawable.ic_keyline_fill_star), colorFilter = iconColorFilter),
+                )
+                BasicText(
+                    text = agentLabel,
+                    style = TextStyle(color = contentColor, fontSize = XNoteBottomTabFontSize),
+                )
+            }
         }
     }
 }

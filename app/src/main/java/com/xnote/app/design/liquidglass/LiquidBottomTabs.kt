@@ -59,6 +59,8 @@ import kotlin.math.sign
 
 // Adapted from AndroidLiquidGlass catalog commit 65ab177 under Apache-2.0.
 
+// -- Functions
+
 @Composable
 fun LiquidBottomTabs(
     selectedTabIndex: () -> Int,
@@ -70,9 +72,7 @@ fun LiquidBottomTabs(
 ) {
     val isLightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     val accentColor = MaterialTheme.colorScheme.primary
-    val containerColor =
-        if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
-        else Color(0xFF121212).copy(0.4f)
+    val containerColor = liquidBottomNavigationContainerColor(isLightTheme)
 
     val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
     val currentOnTabSelected by rememberUpdatedState(onTabSelected)
@@ -150,8 +150,8 @@ fun LiquidBottomTabs(
         val interactiveHighlight = remember(animationScope) {
             InteractiveHighlight(
                 animationScope = animationScope,
-                surfaceAlpha = 0.08f,
-                fallbackSurfaceAlpha = 0.25f,
+                surfaceAlpha = LiquidBottomNavigationSurfaceAlpha,
+                fallbackSurfaceAlpha = LiquidBottomNavigationFallbackSurfaceAlpha,
                 position = { size, _ ->
                     Offset(
                         if (isLtr) (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
@@ -167,27 +167,20 @@ fun LiquidBottomTabs(
                 .graphicsLayer {
                     translationX = panelOffset
                 }
-                .clip(Capsule())
-                .drawBackdrop(
+                .liquidBottomNavigationSurface(
                     backdrop = backdrop,
-                    shape = { Capsule() },
-                    effects = {
-                        vibrancy()
-                        blur(8.dp.toPx())
-                        lens(24.dp.toPx(), 24.dp.toPx())
-                    },
+                    containerColor = containerColor,
                     layerBlock = {
                         val progress = dampedDragAnimation.pressProgress
                         val scale = lerp(1f, 1f + 16.dp.toPx() / size.width, progress)
                         scaleX = scale
                         scaleY = scale
                     },
-                    onDrawSurface = { drawRect(containerColor) },
                 )
                 .then(interactiveHighlight.modifier)
-                .height(56.dp)
+                .height(LiquidBottomNavigationHeight)
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(LiquidBottomNavigationPadding),
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )
@@ -225,7 +218,7 @@ fun LiquidBottomTabs(
                         onDrawSurface = { drawRect(containerColor) },
                     )
                     .then(interactiveHighlight.modifier)
-                    .height(48.dp)
+                    .height(LiquidBottomNavigationContentHeight)
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
@@ -287,7 +280,7 @@ fun LiquidBottomTabs(
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     },
                 )
-                .height(48.dp)
+                .height(LiquidBottomNavigationContentHeight)
                 .fillMaxWidth(1f / tabsCount),
         )
     }
