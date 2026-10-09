@@ -14,8 +14,8 @@ import com.kyant.shapes.Capsule
 
 // -- Constants
 
-internal val LiquidBottomNavigationHeight = 56.dp
-internal val LiquidBottomNavigationContentHeight = 48.dp
+internal val LiquidBottomNavigationHeight = 64.dp
+internal val LiquidBottomNavigationContentHeight = 56.dp
 internal val LiquidBottomNavigationPadding = 4.dp
 internal const val LiquidBottomNavigationSurfaceAlpha = 0.08f
 internal const val LiquidBottomNavigationFallbackSurfaceAlpha = 0.25f

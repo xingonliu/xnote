@@ -11,7 +11,7 @@ XNote 是一个面向 Android 13 及以上手机和平板的本地优先笔记�
 - Kotlin/Compose Compiler 2.3.21、Compose BOM 2026.08.00。
 - Room 3.0.2、`BundledSQLiteDriver`（SQLite 2.7.0，用于 FTS5）、DataStore Preferences 1.2.1、WorkManager 2.11.2、kotlinx.serialization JSON 1.11.0、kotlinx.coroutines Android/Test 1.11.0。
 - AndroidLiquidGlass `io.github.kyant0:backdrop:2.0.1` 与 Shapes `1.2.1` 均固定版本。
-- 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方；玻璃本体为 56 dp、滑块为 48 dp，外层导航占位保持 88 dp，并用滑块路径切割出主题色图标与文字。主 tabs 为笔记、贴纸库、我的，右侧独立 56 dp Agent 圆形按钮与 tabs 复用同一玻璃外壳、胶囊裁剪及按压高光强度；图标与 12 sp 标签均纵向居中排列、间距 2 dp。底部安全区上额外留白 16 dp。
+- 手机一级导航采用 AndroidLiquidGlass 官方 catalog 的 `LiquidBottomTabs` / `LiquidBottomTab` 默认材质配方和示例高度；玻璃本体为 64 dp、滑块为 56 dp，内容内边距为 4 dp，外层导航占位为 96 dp，并用滑块路径切割出主题色图标与文字。主 tabs 为笔记、贴纸库、我的，右侧独立 64 dp Agent 圆形按钮与 tabs 共用高度令牌、玻璃外壳、胶囊裁剪及按压高光强度；图标与 12 sp 标签均纵向居中排列、间距 2 dp。底部安全区上额外留白 16 dp。
 - AndroidLiquidGlass 发布物只提供 Backdrop/Lens 等底层能力，不打包高层组件；项目优先采用官方 catalog 已有实现，只在 catalog 没有对应组件时创建基于该库的最薄适配层。
 - 界面矢量图标统一来自 Keyline Icons 的 Rounded 资源（既有提交 `14cd695f`，编辑排版新增提交 `b83dfe19`），以 24 × 24 官方 SVG 为源转换为 Android `VectorDrawable`；手机 Tabbar 使用 Fill，其余界面使用 Stroke，并通过 16/20/24/40 dp 语义令牌分级。完整规则见 [UI 设计规范](./docs/XNote%20UI%20设计规范.md)。
 - `XNotePageScaffold` 已统一系统安全区、页面加载/错误与基于 Backdrop 的 1 px 模糊与背景渐隐；滚动列表与设置按实际滚动状态显示 128 dp 边缘效果，画布、预览和分页页面不显示。模糊半径固定为 1 个物理像素，正文越靠近生效边缘越融入主题底色，仅在屏幕边缘完全覆盖。编辑器的工具栏与导航栏留白位于滚动内容内部，正文可在按钮后方连续渐隐。
